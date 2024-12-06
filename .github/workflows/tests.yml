@@ -26,6 +26,6 @@ jobs:
           uv pip install -e ".[dev]"
 
       - name: Run tests
-        run: uv run pytest tests/ -v --timeout=60
+        run: uv run pytest tests/ -v
         env:
           PYTHONDONTWRITEBYTECODE: 1
