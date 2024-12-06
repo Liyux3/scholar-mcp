@@ -2,15 +2,16 @@
 
 ## Overview
 
-MCP server for academic paper search, built on Semantic Scholar's Academic Graph API (214M+ papers). Exposes 8 tools via FastMCP stdio transport, with arXiv and Google Scholar as fallbacks.
+MCP server for academic paper search, built on Semantic Scholar's Academic Graph API (214M+ papers). Exposes 8 tools via FastMCP stdio transport, with arXiv, CORE, and Google Scholar as fallbacks.
 
 ## Module Map
 
 ```
 scholar_mcp/
-  config.py        — env var config (S2_API_KEY, DOWNLOAD_DIR, S2_TIMEOUT)
+  config.py        — env var config (S2_API_KEY, CORE_API_KEY, DOWNLOAD_DIR, S2_TIMEOUT)
   s2_client.py     — core Semantic Scholar API client (direct httpx, not the PyPI wrapper)
   arxiv_client.py  — arXiv search fallback via Atom feed + feedparser
+  core_client.py   — CORE API v3 client (250M+ open access, search + PDF discovery)
   scholar_client.py — Google Scholar HTML scraping fallback (last resort)
   pdf_utils.py     — PDF download chain + text extraction (pypdf)
   server.py        — FastMCP server, 8 tool definitions, fallback orchestration
@@ -25,6 +26,8 @@ User query → server.py (tool dispatch)
                 ↓ fails?
         arxiv_client.py (arXiv Atom feed)
                 ↓ fails?
+        core_client.py (CORE API v3, institutional repos)
+                ↓ fails?
         scholar_client.py (Google Scholar scrape)
                 ↓ fails?
         error response
@@ -32,20 +35,20 @@ User query → server.py (tool dispatch)
 
 PDF download chain (pdf_utils.py):
 ```
-S2 open_access_url → arXiv direct → bioRxiv/medRxiv (DOI 10.1101/*) → fail with links
+S2 open_access_url → arXiv direct → CORE (by DOI/title) → bioRxiv/medRxiv (DOI 10.1101/*) → fail with links
 ```
 
 ## Tools (8 total)
 
 | Tool | Source | Fallback |
 |------|--------|----------|
-| search_papers | S2 → arXiv → Google Scholar | full chain |
+| search_papers | S2 → arXiv → CORE → Google Scholar | full chain |
 | get_paper | S2 only | — |
 | get_citations | S2 only | — |
 | get_references | S2 only | — |
 | recommend_papers | S2 Recommendations API | — |
 | search_authors | S2 only | — |
-| download_paper | S2 open access → arXiv → bioRxiv | multi-source |
+| download_paper | S2 open access → arXiv → CORE → bioRxiv | multi-source |
 | read_paper | download_paper + pypdf extract | — |
 
 ## Key Design Decisions
@@ -59,6 +62,14 @@ S2 open_access_url → arXiv direct → bioRxiv/medRxiv (DOI 10.1101/*) → fail
 4. **`show_banner=False` on FastMCP**: Required for stdio transport. The rich-formatted startup banner corrupts JSON-RPC protocol on stdout.
 
 5. **Google Scholar as last resort only**: HTML scraping, no official API, risk of CAPTCHA/IP blocking. Random delays (1.5-3s) between requests.
+
+6. **CORE for institutional PDF access** (v0.2.0): 250M+ open access papers from 10,000+ university repositories. Main value is PDF discovery for papers where S2 has no open access link but a preprint/postprint exists in an institutional repo. Quality sorting: results with downloadUrl and higher citations ranked first.
+
+## CORE API Endpoints Used
+
+- `GET /v3/search/works/?q=...&limit=...` — search works, supports DOI and title queries
+- Auth: Optional Bearer token via `CORE_API_KEY` env var (free at core.ac.uk)
+- Key fields: `downloadUrl`, `sourceFulltextUrls`, `citationCount`, `doi`
 
 ## S2 API Endpoints Used
 

@@ -3,6 +3,7 @@ from fastmcp import FastMCP
 from . import config
 from . import s2_client
 from . import arxiv_client
+from . import core_client
 from . import scholar_client
 from . import pdf_utils
 
@@ -56,7 +57,15 @@ def search_papers(
     except Exception:
         pass
 
-    # Fallback 2: Google Scholar
+    # Fallback 2: CORE
+    try:
+        results = core_client.search_papers(query, limit=limit)
+        if results:
+            return json.dumps(results, indent=2, default=str)
+    except Exception:
+        pass
+
+    # Fallback 3: Google Scholar
     try:
         results = scholar_client.search_papers(query, max_results=limit)
         if results:
