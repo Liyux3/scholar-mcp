@@ -46,13 +46,13 @@ claude mcp add scholar -e S2_API_KEY=your_key -- uvx scholar-mcp
 - **Author search** with h-index, affiliations, paper counts
 - **PDF download** with smart fallback chain (Semantic Scholar -> arXiv -> CORE -> bioRxiv/medRxiv)
 - **Full-text extraction** from downloaded PDFs
-- **Fallback search** via arXiv, [CORE](https://core.ac.uk/) (250M+ open access papers), and Google Scholar
+- **Fallback search** via arXiv, [CORE](https://core.ac.uk/) (250M+ open access papers), [PubMed](https://pubmed.ncbi.nlm.nih.gov/) (36M+ biomedical), and Google Scholar
 
 ## Tools
 
 | Tool | Description |
 |------|-------------|
-| `search_papers` | Search 214M+ papers with year, venue, field, citation filters. Falls back to arXiv, CORE, then Google Scholar |
+| `search_papers` | Search 214M+ papers with year, venue, field, citation filters. Falls back to arXiv, CORE, PubMed, then Google Scholar |
 | `get_paper` | Paper details by Semantic Scholar ID, DOI, ArXiv ID (`ArXiv:xxxx`), or PMID (`PMID:xxxx`) |
 | `get_citations` | Papers that cite a given paper (up to 1000) |
 | `get_references` | Papers referenced by a given paper (up to 1000) |
@@ -113,7 +113,7 @@ uv run pytest tests/
 ## How It Works
 
 ```
-Search:     S2 (214M) -> arXiv (preprints) -> CORE (institutional) -> Google Scholar (scraping)
+Search:     S2 (214M) -> arXiv (preprints) -> CORE (institutional) -> PubMed (biomedical) -> Google Scholar (scraping)
 Download:   S2 open access -> arXiv direct -> CORE (by DOI/title) -> bioRxiv/medRxiv -> fail
 ```
 

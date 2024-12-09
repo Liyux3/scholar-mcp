@@ -12,6 +12,7 @@ scholar_mcp/
   s2_client.py     — core Semantic Scholar API client (direct httpx, not the PyPI wrapper)
   arxiv_client.py  — arXiv search fallback via Atom feed + feedparser
   core_client.py   — CORE API v3 client (250M+ open access, search + PDF discovery)
+  pubmed_client.py — PubMed E-utilities client (36M+ biomedical papers)
   scholar_client.py — Google Scholar HTML scraping fallback (last resort)
   pdf_utils.py     — PDF download chain + text extraction (pypdf)
   server.py        — FastMCP server, 8 tool definitions, fallback orchestration
@@ -28,6 +29,8 @@ User query → server.py (tool dispatch)
                 ↓ fails?
         core_client.py (CORE API v3, institutional repos)
                 ↓ fails?
+        pubmed_client.py (PubMed E-utilities, biomedical)
+                ↓ fails?
         scholar_client.py (Google Scholar scrape)
                 ↓ fails?
         error response
@@ -42,7 +45,7 @@ S2 open_access_url → arXiv direct → CORE (by DOI/title) → bioRxiv/medRxiv 
 
 | Tool | Source | Fallback |
 |------|--------|----------|
-| search_papers | S2 → arXiv → CORE → Google Scholar | full chain |
+| search_papers | S2 → arXiv → CORE → PubMed → Google Scholar | full chain |
 | get_paper | S2 only | — |
 | get_citations | S2 only | — |
 | get_references | S2 only | — |
