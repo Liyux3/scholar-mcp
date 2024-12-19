@@ -5,7 +5,16 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io)
 
-The most comprehensive MCP server for academic paper search. Covers **~97% of all peer-reviewed literature** via [Semantic Scholar](https://www.semanticscholar.org/) with 5+ secondary sources (arXiv, CORE, PubMed, bioRxiv/medRxiv, Google Scholar). Search, cite, download, and read papers directly from Claude Code or any MCP client.
+A fused MCP server for academic paper search, cite, download, and read paper contents(gists, full text) online.
+
+Roughly covers ~97% of existing literature/papers via: 
+
+1. [Semantic Scholar](https://www.semanticscholar.org/)
+2. arXiv
+3. CORE
+4. PubMed
+5. bioRxiv/medRxiv
+6. Google Scholar
 
 ## Quick Start
 
