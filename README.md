@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io)
 
-A fused MCP server for academic paper search, cite, download, and read paper contents(gists, full text) online.
+A fused A Model Context Protocol(MCP) server for academic paper search, cite, download, and read paper contents(gists, full text).
 
 Roughly covers ~97% of existing literature/papers via: 
 
