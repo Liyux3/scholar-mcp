@@ -8,8 +8,64 @@ from . import core_client
 from . import pubmed_client
 from . import scholar_client
 from . import pdf_utils
+from . import relevance
 
 mcp = FastMCP("scholar-mcp")
+
+
+def _collect_primary(query, search_query, limit, year, venue, fos_list,
+                     min_citations, open_access_only):
+    """Query S2 and arXiv, merge results. Returns (papers, sources_used, sources_failed)."""
+    all_papers = []
+    sources_used = []
+    sources_failed = []
+
+    try:
+        s2_results = s2_client.search_papers(
+            search_query, limit=limit,
+            year=year or None,
+            venue=venue or None,
+            fields_of_study=fos_list,
+            min_citations=min_citations,
+            open_access_only=open_access_only,
+        )
+        if s2_results:
+            all_papers.extend(s2_results)
+            sources_used.append("semantic_scholar")
+    except Exception as e:
+        sources_failed.append(f"semantic_scholar: {type(e).__name__}")
+
+    try:
+        arxiv_results = arxiv_client.search_papers(search_query, max_results=limit)
+        if arxiv_results:
+            all_papers.extend(arxiv_results)
+            sources_used.append("arxiv")
+    except Exception as e:
+        sources_failed.append(f"arxiv: {type(e).__name__}")
+
+    return all_papers, sources_used, sources_failed
+
+
+def _collect_fallback(query, limit, sources_failed):
+    """Try CORE, PubMed, Google Scholar as last resort. Returns (papers, sources_used)."""
+    sources_used = []
+
+    fallbacks = [
+        ("core", lambda: core_client.search_papers(query, limit=limit)),
+        ("pubmed", lambda: pubmed_client.search_papers(query, max_results=limit)),
+        ("google_scholar", lambda: scholar_client.search_papers(query, max_results=limit)),
+    ]
+
+    for name, fetch in fallbacks:
+        try:
+            results = fetch()
+            if results:
+                sources_used.append(name)
+                return results, sources_used
+        except Exception as e:
+            sources_failed.append(f"{name}: {type(e).__name__}")
+
+    return [], sources_used
 
 
 @mcp.tool()
@@ -35,66 +91,47 @@ def search_papers(
         open_access_only: Only return papers with free PDF access
     """
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
+    search_query = relevance.optimize_query(query)
 
-    sources_tried = []
+    all_papers, sources_used, sources_failed = _collect_primary(
+        query, search_query, limit, year, venue, fos_list,
+        min_citations, open_access_only,
+    )
 
-    # Primary: Semantic Scholar
-    try:
-        results = s2_client.search_papers(
-            query, limit=limit,
-            year=year or None,
-            venue=venue or None,
-            fields_of_study=fos_list,
-            min_citations=min_citations,
-            open_access_only=open_access_only,
-        )
-        if results:
-            return json.dumps(results, indent=2, default=str)
-    except Exception as e:
-        sources_tried.append(f"semantic_scholar: {type(e).__name__}")
+    used_fallback = False
+    if not all_papers:
+        fallback_papers, fb_sources = _collect_fallback(search_query, limit, sources_failed)
+        all_papers = fallback_papers
+        sources_used.extend(fb_sources)
+        used_fallback = True
 
-    # Fallback 1: arXiv (sorted by relevance)
-    try:
-        results = arxiv_client.search_papers(query, max_results=limit)
-        if results:
-            return json.dumps(results, indent=2, default=str)
-    except Exception as e:
-        sources_tried.append(f"arxiv: {type(e).__name__}")
+    total_before = len(all_papers)
+    all_papers = relevance.deduplicate(all_papers)
 
-    # Fallback 2: OpenReview (only if credentials configured)
-    if openreview_client.is_configured():
-        try:
-            results = openreview_client.search_papers(query, max_results=limit)
-            if results:
-                return json.dumps(results, indent=2, default=str)
-        except Exception as e:
-            sources_tried.append(f"openreview: {type(e).__name__}")
+    if fos_list and used_fallback:
+        all_papers = relevance.filter_by_fields(all_papers, fos_list)
 
-    # Fallback 3: CORE
-    try:
-        results = core_client.search_papers(query, limit=limit)
-        if results:
-            return json.dumps(results, indent=2, default=str)
-    except Exception as e:
-        sources_tried.append(f"core: {type(e).__name__}")
+    scored = relevance.score_results(query, all_papers, min_score=0.05)
+    results = scored[:limit]
 
-    # Fallback 4: PubMed
-    try:
-        results = pubmed_client.search_papers(query, max_results=limit)
-        if results:
-            return json.dumps(results, indent=2, default=str)
-    except Exception as e:
-        sources_tried.append(f"pubmed: {type(e).__name__}")
+    if not results:
+        return json.dumps({
+            "error": "No relevant results found.",
+            "_meta": {
+                "sources_used": sources_used,
+                "sources_failed": sources_failed,
+            },
+        })
 
-    # Fallback 5: Google Scholar
-    try:
-        results = scholar_client.search_papers(query, max_results=limit)
-        if results:
-            return json.dumps(results, indent=2, default=str)
-    except Exception as e:
-        sources_tried.append(f"google_scholar: {type(e).__name__}")
-
-    return json.dumps({"error": "Search failed on all sources.", "sources_tried": sources_tried})
+    return json.dumps({
+        "results": results,
+        "_meta": {
+            "sources_used": sources_used,
+            "sources_failed": sources_failed,
+            "total_before_filter": total_before,
+            "total_after_filter": len(results),
+        },
+    }, indent=2, default=str)
 
 
 @mcp.tool()
