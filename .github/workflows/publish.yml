@@ -19,6 +19,6 @@ jobs:
         run: uv build
 
       - name: Publish to PyPI
-        run: uv publish
+        run: uv publish --check-url https://pypi.org/simple
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
