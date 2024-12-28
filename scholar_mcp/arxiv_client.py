@@ -9,7 +9,7 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
     params = {
         "search_query": f"all:{query}",
         "max_results": max_results,
-        "sortBy": "submittedDate",
+        "sortBy": "relevance",
         "sortOrder": "descending",
     }
     response = httpx.get(ARXIV_API_URL, params=params, timeout=30)

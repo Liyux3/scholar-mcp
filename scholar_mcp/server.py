@@ -3,6 +3,7 @@ from fastmcp import FastMCP
 from . import config
 from . import s2_client
 from . import arxiv_client
+from . import openreview_client
 from . import core_client
 from . import pubmed_client
 from . import scholar_client
@@ -35,6 +36,8 @@ def search_papers(
     """
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
 
+    sources_tried = []
+
     # Primary: Semantic Scholar
     try:
         results = s2_client.search_papers(
@@ -47,42 +50,51 @@ def search_papers(
         )
         if results:
             return json.dumps(results, indent=2, default=str)
-    except Exception:
-        pass
+    except Exception as e:
+        sources_tried.append(f"semantic_scholar: {type(e).__name__}")
 
-    # Fallback 1: arXiv
+    # Fallback 1: arXiv (sorted by relevance)
     try:
         results = arxiv_client.search_papers(query, max_results=limit)
         if results:
             return json.dumps(results, indent=2, default=str)
-    except Exception:
-        pass
+    except Exception as e:
+        sources_tried.append(f"arxiv: {type(e).__name__}")
 
-    # Fallback 2: CORE
+    # Fallback 2: OpenReview (only if credentials configured)
+    if openreview_client.is_configured():
+        try:
+            results = openreview_client.search_papers(query, max_results=limit)
+            if results:
+                return json.dumps(results, indent=2, default=str)
+        except Exception as e:
+            sources_tried.append(f"openreview: {type(e).__name__}")
+
+    # Fallback 3: CORE
     try:
         results = core_client.search_papers(query, limit=limit)
         if results:
             return json.dumps(results, indent=2, default=str)
-    except Exception:
-        pass
+    except Exception as e:
+        sources_tried.append(f"core: {type(e).__name__}")
 
-    # Fallback 3: PubMed
+    # Fallback 4: PubMed
     try:
         results = pubmed_client.search_papers(query, max_results=limit)
         if results:
             return json.dumps(results, indent=2, default=str)
-    except Exception:
-        pass
+    except Exception as e:
+        sources_tried.append(f"pubmed: {type(e).__name__}")
 
-    # Fallback 4: Google Scholar
+    # Fallback 5: Google Scholar
     try:
         results = scholar_client.search_papers(query, max_results=limit)
         if results:
             return json.dumps(results, indent=2, default=str)
-    except Exception:
-        pass
+    except Exception as e:
+        sources_tried.append(f"google_scholar: {type(e).__name__}")
 
-    return json.dumps({"error": "Search failed on all sources. Please try again later."})
+    return json.dumps({"error": "Search failed on all sources.", "sources_tried": sources_tried})
 
 
 @mcp.tool()
@@ -210,6 +222,33 @@ def read_paper(paper_id: str, save_dir: str = "", max_pages: int = 0) -> str:
         return text
     except Exception as e:
         return json.dumps({"error": f"PDF downloaded but text extraction failed: {e}"})
+
+
+@mcp.tool()
+def search_openreview(
+    query: str,
+    venue: str = "",
+    limit: int = 10,
+) -> str:
+    """Search OpenReview for conference papers (ICLR, NeurIPS, ICML, etc.).
+    No API key required. Returns papers with PDFs and review links.
+
+    Args:
+        query: Search query (e.g., "vision language action robot")
+        venue: OpenReview venue ID filter (e.g., "ICLR.cc/2026/Conference",
+               "NeurIPS.cc/2025/Conference"). Leave empty to search all venues.
+        limit: Maximum results (1-50, default 10)
+    """
+    try:
+        results = openreview_client.search_papers(
+            query, max_results=limit,
+            venue=venue or None,
+        )
+        if results:
+            return json.dumps(results, indent=2, default=str)
+        return json.dumps({"message": "No results found on OpenReview.", "query": query, "venue": venue})
+    except Exception as e:
+        return json.dumps({"error": f"OpenReview search failed: {e}"})
 
 
 def main():
