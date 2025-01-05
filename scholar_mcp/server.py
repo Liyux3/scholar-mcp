@@ -98,17 +98,15 @@ def search_papers(
         min_citations, open_access_only,
     )
 
-    used_fallback = False
     if not all_papers:
         fallback_papers, fb_sources = _collect_fallback(search_query, limit, sources_failed)
         all_papers = fallback_papers
         sources_used.extend(fb_sources)
-        used_fallback = True
 
     total_before = len(all_papers)
     all_papers = relevance.deduplicate(all_papers)
 
-    if fos_list and used_fallback:
+    if fos_list:
         all_papers = relevance.filter_by_fields(all_papers, fos_list)
 
     scored = relevance.score_results(query, all_papers, min_score=0.05)

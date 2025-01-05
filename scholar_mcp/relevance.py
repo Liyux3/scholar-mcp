@@ -143,6 +143,39 @@ def score_results(query: str, papers: list[dict],
     return scored
 
 
+DOMAIN_KEYWORDS = {
+    "computer science": {
+        "algorithm", "neural", "network", "transformer", "attention",
+        "model", "learning", "deep", "machine", "compute", "software",
+        "code", "programming", "compiler", "architecture", "inference",
+        "training", "benchmark", "llm", "language model", "gpu", "cpu",
+        "optimization", "gradient", "embedding", "token", "bert", "gpt",
+        "diffusion", "reinforcement", "classification", "detection",
+        "segmentation", "generation", "retrieval", "reasoning", "dataset",
+    },
+    "mathematics": {
+        "theorem", "proof", "conjecture", "algebra", "topology",
+        "geometry", "calculus", "equation", "polynomial", "matrix",
+        "convergence", "optimization", "combinatorics", "probability",
+    },
+    "physics": {
+        "quantum", "particle", "relativity", "thermodynamic",
+        "electromagnetic", "photon", "entropy", "hamiltonian",
+        "lagrangian", "field theory", "cosmology",
+    },
+    "biology": {
+        "gene", "protein", "cell", "genome", "mutation", "enzyme",
+        "organism", "species", "evolution", "dna", "rna", "molecular",
+        "phylogenetic", "transcription", "metabolic",
+    },
+    "medicine": {
+        "patient", "clinical", "treatment", "diagnosis", "therapy",
+        "disease", "symptom", "drug", "pharmaceutical", "surgery",
+        "pathology", "epidemiology", "biomarker",
+    },
+}
+
+
 def filter_by_fields(papers: list[dict],
                      fields: list[str] | None) -> list[dict]:
     """Filter papers to match requested fields of study.
@@ -153,16 +186,6 @@ def filter_by_fields(papers: list[dict],
 
     field_lower = {f.lower() for f in fields}
 
-    cs_keywords = {
-        "algorithm", "neural", "network", "transformer", "attention",
-        "model", "learning", "deep", "machine", "compute", "software",
-        "code", "programming", "compiler", "architecture", "inference",
-        "training", "benchmark", "llm", "language model", "gpu", "cpu",
-        "optimization", "gradient", "embedding", "token", "bert", "gpt",
-        "diffusion", "reinforcement", "classification", "detection",
-        "segmentation", "generation", "retrieval", "reasoning",
-    }
-
     filtered = []
     for p in papers:
         paper_fields = [f.lower() for f in (p.get("fields_of_study") or [])]
@@ -170,12 +193,13 @@ def filter_by_fields(papers: list[dict],
             if any(pf in field_lower or any(fl in pf for fl in field_lower)
                    for pf in paper_fields):
                 filtered.append(p)
-                continue
             continue
 
-        if "computer science" in field_lower:
-            text = (p.get("title", "") + " " + p.get("abstract", "")).lower()
-            if any(kw in text for kw in cs_keywords):
+        text = (p.get("title", "") + " " + p.get("abstract", "")).lower()
+        for fl in field_lower:
+            keywords = DOMAIN_KEYWORDS.get(fl)
+            if keywords and any(kw in text for kw in keywords):
                 filtered.append(p)
+                break
 
     return filtered

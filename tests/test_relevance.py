@@ -111,6 +111,26 @@ def test_filter_by_fields_none_returns_all():
     assert relevance.filter_by_fields(papers, None) == papers
 
 
+def test_filter_by_fields_biology_keywords():
+    papers = [
+        {"title": "Gene Expression Analysis", "abstract": "Protein synthesis in cell cultures", "fields_of_study": []},
+        {"title": "Neural Network Training", "abstract": "Deep learning optimization", "fields_of_study": []},
+    ]
+    filtered = relevance.filter_by_fields(papers, ["Biology"])
+    assert len(filtered) == 1
+    assert "gene" in filtered[0]["title"].lower()
+
+
+def test_filter_by_fields_with_metadata_match():
+    papers = [
+        {"title": "Paper A", "abstract": "", "fields_of_study": ["Mathematics"]},
+        {"title": "Paper B", "abstract": "", "fields_of_study": ["Computer Science"]},
+    ]
+    filtered = relevance.filter_by_fields(papers, ["Mathematics"])
+    assert len(filtered) == 1
+    assert filtered[0]["title"] == "Paper A"
+
+
 def test_score_includes_relevance_key():
     papers = [
         {"title": "Attention Mechanism", "abstract": "Attention in transformers",
