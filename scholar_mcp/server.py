@@ -13,7 +13,7 @@ from . import relevance
 mcp = FastMCP("scholar-mcp")
 
 
-def _collect_primary(query, search_query, limit, year, venue, fos_list,
+def _collect_primary(search_query, limit, year, venue, fos_list,
                      min_citations, open_access_only):
     """Query S2 and arXiv, merge results. Returns (papers, sources_used, sources_failed)."""
     all_papers = []
@@ -94,7 +94,7 @@ def search_papers(
     search_query = relevance.optimize_query(query)
 
     all_papers, sources_used, sources_failed = _collect_primary(
-        query, search_query, limit, year, venue, fos_list,
+        search_query, limit, year, venue, fos_list,
         min_citations, open_access_only,
     )
 
