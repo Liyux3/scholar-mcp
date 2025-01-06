@@ -109,7 +109,10 @@ def search_papers(
     if fos_list:
         all_papers = relevance.filter_by_fields(all_papers, fos_list)
 
-    scored = relevance.score_results(query, all_papers, min_score=0.05)
+    if min_citations > 0:
+        all_papers = [p for p in all_papers if (p.get("citation_count") or 0) >= min_citations]
+
+    scored = relevance.score_results(query, all_papers, min_score=0.15)
     results = scored[:limit]
 
     if not results:

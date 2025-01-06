@@ -106,6 +106,24 @@ def test_filter_by_fields_uses_keywords_when_no_field():
     assert "transformer" in filtered[0]["title"].lower()
 
 
+def test_filter_by_fields_arxiv_categories():
+    """arXiv category tags like cs.CL should map to Computer Science."""
+    papers = [
+        {"title": "Language Model Paper", "abstract": "NLP research", "fields_of_study": ["cs.CL", "cs.AI"]},
+        {"title": "Pure Math Paper", "abstract": "Topology", "fields_of_study": ["math.AT"]},
+        {"title": "Stats ML Paper", "abstract": "Statistical learning", "fields_of_study": ["stat.ML"]},
+    ]
+    cs_filtered = relevance.filter_by_fields(papers, ["Computer Science"])
+    assert len(cs_filtered) == 2
+    titles = {p["title"] for p in cs_filtered}
+    assert "Language Model Paper" in titles
+    assert "Stats ML Paper" in titles
+
+    math_filtered = relevance.filter_by_fields(papers, ["Mathematics"])
+    assert len(math_filtered) == 1
+    assert math_filtered[0]["title"] == "Pure Math Paper"
+
+
 def test_filter_by_fields_none_returns_all():
     papers = [{"title": "A"}, {"title": "B"}]
     assert relevance.filter_by_fields(papers, None) == papers
@@ -129,6 +147,26 @@ def test_filter_by_fields_with_metadata_match():
     filtered = relevance.filter_by_fields(papers, ["Mathematics"])
     assert len(filtered) == 1
     assert filtered[0]["title"] == "Paper A"
+
+
+def test_score_title_match_boost():
+    """Paper with query terms in title should score higher than abstract-only match."""
+    papers = [
+        {
+            "title": "Attention Is All You Need",
+            "abstract": "We propose transformers.",
+            "citation_count": 100000, "venue": "NeurIPS", "year": 2017,
+            "fields_of_study": ["Computer Science"],
+        },
+        {
+            "title": "Tensor Product Networks for Images",
+            "abstract": "We use attention mechanisms. All you need is tensors.",
+            "citation_count": 50, "venue": "arXiv", "year": 2024,
+            "fields_of_study": ["Computer Science"],
+        },
+    ]
+    scored = relevance.score_results("attention is all you need", papers)
+    assert scored[0]["title"] == "Attention Is All You Need"
 
 
 def test_score_includes_relevance_key():

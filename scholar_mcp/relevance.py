@@ -24,7 +24,6 @@ TOP_VENUES = frozenset({
     "fse", "osdi", "sosp", "sigcomm", "sigmod", "vldb", "nature",
     "science", "cell", "pnas", "lancet", "bmj", "jama", "nejm",
     "transactions", "journal of machine learning research", "jmlr",
-    "arxiv",  # not top-tier but relevant for preprints
 })
 
 
@@ -78,14 +77,27 @@ def deduplicate(papers: list[dict]) -> list[dict]:
 
 
 def _keyword_score(query: str, paper: dict) -> float:
-    """Fraction of query keywords found in title+abstract. 0.0 to 1.0."""
+    """Fraction of query keywords found in title+abstract, with title boost. 0.0 to 1.0.
+    Returns 0.0 if fewer than 40% of keywords match (prevents single-word false positives).
+    """
     keywords = extract_keywords(query)
     if not keywords:
         return 0.0
 
-    text = (paper.get("title", "") + " " + paper.get("abstract", "")).lower()
-    hits = sum(1 for kw in keywords if kw in text)
-    return hits / len(keywords)
+    title = (paper.get("title") or "").lower()
+    abstract = (paper.get("abstract") or "").lower()
+    full_text = title + " " + abstract
+
+    hits = sum(1 for kw in keywords if kw in full_text)
+    hit_ratio = hits / len(keywords)
+
+    if hit_ratio < 0.4:
+        return 0.0
+
+    title_hits = sum(1 for kw in keywords if kw in title)
+    title_bonus = 0.2 * (title_hits / len(keywords))
+
+    return min(hit_ratio + title_bonus, 1.0)
 
 
 def _citation_score(paper: dict) -> float:
@@ -176,9 +188,29 @@ DOMAIN_KEYWORDS = {
 }
 
 
+ARXIV_CATEGORY_MAP = {
+    "cs.": "computer science", "stat.ml": "computer science",
+    "stat.": "mathematics", "math.": "mathematics",
+    "physics.": "physics", "hep-": "physics", "astro-": "physics",
+    "cond-mat": "physics", "quant-ph": "physics", "gr-qc": "physics",
+    "q-bio.": "biology", "q-fin.": "economics",
+    "eess.": "engineering", "nlin.": "physics",
+}
+
+
+def _normalize_field(field: str) -> str:
+    """Map arXiv category tags and partial names to canonical field names."""
+    fl = field.lower().strip()
+    for prefix, canonical in ARXIV_CATEGORY_MAP.items():
+        if fl.startswith(prefix):
+            return canonical
+    return fl
+
+
 def filter_by_fields(papers: list[dict],
                      fields: list[str] | None) -> list[dict]:
     """Filter papers to match requested fields of study.
+    Handles arXiv category tags (cs.CL, math.AG, etc.) by mapping to canonical names.
     If a paper has no field info, check title+abstract for domain keywords.
     """
     if not fields:
@@ -188,10 +220,12 @@ def filter_by_fields(papers: list[dict],
 
     filtered = []
     for p in papers:
-        paper_fields = [f.lower() for f in (p.get("fields_of_study") or [])]
-        if paper_fields:
-            if any(pf in field_lower or any(fl in pf for fl in field_lower)
-                   for pf in paper_fields):
+        raw_fields = p.get("fields_of_study") or []
+        if raw_fields:
+            normalized = {_normalize_field(f) for f in raw_fields}
+            if normalized & field_lower or any(
+                any(fl in nf for fl in field_lower) for nf in normalized
+            ):
                 filtered.append(p)
             continue
 
