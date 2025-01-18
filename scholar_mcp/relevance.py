@@ -16,6 +16,11 @@ STOPWORDS = frozenset({
     "how", "what", "when", "where", "why", "all", "each", "every",
     "both", "few", "more", "most", "other", "some", "such", "only",
     "own", "same", "also", "using", "based", "via", "etc",
+    "us", "we", "our", "me", "my", "your", "they", "their", "them",
+    "let", "like", "new", "make", "get", "use", "way", "does",
+    "show", "know", "take", "come", "see", "look", "find", "give",
+    "tell", "think", "say", "try", "ask", "seem", "help", "keep",
+    "really", "actually", "still", "even", "much", "well",
 })
 
 TOP_VENUES = frozenset({
