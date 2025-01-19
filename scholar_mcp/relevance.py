@@ -203,6 +203,9 @@ def score_results(query: str, papers: list[dict],
     return scored
 
 
+_flashrank_ranker = None
+
+
 def rerank(query: str, papers: list[dict], top_n: int = 10) -> list[dict]:
     """Rerank papers using FlashRank if available. Falls back to input order."""
     if not papers:
@@ -212,21 +215,23 @@ def rerank(query: str, papers: list[dict], top_n: int = 10) -> list[dict]:
     except ImportError:
         return papers[:top_n]
 
-    ranker = Ranker(max_length=256)
+    global _flashrank_ranker
+    if _flashrank_ranker is None:
+        _flashrank_ranker = Ranker(max_length=256)
+
     passages = []
     for i, p in enumerate(papers):
         text = (p.get("title") or "") + ". " + (p.get("abstract") or "")
         passages.append({"id": i, "text": text[:1000]})
 
     request = RerankRequest(query=query, passages=passages)
-    ranked = ranker.rerank(request)
+    ranked = _flashrank_ranker.rerank(request)
 
-    idx_map = {p["paper_id"]: p for p in papers}
     reranked = []
     for item in ranked[:top_n]:
         orig_idx = item["id"]
         paper = papers[orig_idx]
-        paper["_relevance_score"] = round(item["score"], 3)
+        paper["_relevance_score"] = round(float(item["score"]), 3)
         reranked.append(paper)
 
     return reranked
