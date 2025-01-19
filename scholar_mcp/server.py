@@ -129,6 +129,7 @@ def search_papers(
 
     scored = relevance.score_results(query, all_papers, min_score=0.15)
     results = relevance.rerank(query, scored, top_n=limit)
+    results = [r for r in results if r.get("_relevance_score", 0) >= 0.1]
 
     if not results:
         return json.dumps({

@@ -106,8 +106,8 @@ def search_papers(query: str, limit: int = 10, year: str = None,
             filters.append(f"publication_year:{year}")
 
     if fields_of_study:
-        for fos in fields_of_study:
-            filters.append(f"concepts.display_name.search:{fos}")
+        fos_filter = "|".join(fields_of_study)
+        filters.append(f"topics.display_name.search:{fos_filter}")
 
     if filters:
         params["filter"] = ",".join(filters)
