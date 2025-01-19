@@ -3,6 +3,8 @@ from fastmcp import FastMCP
 from . import config
 from . import s2_client
 from . import arxiv_client
+from . import openalex_client
+from . import crossref_client
 from . import openreview_client
 from . import core_client
 from . import pubmed_client
@@ -15,7 +17,7 @@ mcp = FastMCP("scholar-mcp")
 
 def _collect_primary(search_query, limit, year, venue, fos_list,
                      min_citations, open_access_only):
-    """Query S2 and arXiv, merge results. Returns (papers, sources_used, sources_failed)."""
+    """Query S2, arXiv, and OpenAlex in parallel. Returns (papers, sources_used, sources_failed)."""
     all_papers = []
     sources_used = []
     sources_failed = []
@@ -43,6 +45,18 @@ def _collect_primary(search_query, limit, year, venue, fos_list,
     except Exception as e:
         sources_failed.append(f"arxiv: {type(e).__name__}")
 
+    try:
+        oa_results = openalex_client.search_papers(
+            search_query, limit=limit,
+            year=year or None,
+            fields_of_study=fos_list,
+        )
+        if oa_results:
+            all_papers.extend(oa_results)
+            sources_used.append("openalex")
+    except Exception as e:
+        sources_failed.append(f"openalex: {type(e).__name__}")
+
     return all_papers, sources_used, sources_failed
 
 
@@ -51,6 +65,7 @@ def _collect_fallback(query, limit, sources_failed):
     sources_used = []
 
     fallbacks = [
+        ("crossref", lambda: crossref_client.search_papers(query, limit=limit)),
         ("core", lambda: core_client.search_papers(query, limit=limit)),
         ("pubmed", lambda: pubmed_client.search_papers(query, max_results=limit)),
         ("google_scholar", lambda: scholar_client.search_papers(query, max_results=limit)),
@@ -113,7 +128,7 @@ def search_papers(
         all_papers = [p for p in all_papers if (p.get("citation_count") or 0) >= min_citations]
 
     scored = relevance.score_results(query, all_papers, min_score=0.15)
-    results = scored[:limit]
+    results = relevance.rerank(query, scored, top_n=limit)
 
     if not results:
         return json.dumps({

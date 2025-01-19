@@ -56,29 +56,72 @@ def _normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+def _merge_two(a: dict, b: dict) -> dict:
+    """Merge two paper dicts for the same paper from different sources.
+    Take the best of each field: longest abstract, most authors, highest cites.
+    """
+    merged = dict(a)
+    b_abs = b.get("abstract") or ""
+    if len(b_abs) > len(merged.get("abstract") or ""):
+        merged["abstract"] = b_abs
+    if len(b.get("authors") or []) > len(merged.get("authors") or []):
+        merged["authors"] = b["authors"]
+    if (b.get("citation_count") or 0) > (merged.get("citation_count") or 0):
+        merged["citation_count"] = b["citation_count"]
+    b_topics = set(b.get("fields_of_study") or [])
+    a_topics = set(merged.get("fields_of_study") or [])
+    if b_topics - a_topics:
+        merged["fields_of_study"] = list(a_topics | b_topics)
+    if not merged.get("open_access_url") and b.get("open_access_url"):
+        merged["open_access_url"] = b["open_access_url"]
+        merged["is_open_access"] = True
+    if not merged.get("tldr") and b.get("tldr"):
+        merged["tldr"] = b["tldr"]
+    sources = {merged.get("source", ""), b.get("source", "")} - {""}
+    merged["source"] = "+".join(sorted(sources))
+    return merged
+
+
 def deduplicate(papers: list[dict]) -> list[dict]:
-    """Remove duplicate papers by DOI or normalized title."""
-    seen_dois = set()
-    seen_titles = set()
+    """Deduplicate papers by DOI or normalized title, merging metadata from duplicates."""
+    by_doi: dict[str, dict] = {}
+    by_title: dict[str, dict] = {}
     unique = []
 
     for p in papers:
         doi = (p.get("external_ids") or {}).get("DOI", "")
         if doi:
             doi_lower = doi.lower()
-            if doi_lower in seen_dois:
+            if doi_lower in by_doi:
+                by_doi[doi_lower] = _merge_two(by_doi[doi_lower], p)
                 continue
-            seen_dois.add(doi_lower)
+            by_doi[doi_lower] = p
 
         norm_title = _normalize_title(p.get("title", ""))
         if norm_title and len(norm_title) > 10:
-            if norm_title in seen_titles:
+            if norm_title in by_title:
+                by_title[norm_title] = _merge_two(by_title[norm_title], p)
                 continue
-            seen_titles.add(norm_title)
+            by_title[norm_title] = p
 
         unique.append(p)
 
-    return unique
+    seen_ids = set()
+    result = []
+    for p in unique:
+        doi = (p.get("external_ids") or {}).get("DOI", "")
+        if doi:
+            merged = by_doi.get(doi.lower(), p)
+            pid = doi.lower()
+        else:
+            nt = _normalize_title(p.get("title", ""))
+            merged = by_title.get(nt, p)
+            pid = nt
+        if pid not in seen_ids:
+            seen_ids.add(pid)
+            result.append(merged)
+
+    return result
 
 
 def _keyword_score(query: str, paper: dict) -> float:
@@ -158,6 +201,35 @@ def score_results(query: str, papers: list[dict],
 
     scored.sort(key=lambda x: x["_relevance_score"], reverse=True)
     return scored
+
+
+def rerank(query: str, papers: list[dict], top_n: int = 10) -> list[dict]:
+    """Rerank papers using FlashRank if available. Falls back to input order."""
+    if not papers:
+        return papers
+    try:
+        from flashrank import Ranker, RerankRequest
+    except ImportError:
+        return papers[:top_n]
+
+    ranker = Ranker(max_length=256)
+    passages = []
+    for i, p in enumerate(papers):
+        text = (p.get("title") or "") + ". " + (p.get("abstract") or "")
+        passages.append({"id": i, "text": text[:1000]})
+
+    request = RerankRequest(query=query, passages=passages)
+    ranked = ranker.rerank(request)
+
+    idx_map = {p["paper_id"]: p for p in papers}
+    reranked = []
+    for item in ranked[:top_n]:
+        orig_idx = item["id"]
+        paper = papers[orig_idx]
+        paper["_relevance_score"] = round(item["score"], 3)
+        reranked.append(paper)
+
+    return reranked
 
 
 DOMAIN_KEYWORDS = {

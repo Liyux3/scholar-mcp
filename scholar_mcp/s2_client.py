@@ -32,8 +32,9 @@ AUTHOR_FIELDS = ",".join([
 
 def _headers() -> dict:
     h = {}
-    if config.S2_API_KEY:
-        h["x-api-key"] = config.S2_API_KEY
+    key = config.get_s2_api_key()
+    if key:
+        h["x-api-key"] = key
     return h
 
 
