@@ -217,3 +217,116 @@ Our scholar-mcp is the retrieval backbone. If we add smart citation traversal + 
 - Test our system on their benchmarks
 - Show that multi-source API fusion > Google Search for paper retrieval
 - Then show that PaperScout + our backend > PaperScout + Google Search
+
+## Technically Ambitious Directions (brainstorm, 2026-05-11)
+
+### Direction A: Multi-Source Retrieval as Contextual Bandit
+- Each API source (S2, OpenAlex, arXiv, Crossref) = an arm
+- Query features = context (length, domain keywords, author mentions, etc.)
+- Reward = recall@k on ground truth
+- Learn a policy via UCB/Thompson Sampling to allocate API calls efficiently
+- Insight: not all sources are equally useful for all queries. Learning to route saves latency and improves quality.
+- Mathematical formulation: contextual bandit with structured action space
+- Can also model as Markov chain across sources (query S2 first, if low confidence, try OpenAlex)
+
+### Direction B: Weighted RRF with Learned Source Reliability
+- Standard RRF treats all sources equally: score = sum(1/(k+rank_i))
+- Propose: Weighted RRF where w_i depends on (query_domain, source_i)
+- w_i = P(source_i is reliable | query_features)
+- Learn w_i from ground truth data (LitSearch queries)
+- Theoretical contribution: prove optimality conditions for weighted RRF
+- Practical contribution: 2-3% recall improvement over uniform RRF
+
+### Direction C: Query-Adaptive Source Routing
+- Use a lightweight classifier on query text to predict:
+  1. Which sources are likely to return relevant results
+  2. Whether to use exact (keyword) or semantic (embedding) search
+  3. Whether citation expansion would help
+- Can be rule-based first (fast), then learned (better)
+- Links to PaperScout's POMDP formulation but at the source-selection level
+
+### Direction D: Coverage Gap Analysis
+- Empirical study: for a set of ground-truth papers, which sources cover them?
+- Question: how much unique coverage does each source add?
+- If S2 covers 80%, OpenAlex adds 10%, arXiv adds 5%, Crossref adds 2% =>
+  the marginal value of each source can be quantified
+- This is an empirical contribution (novel data, useful for the community)
+- Could lead to a "source recommendation" system
+
+### Direction E: Federated Academic Retrieval for LLM Agents (system paper)
+- Frame as: LLM agents need real-time academic search, can't maintain local indices
+- Our system solves this via API aggregation + lightweight reranking
+- Contribution: first MCP-based academic search tool evaluated on standard benchmarks
+- Less theoretical but very practical, good for demo track or system paper
+
+### Venue Mapping
+- PaperScout: arXiv only so far, probably targeting SIGIR or ACL 2026
+- LiRA: AAAI 2026 (published)
+- Caesar: arXiv, probably targeting EMNLP or NeurIPS
+- LitSearch: EMNLP 2024 (published)
+- Our work could target: SIGIR demo, EMNLP, CIKM, or JCDL
+
+## Latest Wave: Citation-Aware Exploration Systems (Nov 2025 - May 2026)
+
+### SciRAG (Nov 2025, arXiv:2511.14362)
+- Adaptive retrieval alternating sequential/parallel evidence gathering
+- Citation-aware symbolic reasoning for filtering
+- Outline-guided synthesis with plan-critique-refine loop
+- Benchmarks: QASA, ScholarQA
+- Key: explicitly uses citation graph structure for organization
+
+### DualGraph (Feb 2026, arXiv:2602.13830)
+- TWO co-evolving graphs: Outline Graph (OG) + Knowledge Graph (KG)
+- KG stores entities, concepts, relations
+- Uses KG topology + OG structure to generate targeted queries
+- GPT-5 scores 53.08 RACE on DeepResearch Bench
+- Key insight: separate "what you know" from "how you write"
+
+### RLM-on-KG (Apr 2026, arXiv:2604.17056)
+- LLM as navigator over RDF knowledge graph
+- Core finding: LLM control advantage depends on evidence scatter
+  - High scatter (6-10 chunks): +3.21 pp F1
+  - Low scatter: +1.85 pp F1
+- Separation of candidate discovery (LLM breadth) from ranking (vector reranking)
+- Uses GraphRAG-Bench Novel (519 questions)
+
+### Paper Circle (Apr 2026, arXiv:2604.06170)
+- Multi-agent system: Intent -> Search -> Sort -> Analysis -> Export
+- Builds typed Knowledge Graph from papers (concepts, methods, experiments, figures)
+- Graph-aware Q&A with 1-hop neighbor expansion
+- Multi-source retrieval with diversity-aware ranking
+- Open-source, fully reproducible outputs
+
+## Emerging Pattern (2026 Research Landscape)
+
+The field is converging on a common architecture:
+1. Multi-source retrieval (S2 + arXiv + OpenAlex + web)
+2. Citation/knowledge graph construction during exploration
+3. Dual memory (graph topology + vector semantics)
+4. Adaptive exploration policy (LLM-driven or RL-trained)
+5. Structured synthesis with adversarial refinement
+
+Nobody has yet combined ALL of these into a single, practical system.
+Most systems are either:
+- Theoretically rich but impractical (Caesar, Discovery Engine)
+- Practical but theoretically thin (ResearchPilot, research-superpower)
+- Strong on one component but weak on others (PaperScout strong on exploration, weak on retrieval)
+
+## Refined Research Direction
+
+Our unique position: we already have the retrieval backbone (scholar-mcp) with
+multi-source fusion + reranking. What we need to add is:
+1. Citation graph traversal with adaptive exploration
+2. Knowledge graph construction from discovered papers
+3. A clean, practical system that works as MCP tool for any LLM agent
+
+The "story" could be:
+"We show that combining heterogeneous academic API fusion with
+adaptive citation graph exploration achieves state-of-the-art recall
+on standard benchmarks, while requiring no local index, no GPU,
+and no training. Our system works as a drop-in MCP tool for
+any LLM agent, democratizing access to systematic literature
+exploration."
+
+This frames it as both a system contribution AND an empirical finding
+(multi-source API fusion + citation expansion > single-source dense retrieval).
