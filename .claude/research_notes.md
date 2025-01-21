@@ -142,3 +142,38 @@ This makes query formulation more important than embedding quality.
 4. Design ablation experiments: single source vs multi-source
 5. Compare FlashRank vs. larger rerankers on our data
 6. Study the coverage gap between S2, OpenAlex, arXiv
+
+## 2025-2026 Landscape: Related Systems (discovered 2026-05-11)
+
+### Autonomous Literature Review Writing
+- **LiRA** (AAAI 2026): multi-agent lit review writing, outline/write/edit/review agents. Retrieval is weak.
+- **ResearchPilot** (Mar 2026): 4-stage pipeline (search->extract->synthesize->draft), S2+arXiv, DSPy orchestration
+- **SWARM-SLR AIssistant** (2026): modular SLR automation framework, not scalable yet
+- **WriteAssist** (2025): personalized lit review authoring with recommendation engine
+
+### Autonomous Research Navigation (most relevant to us)
+- **PaperScout** (Jan 2026, arXiv:2601.10029): MOST RELEVANT. Models paper search as sequential decision-making. Uses RL (PSPO) to train agent. Dynamically decides whether/when/how to invoke search and citation expansion tools.
+- **Caesar** (Apr 2026, arXiv:2604.20855): graph-based discovery agent. Builds knowledge graph during traversal. Perceive-Think-Act loop. Backtracking via navigational stack. Key idea: "the path taken to find information provides useful context"
+- **Discovery Engine** (May 2026, arXiv:2505.17500): Knowledge artifacts -> tensor manifold. Agents navigate the tensor space. Very ambitious, unclear if practical.
+- **ResearchTwin** (Mar 2026, arXiv:2603.00080): Federated platform, researcher digital twins, inter-agentic discovery API with Schema.org types + HATEOAS. S-index metric beyond H-index.
+- **Oignon** (2025): Citation graph viz tool, uses OpenAlex, dual-path ranking with recency weighting. Clean implementation.
+
+### Knowledge Graph + RAG for Science
+- **Hybrid RAG** (2025): Neo4j KG + FAISS vector store, LLaMA agent dynamically selects GraphRAG vs VectorRAG
+- **AI-native Academic Retrieval** (Apr 2026, arXiv:2604.16416): tensor manifold theory for graph-vector fusion
+
+### Key Observation
+All existing systems either:
+1. Focus on WRITING (LiRA, ResearchPilot) with weak retrieval
+2. Focus on NAVIGATION (PaperScout, Caesar) with heavy compute requirements
+3. Are too ambitious to be practical (Discovery Engine, ResearchTwin)
+
+Nobody has a PRACTICAL, LIGHTWEIGHT, API-BASED tool that does navigation well.
+Our scholar-mcp is the retrieval backbone. If we add smart citation traversal + RRF fusion + lightweight reranking, and make it work as an MCP tool that any LLM agent can call, we fill a real gap.
+
+### Papers to Download and Deep-Read
+- [ ] PaperScout (arXiv:2601.10029) - closest to our direction
+- [ ] Caesar (arXiv:2604.20855) - graph-based exploration
+- [ ] Discovery Engine (arXiv:2505.17500) - tensor approach
+- [ ] LiRA (AAAI 2026) - lit review agents
+- [ ] ResearchPilot (arXiv:2603.14629) - multi-agent system
