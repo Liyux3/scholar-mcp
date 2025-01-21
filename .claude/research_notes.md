@@ -177,3 +177,43 @@ Our scholar-mcp is the retrieval backbone. If we add smart citation traversal + 
 - [ ] Discovery Engine (arXiv:2505.17500) - tensor approach
 - [ ] LiRA (AAAI 2026) - lit review agents
 - [ ] ResearchPilot (arXiv:2603.14629) - multi-agent system
+
+## PaperScout Deep Analysis (from reading full paper)
+
+**Benchmarks:**
+- RealScholarQuery: 50 real-world scholarly queries with reference papers
+- AutoScholarQuery: 112 synthetic queries (filtered subset with 5+ ground truth papers)
+- Code: github.com/pty12345/PaperScout
+
+**Key results (RealScholarQuery):**
+- Google Search: Recall 0.304, Recall@25 0.221
+- Google Scholar: Recall 0.247, Recall@25 0.158
+- SPAR (fixed workflow): Recall 0.496, Recall@25 0.504
+- PaperScout (Qwen3-4B PSPO): Recall 0.574, Recall@25 0.577
+
+**Architecture:**
+- POMDP: state = paper pool, action = Search(query) or Expand(paper)
+- Agent sees summarized observation of top-k papers (dual-list: expanded vs unexpanded)
+- Reward = relevance gain - repetition penalty
+- PSPO: sequence-level RL, advantage estimation at interaction level not token level
+- Training: local Milvus + ar5iv cache to avoid API rate limits
+- Eval: Google Search (serper.dev) as retrieval backend
+
+**Tool call analysis (Figure 6):**
+- Trained agent balances Search and Expand evenly
+- Untrained Qwen3-4B barely explores (few tool calls)
+- Untrained Qwen3-Max is Expand-heavy, few Search calls
+- => Policy matters more than model size for exploration efficiency
+
+**Direct relevance to us:**
+1. Our multi-source search could replace their Google Search backend
+2. Their benchmarks (RealScholarQuery, AutoScholarQuery) can test our system
+3. If our single-query recall beats Google Search's 0.304, that's already useful
+4. Combined: our retrieval + their exploration policy = potential best system
+5. Their PSPO training requires local corpus; our API-based approach is complementary
+
+**Potential collaboration/contribution angles:**
+- "Better retrieval backbone for agentic paper search"
+- Test our system on their benchmarks
+- Show that multi-source API fusion > Google Search for paper retrieval
+- Then show that PaperScout + our backend > PaperScout + Google Search
