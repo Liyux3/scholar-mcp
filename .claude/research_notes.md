@@ -387,3 +387,60 @@ Mathematical formulation:
 - High gap score = under-connected communities = research opportunity
 
 This could be a paper on its own, or a key component of a larger system.
+
+## Prior Work on Citation Gap Detection (CRITICAL FINDING)
+
+### "Knowledge Transfer, Knowledge Gaps, and Knowledge Silos in Citation Networks"
+- PLOS One 2024, arXiv:2406.03921
+- Dynamic community detection on citation networks
+- Model expected knowledge transfer from content similarity + structural proximity
+- Residual analysis: actual citation << expected => knowledge gap
+- Case study on XAI research
+- VERY close to our gap detection idea, but offline/batch processing
+
+### SBM on Journal Citation Networks
+- 2017 paper using SBM on Thomson Reuters citation data (630M citations)
+- Finds blocks: clusters, bridges, sources, sinks
+- Demonstrates hierarchical grouping via SBM
+
+### Community Detection Comparison for Citation Networks
+- PLOS One 2016: Infomap/map equation methods perform best
+- 2025 Scientometrics: comparison of citation clustering vs topic modeling
+
+### Implication for Our Work
+The gap detection idea is NOT novel in isolation. But applying it:
+1. On-the-fly from API data (not pre-built full network)
+2. As part of an interactive LLM agent tool
+3. Combined with multi-source retrieval + reranking
+...IS still novel.
+
+Our framing should be:
+"We bring citation-aware gap detection from offline bibliometric analysis
+into real-time agent-driven research exploration."
+
+### Updated Paper Story Options
+
+**Option A: System Paper (practical, broader audience)**
+"FederatedScholar: A Multi-Source Academic Search Agent with 
+Citation-Aware Exploration"
+- Multi-source API fusion with RRF + lightweight reranking
+- Citation graph exploration with gap detection
+- MCP tool interface for LLM agents
+- Evaluated on LitSearch + PaperScout benchmarks
+- Venue: SIGIR demo, JCDL, CIKM
+
+**Option B: Methodology Paper (more theoretical)**
+"Online Citation Graph Analysis for Knowledge Gap Detection 
+in Heterogeneous Academic APIs"
+- Formal model: federated retrieval as contextual bandit
+- Online community detection + SBM for gap estimation
+- Theoretical analysis of coverage/recall bounds
+- Venue: SIGIR, WWW, WSDM
+
+**Option C: Benchmark + System Paper**
+"How Complete Is Your Literature Search? Measuring Multi-Source 
+Retrieval Coverage in Academic Search"
+- Systematic study of S2 vs OpenAlex vs arXiv coverage
+- Coverage gap quantification across domains
+- New benchmark for federated academic retrieval
+- Venue: EMNLP, NeurIPS D&B
