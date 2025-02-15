@@ -330,3 +330,60 @@ exploration."
 
 This frames it as both a system contribution AND an empirical finding
 (multi-source API fusion + citation expansion > single-source dense retrieval).
+
+## DualGraph Deep Analysis (from reading paper)
+
+**Key technical contributions:**
+1. Dual-graph memory: OG (hierarchical outline) + KG (semantic entity-relation graph)
+2. Co-evolution: search results update both OG and KG simultaneously
+3. KG gap discovery via:
+   - SBM (Stochastic Block Model) for cross-community link probability estimation
+   - Structural hole detection (Burt 2004) for bridging opportunities
+   - Semantic similarity between core entities and concept nodes
+4. Two types of search chains:
+   - Enrich: strengthen weakly-supported existing relations
+   - Explore: discover potentially important missing relations
+5. Self-termination via 6-dimensional OG scoring
+6. Leiden community detection on KG for higher-level structure
+
+**Benchmarks:**
+- DeepResearch Bench (100 PhD-level tasks, 22 domains)
+- DeepResearchGym (100 info-seeking queries)
+- DeepConsult (business/consulting)
+- DualGraph (GPT-5) beats OpenAI Deep Research, Claude Research, Gemini 2.5-Pro DR
+
+**From Microsoft Research. Very high quality. Feb 2026 preprint.**
+
+**Implementation:**
+- Bing Search API + Crawl4AI for web search and parsing
+- GPT-4.1 and GPT-5 as backend LLMs
+- MAX_ITER=5 rounds, 10 search queries per round from OG+KG
+- Top-5 URLs per query, content extracted to evidence bank
+
+## New Ambitious Idea: Citation Graph Gap Analysis
+
+Instead of just finding papers, help users find RESEARCH GAPS:
+
+1. Build citation graph from seed papers (using S2/OpenAlex citations API)
+2. Apply community detection (Leiden/Louvain) to find subfields
+3. Use SBM to estimate expected cross-community citation density
+4. Flag pairs of communities where actual citations << expected
+   => These are cross-disciplinary research opportunities
+5. Identify emerging frontiers: communities with high recent growth rate
+6. Find unexploited methods: highly-cited papers whose approaches
+   haven't been applied to certain domains (structural holes)
+
+This is technically interesting (graph theory + probabilistic models),
+practically useful (researchers always ask "what's the gap?"),
+and differentiable from all existing work (nobody does this on-the-fly
+from API data without a local index).
+
+Mathematical formulation:
+- Citation graph G = (V, E) where V = papers, E = citations
+- Community partition C = {C_1, ..., C_k} via Leiden
+- For each pair (C_i, C_j), estimate expected edge count via SBM:
+  E[|E_{ij}|] = |C_i| * |C_j| * p_{ij}
+- Gap score = (E[|E_{ij}|] - |E_{ij}|) / sqrt(Var[|E_{ij}|])
+- High gap score = under-connected communities = research opportunity
+
+This could be a paper on its own, or a key component of a larger system.
