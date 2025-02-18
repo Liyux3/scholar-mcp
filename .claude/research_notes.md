@@ -809,3 +809,47 @@ Could formalize as: each source provides a PROJECTION of the full
 information space, and optimal fusion is finding the best reconstruction
 from multiple projections. This has connections to compressed sensing
 and low-rank matrix completion.
+
+## Cross-Domain Research Angles
+
+### Signal Processing / Sensor Fusion
+- Each API source = sensor with different noise characteristics
+- Bayesian sensor fusion: P(R | Y_1,...,Y_k) posterior estimation
+- Kalman Filter analogy for sequential source querying
+- Information gain per source = reduction in uncertainty about R
+- Venue: IEEE TSP, IEEE TKDE
+
+### Control Theory
+- Source selection as optimal control: state = known papers, control = which source
+- Bellman equation for optimal query policy
+- Model Predictive Control (MPC) for online source selection
+- Venue: IEEE TAC, CDC
+
+### Statistical Learning Theory
+- Each source ranking = weak learner, fusion = ensemble
+- PAC-Bayesian bounds for multi-source fusion error
+- Source correlation structure determines ensemble improvement rate
+- Connection to boosting theory: each source reduces error multiplicatively
+  IF independent, less so if correlated
+- Venue: JMLR, NeurIPS, COLT
+
+### Random Graph Theory / Network Science
+- Citation graph coverage as random coverage problem
+- Each source covers a random subset of the paper universe
+- Union coverage formula: P(covered by at least one source) = 1 - prod(1-p_i)
+- Can model source coverage as inhomogeneous random graph
+- Venue: Network Science, Physical Review E
+
+### Applied Math / Optimization
+- Multi-source retrieval as Set Cover or Maximum Coverage problem
+- Approximation algorithms with provable guarantees
+- Online optimization with partial feedback (bandit setting)
+- Venue: Mathematical Programming, Operations Research
+
+### The Ideal Paper Would:
+1. Identify a genuine PHENOMENON (e.g., source disagreement predicts quality)
+2. Model it with clean MATH (e.g., information-theoretic or probabilistic)
+3. Prove non-trivial BOUNDS (e.g., convergence rate, approximation ratio)
+4. Design a PRACTICAL ALGORITHM informed by the theory
+5. VALIDATE empirically on standard benchmarks
+6. Release an OPEN-SOURCE TOOL that anyone can use
