@@ -513,3 +513,68 @@ that academic search requires local infrastructure.
 - oignon (citation graph viz)
 - scimesh (multi-provider search, in /tmp/)
 - research-superpower (Claude plugin, in /tmp/)
+
+## Mathematical Framework: Submodular Multi-Source Retrieval
+
+### Core Formulation
+
+Multi-source academic retrieval as Submodular Function Maximization:
+
+**Definition.** Let U be the universe of academic papers. For each source s_i in S = {S2, OpenAlex, arXiv, Crossref, ...}, define coverage function:
+  f_i(q) = {p in U : p is returned by querying s_i with query q and p is relevant}
+
+**Property.** f_union(A) = |union of f_i(q_i) for each source i| is submodular in the number of sources queried, because each additional source has diminishing returns (most relevant papers are already found by previous sources).
+
+**Optimization Problem:**
+  max f_union(S') subject to |S'| <= k and cost(S') <= B
+  where S' subset of S, k = budget of sources, B = API call budget
+
+**Theorem (informal).** The greedy algorithm (add the source with highest marginal gain) achieves a (1-1/e)-approximation for this problem.
+
+**Practical implications:**
+1. Explains WHY multi-source fusion works (submodularity => diversity helps)
+2. Gives a BOUND on how much better k sources can be vs 1 source
+3. Suggests OPTIMAL source ordering (query the most complementary source next)
+4. Can be verified empirically on LitSearch benchmark
+
+### Related Mathematical Tools
+
+- **Submodular Mutual Information (SMI)**: IF(A;Q) = F(A) + F(Q) - F(A∪Q)
+  Measures information overlap between retrieved set A and query set Q.
+  Recent paper (2024) gives tight bounds on query relevance and coverage.
+
+- **Multi-Submodular Cover (Chekuri)**: Covering multiple submodular constraints.
+  Our problem: cover all relevant papers by querying multiple sources.
+  Bicriteria approximation: (1-1/e-ε) coverage with O(1/ε) cost.
+
+- **Weighted RRF as a monotone submodular aggregation:**
+  RRF_score(d) = sum(w_i / (k + rank_i(d)))
+  Can show this is a concave aggregation of ranks, related to submodularity.
+
+### Potential Theoretical Contributions
+
+1. **Coverage bound**: Prove that k heterogeneous sources achieve at least
+   (1 - prod(1-p_i)) coverage where p_i is per-source recall.
+   This is the "coupon collector" insight applied to retrieval.
+
+2. **Complementarity measure**: Define a measure of source complementarity
+   based on the joint distribution of relevant papers across sources.
+   Show that max complementarity maximizes the coverage bound.
+
+3. **Optimal query strategy**: For a given budget B (total API calls),
+   what's the optimal allocation of calls across sources?
+   Formalize as a variant of the secretary problem or adaptive submodularity.
+
+4. **Reranking amplification**: Show that reranking after fusion amplifies
+   the coverage advantage of multi-source (because more candidates =>
+   reranker has more "good" options to promote).
+
+### This Gives Us a Paper Structure:
+
+1. Problem formulation (submodular multi-source retrieval)
+2. Theoretical analysis (coverage bounds, complementarity measure)
+3. Algorithm (greedy source selection + RRF fusion + lightweight reranking)
+4. Experiments (LitSearch, PaperScout benchmarks, ablation studies)
+5. Practical system (MCP tool, open-source)
+
+This is a SIGIR/EMNLP-level paper if executed well.
