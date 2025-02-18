@@ -578,3 +578,106 @@ Multi-source academic retrieval as Submodular Function Maximization:
 5. Practical system (MCP tool, open-source)
 
 This is a SIGIR/EMNLP-level paper if executed well.
+
+## Adaptive Submodularity Theory (Background for Our Work)
+
+### Foundational Results
+- **Golovin & Krause 2011**: Defined adaptive submodularity. Greedy achieves (1-1/e).
+  Key paper: "Adaptive Submodularity: Theory and Applications in Active Learning and Stochastic Optimization"
+- **Balkanski & Singer, STOC 2018**: Adaptive complexity of submodular max = Theta(log n).
+  Tight: O(log n) rounds sufficient, Omega(log n / log log n) necessary.
+- **Esfandiari et al., COLT 2021**: Semi-adaptive policy, O(log n * log k) rounds for (1-1/e-eps).
+  Also proved the Golovin-Krause conjecture on stochastic minimum cost coverage.
+- **Fahrbach et al., ICML 2019**: Non-monotone case, O(log n) rounds, O(n log k) queries.
+
+### Connection to Our Problem
+
+Our multi-source retrieval = adaptive submodular maximization:
+- Ground set V = all (source, query) pairs
+- State s = set of papers found so far
+- Action a = query source i with query q (or expand citations of paper p)
+- Utility f(s) = |relevant papers in s| (monotone submodular)
+- Observation = set of papers returned by the action
+- Budget = k total API calls
+
+Greedy policy: always pick the (source, query) pair with highest expected marginal gain.
+This achieves (1-1/e) approximation to optimal sequential policy.
+
+Semi-adaptive: query all sources in parallel (batch mode), then rerank.
+This is what our system does. Esfandiari's result says O(log k) rounds suffice.
+
+### Why This Framing is Valuable
+
+1. It EXPLAINS the empirical success of multi-source fusion
+   (submodularity => diversity helps, formally)
+2. It gives BOUNDS on how much better we can get
+   (at most 1-1/e of optimal, and greedy achieves this)
+3. It suggests ALGORITHMIC improvements
+   (e.g., if one source has high correlation with another, skip it)
+4. It's a well-studied theory with clean results
+   (reviewers at SIGIR/EMNLP will recognize and appreciate this)
+
+### What We Still Need to Prove
+
+1. That retrieval coverage IS submodular in our setting
+   (need to formalize and prove, probably via coverage function argument)
+2. That the sources are "heterogeneous" in a quantifiable way
+   (complementarity measure, empirically verifiable)
+3. That greedy source ordering matches or beats uniform fusion
+   (needs experiments on LitSearch)
+4. That reranking amplifies the benefit of source diversity
+   (informal argument: more candidates => better top-k after reranking)
+
+### Paper Structure (Refined)
+
+Title: "Submodular Multi-Source Retrieval: Theory and Application to Federated Academic Search"
+or: "Provably Optimal Source Fusion for Heterogeneous Academic Search APIs"
+
+1. Introduction: multi-source academic search as motivating example
+2. Problem Formulation: adaptive submodular maximization
+3. Theoretical Analysis:
+   - Prove coverage submodularity
+   - Coverage bound: (1 - prod(1-p_i)) where p_i = per-source recall
+   - Greedy optimality: (1-1/e) approximation
+   - Complementarity measure and its effect on the bound
+4. Algorithm: greedy source selection + RRF + FlashRank reranking
+5. Experiments:
+   - LitSearch (597 queries): recall@5/10/20
+   - Ablation: single source vs 2 vs 3 vs all
+   - Source complementarity: coverage overlap analysis
+   - Reranking: FlashRank vs no reranker vs larger models
+   - Comparison with PaperScout, Google Scholar baselines
+6. System Description: MCP tool, open-source
+7. Discussion & Conclusion
+
+Target venue: SIGIR 2027 (deadline ~Jan 2027), or EMNLP 2026 (deadline ~Jun 2026)
+
+## Submodularity in IR: Existing Applications vs Our Novelty
+
+### What's been done:
+- Document diversification: submodular function = quality, distance = diversity (Borodin et al.)
+- RAG reranking: submodular functions for coverage + diversity in retrieved set (UW thesis 2024)
+- Result summarization: submodular selection of representative documents
+- Active learning: adaptive submodular optimization for label acquisition
+
+### What HASN'T been done:
+- **Source selection** for federated/multi-API search using submodularity
+- Treating API sources themselves as the "items" to select, not documents
+- Proving coverage bounds for heterogeneous API ensemble
+
+This is our novelty: lifting submodularity from document level to SOURCE level.
+
+### Additional Mathematical Tools to Consider
+
+- **DPP (Determinantal Point Process)**: probabilistic model that naturally produces diverse subsets. Connection to submodularity: DPP mode = submodular maximization.
+- **Information-theoretic**: mutual information between source responses and ground truth. I(Y_1, ..., Y_k; R) where Y_i = response of source i, R = relevant papers.
+- **Coupon collector**: multi-source coverage ~ coupon collector problem. Expected number of sources needed to cover all relevant papers.
+- **Online learning**: if we query sources sequentially and observe results, this is a multi-armed bandit with submodular rewards. UCB/Thompson sampling for source selection.
+
+### Clean Story Summary
+
+"Existing work uses submodularity to select WHICH DOCUMENTS to show users.
+We use submodularity to select WHICH SOURCES TO QUERY.
+This is a higher level of abstraction: we optimize over retrieval APIs, not documents.
+We prove that greedy source selection achieves near-optimal coverage,
+and demonstrate this empirically on academic search benchmarks."
