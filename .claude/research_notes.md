@@ -681,3 +681,131 @@ We use submodularity to select WHICH SOURCES TO QUERY.
 This is a higher level of abstraction: we optimize over retrieval APIs, not documents.
 We prove that greedy source selection achieves near-optimal coverage,
 and demonstrate this empirically on academic search benchmarks."
+
+## Federated Search Source Selection: Prior Art Summary
+
+### Foundational (2003-2010):
+- Si & Callan (SIGIR 2003): relevant document distribution estimation for source selection
+- Si & Callan (CIKM 2004): unified utility maximization framework
+- Si & Callan (SIGIR 2005): modeling search engine effectiveness for federated search
+- Kulkarni & Callan (selective search): topical sharding + resource ranking
+- VLDB 2010: cost-aware source selection via dynamic programming
+
+### Key Assumption in All Prior Work:
+Sources are HOMOGENEOUS (same type of search engine, different document sets).
+Nobody has formally studied HETEROGENEOUS source selection where sources
+have fundamentally different indexing, ranking, and coverage characteristics.
+
+### Our Novelty (Refined):
+
+"Heterogeneous Federated Retrieval with Adaptive Source Selection"
+
+The problem: given k heterogeneous search APIs (each with different coverage,
+ranking algorithm, and query interface), how to optimally combine their results
+for maximum recall under a query budget constraint?
+
+Key technical innovations:
+1. Formalize as adaptive submodular maximization over heterogeneous oracles
+2. Prove coverage bounds that depend on source complementarity (new quantity)
+3. Show that greedy source ordering respects complementarity (diminishing returns)
+4. Design lightweight fusion algorithm (RRF + FlashRank) that's near-optimal
+5. Empirical validation on LitSearch and PaperScout benchmarks
+
+### Why This is Clean and Novel:
+- Prior federated search: homogeneous sources, same index type
+- Our work: heterogeneous APIs, different everything
+- Prior submodular IR: document-level diversity/coverage
+- Our work: source-level selection and fusion
+- Both established fields, but the intersection is unexplored
+
+### Conference Target:
+Best fit: SIGIR (Information Retrieval, covers federated search and submodularity)
+Alternative: EMNLP (if framed around academic/scientific search specifically)
+
+## Deeper Insight: Inter-Source Agreement as Information Signal
+
+### The Compositional Trap
+Simply applying submodularity to source selection is compositional novelty.
+Need to go deeper: what is the INHERENT STRUCTURE between heterogeneous sources?
+
+### Key Observation
+Different sources that index the same universe of papers but with different
+algorithms create a natural "committee" of rankers. Their agreement pattern
+on a given query carries information:
+
+- High agreement (sources return similar results) => "easy" query, consensus
+- Low agreement (sources return different results) => "hard" query or coverage gap
+- Asymmetric disagreement (one source has results, another doesn't) => coverage gap
+
+### Source Agreement Entropy
+
+For a query q and sources S_1, ..., S_k returning result sets R_1, ..., R_k:
+
+Define agreement matrix A where A_ij = |R_i ∩ R_j| / |R_i ∪ R_j| (Jaccard)
+Source Agreement Entropy H(q) = -sum_ij (A_ij * log A_ij) / Z
+
+Properties:
+- H(q) is low when sources agree (easy query)
+- H(q) is high when sources disagree (hard query)
+- Can predict retrieval quality from H(q)
+- Can adapt fusion strategy based on H(q)
+
+### Why This Is Deeper Than Submodularity
+
+1. It doesn't just say "diversity helps" (submodularity)
+2. It characterizes the INFORMATION CONTENT of source disagreement
+3. It suggests that source disagreement is itself a useful FEATURE
+   for downstream tasks (query difficulty prediction, quality estimation)
+4. It connects to ensemble learning theory (bias-variance decomposition)
+   and voting theory (Condorcet jury theorem)
+
+### Condorcet Jury Theorem Connection
+
+If each source has probability p > 0.5 of returning the correct answer,
+then the majority vote of k independent sources converges to 1 as k grows.
+But sources are NOT independent. Their correlation structure determines
+how much each additional source helps.
+
+This gives us:
+- A principled way to measure source INDEPENDENCE (from disagreement data)
+- A formula for optimal number of sources (diminishing returns based on correlation)
+- A prediction for when adding a new source won't help (saturated information)
+
+### Information-Theoretic Formulation
+
+Let R = set of relevant papers, Y_i = results from source i.
+
+Define:
+- Individual relevance: I(Y_i; R) = mutual information between source i and truth
+- Joint coverage: I(Y_1, ..., Y_k; R) = joint mutual information
+- Source synergy: S(Y_1, ..., Y_k) = I(Y_1,...,Y_k; R) - sum I(Y_i; R)
+  (positive = sources complement each other, negative = redundant)
+
+If we can ESTIMATE these from empirical data (LitSearch ground truth),
+we get a PRINCIPLED measure of source complementarity.
+
+This is a DISCOVERY, not a composition:
+"We discover that inter-source agreement patterns in federated academic
+search are informative signals for query difficulty and retrieval quality,
+and that source synergy can be estimated from standard benchmarks."
+
+### Even Deeper: What Makes Academic Search Sources Heterogeneous?
+
+S2 uses SPECTER2 embeddings (citation-trained)
+OpenAlex uses topic taxonomy (field-of-study hierarchy)
+arXiv is keyword-based (lexical matching on preprints)
+Crossref is DOI metadata (bibliographic fields)
+
+These represent DIFFERENT VIEWS of the same paper universe:
+- Semantic view (S2)
+- Taxonomic view (OpenAlex)
+- Lexical view (arXiv)
+- Bibliographic view (Crossref)
+
+The OPTIMAL combination should leverage the strengths of each view.
+This is related to multi-view learning and co-training in ML.
+
+Could formalize as: each source provides a PROJECTION of the full
+information space, and optimal fusion is finding the best reconstruction
+from multiple projections. This has connections to compressed sensing
+and low-rank matrix completion.
