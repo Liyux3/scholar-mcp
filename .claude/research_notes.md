@@ -444,3 +444,72 @@ Retrieval Coverage in Academic Search"
 - Coverage gap quantification across domains
 - New benchmark for federated academic retrieval
 - Venue: EMNLP, NeurIPS D&B
+
+## Knowledge Gap Detection Paper - Detailed Method (Cunningham & Greene, 2024)
+
+**Method:**
+1. Cumulative citation network G_t = (V_t, E_t), time steps by year
+2. OSLM algorithm for overlapping/hierarchical community detection
+3. TF-ICF labeling for communities
+4. SciBERT embeddings for topic coherence measurement
+5. Community interaction network I_t = (C_t, J_t)
+6. p_ij = |cross-citations| / (|C_i| * |C_j|) as interaction probability
+7. Regression model: expected p_ij from content similarity + structural proximity
+8. Residuals = gaps (actual << expected)
+
+**Their limitation (our opportunity):**
+- Offline batch processing on pre-built complete citation network
+- Our approach: online/incremental from API calls, partial graph
+- Research question: how much of the graph do you need to sample for reliable gap detection?
+
+## Layered Architecture Understanding
+
+```
+Layer 4: Report Generation (LiRA, ResearchPilot)
+Layer 3: Knowledge Synthesis (DualGraph, Caesar)
+Layer 2: Exploration Policy (PaperScout, SciRAG)
+Layer 1: Retrieval Backend (scholar-mcp, scimesh)
+Layer 0: Data Sources (S2, OpenAlex, arXiv, Crossref)
+```
+
+Most existing work only covers 1-2 layers.
+Cross-layer integration is the real gap.
+
+## Core Research Claim to Validate
+
+"For API-based academic search, multi-source fusion with citation expansion
+achieves recall comparable to dense retrieval on local corpora, while requiring
+zero training, zero index, and zero GPU."
+
+If true on LitSearch + PaperScout benchmarks, this challenges the assumption
+that academic search requires local infrastructure.
+
+## Immediate TODO (next session)
+1. Register S2 API key (human task)
+2. Implement RRF in relevance.py
+3. Run full LitSearch 597 queries with S2 key
+4. Compare: S2-only vs S2+arXiv vs S2+arXiv+OpenAlex
+5. Compare: no reranker vs FlashRank vs larger reranker
+6. Read PaperScout code to understand their benchmark data format
+7. Design citation expansion experiment:
+   - For each LitSearch query, search -> get top-5 papers -> expand references
+   - Measure: does expansion improve recall?
+8. Write up coverage gap analysis: for LitSearch ground truth papers,
+   which source covers them? (S2 vs OpenAlex vs arXiv)
+
+## Papers Downloaded (in scholar-search-research/papers/)
+- 2407.18940.pdf - LitSearch (EMNLP 2024)
+- 2511.14362.pdf - SciRAG (Nov 2025)
+- 2601.10029.pdf - PaperScout (Jan 2026)
+- 2602.13830.pdf - DualGraph (Feb 2026, Microsoft)
+- 2604.06170.pdf - Paper Circle (Apr 2026)
+- 2604.20855.pdf - Caesar (May 2026, Cognizant)
+- 2406.03921.pdf - Knowledge Gap Detection (Jun 2024, UCD)
+
+## Repos Cloned (in scholar-search-research/repos/)
+- PaperScout (USTC)
+- LitSearch (Princeton NLP)
+- STaRK (Stanford)
+- oignon (citation graph viz)
+- scimesh (multi-provider search, in /tmp/)
+- research-superpower (Claude plugin, in /tmp/)
