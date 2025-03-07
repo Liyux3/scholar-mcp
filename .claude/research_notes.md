@@ -853,3 +853,66 @@ and low-rank matrix completion.
 4. Design a PRACTICAL ALGORITHM informed by the theory
 5. VALIDATE empirically on standard benchmarks
 6. Release an OPEN-SOURCE TOOL that anyone can use
+
+## Information-Theoretic Framework: Deep Connections
+
+### BatchBALD Connection (NeurIPS 2019, Kirsch et al.)
+- Batch active learning as joint mutual information maximization
+- I(y_1,...,y_b; omega | x_1,...,x_b) is submodular
+- Greedy selection is (1-1/e)-approximate
+- DIRECT analogy: replace "data points" with "sources", "model params" with "relevant papers"
+
+### Sequential Information Maximization (COLT 2015, Chen et al.)
+- Greedy MI maximization under noisy observations
+- Separability condition determines when greedy is near-optimal
+- If separability is too small, greedy FAILS
+- Question for us: what is the "separability" of academic search sources?
+
+### Active Multi-Source (UAI 2019)
+- Cost-sensitive multi-source acquisition
+- Acquisition rate = utility / cost
+- MI-rate and variance-reduction-rate as acquisition functions
+
+### Our Formulation (Refined)
+
+Given sources S = {s_1, ..., s_k}, query q, true relevant set R:
+
+**Source i's conditional information value:**
+  I_i(q) = I(Y_i; R | Y_{S\i}, q)
+  where Y_i = result of querying source i with q
+  Y_{S\i} = results from all other sources
+
+**Greedy source selection:**
+  At each step, select s* = argmax_i I(Y_i; R | Y_{selected}) / cost(i)
+
+**Theorem (to prove):** Under assumption that coverage function is submodular,
+greedy achieves (1-1/e) of optimal source selection strategy.
+
+**Key quantity to estimate empirically:**
+  Source Synergy: S(s_i, s_j) = I(Y_i, Y_j; R) - I(Y_i; R) - I(Y_j; R)
+  If S > 0: sources are synergistic (together better than sum of parts)
+  If S < 0: sources are redundant (overlap)
+  If S ≈ 0: sources are independent
+
+This can be ESTIMATED from LitSearch ground truth data.
+
+### Non-Compositional Insight
+
+The insight is NOT "apply submodularity to source selection."
+The insight IS: "Academic search APIs have a specific information-theoretic
+structure (moderate synergy, domain-dependent correlation) that makes
+greedy multi-source fusion near-optimal AND predictable."
+
+The PREDICTION is: source synergy can be estimated from a small calibration
+set, and then used to predict multi-source fusion performance on unseen queries.
+If this prediction is accurate, that's a genuine scientific finding.
+
+### Ideal Paper Story (Final Version)
+
+"We study the information-theoretic structure of heterogeneous academic
+search APIs. We show that (1) the coverage function over sources is submodular,
+(2) source synergy is query-dependent but estimable, (3) greedy source
+selection is provably near-optimal, and (4) inter-source agreement predicts
+retrieval quality. We validate on LitSearch (597 queries), demonstrating
+that a lightweight multi-source system with FlashRank reranking achieves
+recall competitive with GritLM-7B dense retrieval, at zero training cost."
