@@ -916,3 +916,53 @@ selection is provably near-optimal, and (4) inter-source agreement predicts
 retrieval quality. We validate on LitSearch (597 queries), demonstrating
 that a lightweight multi-source system with FlashRank reranking achieves
 recall competitive with GritLM-7B dense retrieval, at zero training cost."
+
+## CRITICAL NEW FINDINGS (2025-2026)
+
+### PaSa (ACL 2025, ByteDance) - KEY PAPER
+- Full paper at ACL 2025 (top NLP venue)
+- Created AutoScholarQuery (35k synthetic) and RealScholarQuery (50 real) benchmarks
+- PaSa-7B beats Google+GPT-4o by 37.78% recall@20
+- Code: github.com/bytedance/pasa, Demo: pasa-agent.ai
+- PaperScout is a direct follow-up to PaSa (same benchmarks)
+
+### SAGE (Feb 2026) - CHANGES EVERYTHING
+- 1200 queries, 4 scientific domains, 200K paper corpus
+- **SHOCKING FINDING: BM25 BEATS LLM-based retrievers by ~30%**
+- Why: agents generate keyword-oriented sub-queries
+- Solution proposed: corpus-level test-time scaling (augment docs with metadata)
+- Implication: keyword search (like our API approach) may be BETTER than dense retrieval for agent workflows!
+
+### AgentIR (Mar 2026)
+- Reasoning-Aware Retrieval: embed agent's reasoning trace + query together
+- AgentIR-4B: 68% on BrowseComp-Plus vs 50% for conventional embeddings
+- New paradigm: retrieval models should understand agent reasoning, not just queries
+
+### How This Changes Our Story
+
+OLD story: "We use API keyword search as a lightweight alternative to dense retrieval."
+NEW story: "We show that heterogeneous API keyword search is the RIGHT paradigm
+for agent-driven academic retrieval, supported by SAGE's finding that BM25 > dense
+in agent workflows, and amplified by multi-source fusion."
+
+This is a much STRONGER claim because:
+1. SAGE provides independent evidence that keyword search > dense for agents
+2. Our multi-source fusion AMPLIFIES this advantage (more diverse keyword results)
+3. FlashRank reranking adds semantic understanding ON TOP of keyword recall
+4. The combination (keyword recall + semantic reranking) may be optimal for agents
+
+### Updated Paper Pitch
+
+"SAGE (2026) showed that BM25 outperforms dense retrievers in agent workflows
+because agents naturally generate keyword queries. We extend this finding by showing
+that heterogeneous multi-source keyword retrieval (querying S2, OpenAlex, and arXiv
+simultaneously) further amplifies this advantage through source diversity. We prove
+that the coverage function over heterogeneous sources is submodular, and demonstrate
+on LitSearch and PaSa benchmarks that our lightweight system matches or exceeds
+dense retrieval baselines, validating the 'keywords + diversity + reranking' paradigm
+for agent-driven academic search."
+
+### Papers to Download
+- PaSa: bytedance/pasa on GitHub, ACL 2025
+- SAGE: arXiv:2602.05975
+- AgentIR: arXiv:2603.04384
