@@ -1007,3 +1007,42 @@ for agent-driven academic search."
   we'd need to map GT papers to API-retrievable papers
 - Their finding directly supports our API keyword search approach
 - We should cite SAGE prominently and frame our work as extending their finding
+
+## Evaluation Plan (3 Benchmarks)
+
+### 1. LitSearch (EMNLP 2024)
+- 597 queries, NLP/ML domain
+- Metric: recall@5/10/20
+- Baselines: BM25 (50%), GritLM (74.8%), E5 (60%), +GPT-4o rerank (79.2%)
+- Data: HuggingFace princeton-nlp/LitSearch
+- Our target: competitive with GritLM WITHOUT local index
+
+### 2. PaSa/RealScholarQuery (ACL 2025)
+- 50 real-world AI queries
+- Metric: recall@k, precision
+- Baselines: Google (0.304), PaSa-7B (0.574)
+- Data: HuggingFace CarlanLark/pasa-dataset
+- Our target: beat Google, competitive with PaSa-7B
+
+### 3. SAGE (Feb 2026)
+- 1200 queries, 4 domains, 200K corpus
+- Metric: Exact Match (short-form), Weighted Recall (open-ended)
+- Baselines: BM25 (best), LLM retrievers (~30% worse), agents
+- Data: github.com/HughieHu/Sage
+- Our target: confirm SAGE finding that keyword > dense for agents,
+  show multi-source amplifies this
+
+### Ablation Studies
+1. Single source vs 2 vs 3 vs all sources
+2. With vs without FlashRank reranking
+3. With vs without query optimization
+4. With vs without RRF fusion
+5. Source coverage overlap analysis (Venn diagram)
+6. Source synergy computation
+
+### Repos and Data Ready
+- LitSearch: repos/LitSearch + HuggingFace
+- PaSa: repos/pasa + HuggingFace
+- SAGE: repos/Sage (queries in JSON)
+- PaperScout: repos/PaperScout
+- All 8 repos cloned, 15 papers downloaded
