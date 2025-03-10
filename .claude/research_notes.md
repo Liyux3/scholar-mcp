@@ -1046,3 +1046,55 @@ for agent-driven academic search."
 - SAGE: repos/Sage (queries in JSON)
 - PaperScout: repos/PaperScout
 - All 8 repos cloned, 15 papers downloaded
+
+## CRITICAL: Competing Work Discovered (GRO-RAG, MoR)
+
+### GRO-RAG (OpenReview Sep 2025)
+- Multi-source RAG with source selection as relevance-redundancy tradeoff
+- Gradient-aware reranking: uses LLM gradients to score documents
+- Proves gradient-based top-k approximates loss-minimizing subset selection
+- Leave-one-out loss upper bound
+- Training-free but requires LLM gradient access
+- DIRECTLY relevant: they formalize source selection mathematically
+
+### MoR - Mixture of Retrievers (EMNLP 2025)
+- Zero-shot weighted combination of heterogeneous retrievers
+- Multi-granularity deep fusion (query variants + passage variants)
+- Pre-retrieval signals (retriever trustworthiness) + post-retrieval signals
+- 0.8B mixture BEATS 7B GritLM by +3.9% NDCG@20
+- EMNLP Main 2025 = top venue
+- DIRECTLY relevant: heterogeneous retriever fusion
+
+### Diversity CCBQP (Apr 2026)
+- Diversity retrieval as binary quadratic programming
+- Frank-Wolfe algorithm with convergence guarantees
+- Dominates MMR and DPP on Pareto frontier
+- 2.4x to 22.9x speedup over DPP
+
+### Impact on Our Positioning
+
+We CANNOT claim:
+- "First to do heterogeneous retriever fusion" (MoR did it)
+- "First to formalize source selection" (GRO-RAG did it)
+
+We CAN claim:
+- "First to study API-based heterogeneous fusion for academic search"
+  (MoR uses local retrievers, not APIs; GRO-RAG needs gradient access)
+- "First to show that API keyword search + multi-source diversity matches
+  dense retrieval for agent workflows" (supported by SAGE finding)
+- "First systematic coverage analysis of academic search APIs"
+  (nobody has measured S2 vs OpenAlex vs arXiv overlap)
+
+### Refined Unique Contributions
+
+1. EMPIRICAL: systematic coverage analysis of academic APIs
+   (what does each source uniquely cover?)
+2. THEORETICAL: adapt MoR/GRO-RAG framework to API setting
+   (where you can't train, can't access gradients, sources have different query interfaces)
+3. PRACTICAL: first MCP-based academic search tool evaluated on standard benchmarks
+4. FINDING: confirm SAGE's BM25>dense finding AND show multi-source amplifies it
+
+### Need to Read
+- MoR paper in detail (EMNLP 2025)
+- GRO-RAG paper in detail
+- Check if they cite each other or if there are more related works
