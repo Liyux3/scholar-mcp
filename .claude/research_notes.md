@@ -1098,3 +1098,80 @@ We CAN claim:
 - MoR paper in detail (EMNLP 2025)
 - GRO-RAG paper in detail
 - Check if they cite each other or if there are more related works
+
+## Truly Unique Insight: Consensus-Based Quality Estimation in API Settings
+
+### The Gap That Only API Settings Have
+
+MoR: knows retriever quality (trained weights)
+GRO-RAG: knows document contribution (gradient access)
+Our setting: knows NOTHING about source quality a priori
+
+We can only observe: which papers each API returns for a given query.
+
+### Key Insight: Output Agreement as Quality Signal
+
+If paper X is returned by both S2 AND OpenAlex for the same query:
+  => X is more likely relevant (two independent confirmations)
+
+If paper Y is only returned by arXiv:
+  => Y's relevance is less certain
+
+This is exactly the Condorcet Jury Theorem applied to retrieval:
+- Each source is a "voter" with some accuracy p_i > 0.5
+- Papers that receive "majority votes" (appear in multiple sources) are more likely correct
+- The aggregate accuracy improves with more independent sources
+
+### Mathematical Formulation
+
+Let R_i(q) = papers returned by source i for query q
+Let p_i(q) = precision of source i for query q (unknown)
+
+For a paper d, define:
+  vote(d, q) = |{i : d in R_i(q)}|  (number of sources returning d)
+
+Claim: P(d is relevant | vote(d,q) = v) increases monotonically with v
+  (under mild independence assumptions)
+
+Proof sketch:
+  P(d relevant | vote = v) = P(vote = v | relevant) * P(relevant) / P(vote = v)
+  P(vote = v | relevant) = C(k,v) * prod(p_i) for participating sources
+  P(vote = v | not relevant) = C(k,v) * prod(false_positive_i) << P(vote=v|relevant)
+  Since p_i > false_positive_i, the ratio increases with v. QED.
+
+### This Gives a NOVEL Ranking Strategy
+
+Instead of RRF (which uses rank positions), use:
+  CONSENSUS_score(d) = vote(d) * RRF_score(d)
+
+Papers appearing in multiple sources get boosted.
+Papers appearing in only one source get discounted.
+
+This is DIFFERENT from MoR (which learns weights from training data)
+and from GRO-RAG (which uses gradients).
+It's a ZERO-SHOT, TRAINING-FREE, GRADIENT-FREE method that
+exploits the STRUCTURAL PROPERTY of multi-source agreement.
+
+### Connection to Crowdsourcing Theory
+
+This is essentially the DAWID-SKENE model (1979) applied to retrieval:
+- Each source is an "annotator" with unknown accuracy
+- Each paper is an "item" to be classified (relevant/not)
+- Use EM to jointly estimate source accuracies and paper relevances
+- Well-studied in crowdsourcing literature, clean theory
+
+### Why This Could Be a Paper
+
+Title: "Consensus-Based Ranking for Multi-API Academic Retrieval"
+or: "When Sources Agree: Quality Estimation in Heterogeneous Retrieval APIs"
+
+1. Formalize the multi-source consensus problem (Section 2)
+2. Prove that consensus score has monotone quality guarantee (Section 3)
+3. Connect to Dawid-Skene and derive EM-based source quality estimation (Section 4)
+4. Algorithm: multi-source search -> consensus scoring -> reranking (Section 5)
+5. Experiments: LitSearch + SAGE + PaSa benchmarks (Section 6)
+6. Analysis: when does consensus help vs hurt? (Section 7)
+
+This story is CLEAN, NOVEL, and has MATHEMATICAL DEPTH.
+It's not compositional (applying X to Y).
+It identifies a STRUCTURAL PROPERTY unique to API settings.
