@@ -1175,3 +1175,35 @@ or: "When Sources Agree: Quality Estimation in Heterogeneous Retrieval APIs"
 This story is CLEAN, NOVEL, and has MATHEMATICAL DEPTH.
 It's not compositional (applying X to Y).
 It identifies a STRUCTURAL PROPERTY unique to API settings.
+
+## Prior Work on Consensus/Agreement in Retrieval
+
+### ULARA (2007)
+- Unsupervised rank aggregation via agreement maximization
+- Linear combination of rankers, weight ~ agreement with pool
+- TREC-3 data fusion experiments
+- Core insight matches ours: accurate rankers agree more
+- But: uses linear combination, not Bayesian; all systems are homogeneous
+
+### Dawid-Skene in IR (Hosseini et al. 2012, TREC 2011)
+- Used for aggregating crowdsourced relevance judgments
+- EM to estimate worker accuracy + document relevance jointly
+- Applied to human annotators, NOT search APIs
+- Our contribution: apply this framework to search API "voters"
+
+### Factored Bradley-Terry (2019)
+- Ranking from pairwise comparisons with irrelevant factor bias
+- Handles worker biases towards certain features
+- Related but different problem (pairwise vs set-based)
+
+### Gap We Fill
+Prior work applies consensus to: human annotators, TREC system runs (homogeneous)
+Nobody has applied Dawid-Skene style estimation to:
+- Heterogeneous academic search APIs
+- Where each API has different coverage, ranking algorithm, query interface
+- In an agent-driven workflow
+- With the specific goal of estimating source reliability WITHOUT training data
+
+This is genuinely novel: treating APIs as "annotators" with unknown quality,
+and using their agreement pattern to estimate both source reliability and
+document relevance simultaneously.
