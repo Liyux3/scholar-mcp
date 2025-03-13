@@ -1207,3 +1207,52 @@ Nobody has applied Dawid-Skene style estimation to:
 This is genuinely novel: treating APIs as "annotators" with unknown quality,
 and using their agreement pattern to estimate both source reliability and
 document relevance simultaneously.
+
+## Existing Gap Detection Tools (discovered)
+
+- LitGapFinder (Mar 2026): concept co-occurrence graph, GapScore = sim/(1+cooccurrence)
+- HySemRAG (Aug 2025): hybrid RAG + KG for gap analysis, Neo4j + Qdrant
+- Cicadus: commercial product, citation mapping + gap identification
+- Connected Papers, Research Rabbit: visual exploration (not gap detection per se)
+
+Gap detection is a CROWDED space. We should NOT position as "gap detection tool."
+
+## Recalibrating: What Direction Has the Most Impact?
+
+After reviewing everything, the most impactful and least crowded directions are:
+
+### Option 1: PaperScout-style Agent with Better Backend (PRACTICAL)
+- Use our multi-source retrieval as backend for a PaperScout-like agent
+- No RL training needed (zero-shot LLM decision making)
+- Key advantage: PaperScout only uses S2, we use 3+ sources
+- Could test: does multi-source backend improve PaperScout's recall?
+- VERY practical, could be a popular open-source tool
+
+### Option 2: SAGE Extension (EMPIRICAL/BENCHMARK)
+- Extend SAGE's finding: not just "BM25 > dense for agents"
+  but "multi-source BM25 >> single-source BM25 >> dense for agents"
+- Systematic study of how source diversity affects agent retrieval
+- New benchmark contribution or significant empirical study
+- CLEAN story, extends a very recent important finding
+
+### Option 3: Consensus Ranking Theory (THEORETICAL)
+- Dawid-Skene for API retrieval
+- Novel but may be too narrow for top venue
+- Better as a component of a larger system paper
+
+### BEST APPROACH: Combine 1 + 2
+Build a practical agent tool (like PaperScout but zero-shot + multi-source),
+AND do a systematic empirical study extending SAGE's finding.
+Theory (consensus scoring) can be one component, not the main contribution.
+
+Title: "Beyond Single-Source Search: How Source Diversity Amplifies
+Agent-Driven Academic Retrieval"
+
+1. Motivation: SAGE showed BM25 > dense for agents. We ask: does querying
+   MULTIPLE keyword sources further improve agent retrieval?
+2. System: multi-source search MCP tool + zero-shot exploration agent
+3. Theory: submodular coverage bounds for multi-source, consensus scoring
+4. Experiments: LitSearch + SAGE + PaSa benchmarks
+5. Ablation: number of sources, source combinations, with/without reranking
+6. Analysis: source complementarity, coverage overlap, agreement patterns
+7. Tool: open-source MCP server + exploration agent
