@@ -1285,3 +1285,36 @@ in the information available for fusion:
 
 ### Paper by CMU + Darmstadt, EMNLP 2025 Main
 Code: github.com/Josh1108/MixtureRetrievers
+
+## PaSa Evaluation Pipeline (from code reading)
+
+### Title Matching Method
+keep_letters(s) = only keep alphabetic chars, lowercase
+e.g., "Attention Is All You Need!" -> "attentionisallyouneed"
+This is how they match predictions to ground truth.
+
+### Metrics
+- Crawler Recall: all crawled papers / ground truth
+- Selected Precision: selected papers (score > 0.5) that are correct
+- Selected Recall: ground truth found in selected papers
+- Recall@20/50/100: top-k crawled papers (by score) / ground truth
+
+### Ground Truth Format
+paper_root["extra"]["answer"] = list of paper titles
+Matching is done via keep_letters(title) normalization
+
+### How We Can Use This
+1. Download RealScholarQuery from HuggingFace (CarlanLark/pasa-dataset)
+2. For each query, run our multi-source search
+3. Normalize returned titles with keep_letters()
+4. Compare against ground truth titles
+5. Report recall@20/50/100 and precision
+6. Direct comparison with:
+   - Google Search: recall 0.304
+   - Google Scholar: recall 0.247
+   - PaSa-7B: recall 0.574
+   - PaperScout: recall 0.574
+
+### Code
+- github.com/bytedance/pasa (Python, simple eval script)
+- We can reuse their keep_letters() and cal_micro() directly
