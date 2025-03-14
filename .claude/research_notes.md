@@ -1256,3 +1256,32 @@ Agent-Driven Academic Retrieval"
 5. Ablation: number of sources, source combinations, with/without reranking
 6. Analysis: source complementarity, coverage overlap, agreement patterns
 7. Tool: open-source MCP server + exploration agent
+
+## MoR (EMNLP 2025) Deep Analysis
+
+### Core Method
+- Weight function f(q, R_i, D) for each retriever per query
+- Adjusted score: s̃(q, d) = sum(f * s_i) over retrievers
+- Pre-retrieval signal: retriever-query familiarity (embedding geometry)
+- Post-retrieval signal: query performance prediction
+- Multi-granularity: query variants (original, sub-question) x passage variants (paragraph, sentence)
+
+### Key Results
+- Route Oracle (best single retriever per query) beats GritLM by 13.5%
+  => massive potential from retriever diversity
+- MoR 0.8B beats GritLM 7B by +3.9% average NDCG@20
+- Works with "human retrievers" (noisy but useful), +58.9% over humans alone
+
+### Critical Difference from Our Setting
+MoR has SCORES (each retriever gives score for each doc).
+We have only RANKS (APIs return ranked lists without scores).
+=> MoR's weighted score sum doesn't apply.
+=> We need RANK-based fusion (RRF) + agreement-based quality estimation.
+
+This is not just an engineering difference. It's a FUNDAMENTAL difference
+in the information available for fusion:
+- Score-based: can do weighted average (MoR)
+- Rank-based: must use rank fusion (RRF) or agreement (our consensus idea)
+
+### Paper by CMU + Darmstadt, EMNLP 2025 Main
+Code: github.com/Josh1108/MixtureRetrievers
