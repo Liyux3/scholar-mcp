@@ -32,13 +32,46 @@ TOP_VENUES = frozenset({
 })
 
 
+WEAK_WORDS = frozenset({
+    "wondering", "simply", "question", "whether", "think", "believe",
+    "approach", "problem", "paper", "work", "method", "proposed", "propose",
+    "study", "research", "results", "recent", "existing", "current",
+    "different", "various", "several", "multiple", "many", "possible",
+    "important", "significant", "main", "key", "novel", "particular",
+    "general", "specific", "common", "typical", "standard", "basic",
+    "first", "second", "third", "one", "two", "three", "four", "five",
+    "requires", "require", "required", "need", "needs", "needed",
+    "able", "unable", "enable", "consider", "considered", "considering",
+    "always", "never", "often", "sometimes", "usually", "increasingly",
+    "however", "therefore", "although", "despite", "beyond", "within",
+    "across", "along", "among", "towards", "toward", "without",
+    "achieve", "achieves", "address", "addresses", "aim", "aims",
+    "better", "best", "worse", "worst", "high", "higher", "highest",
+    "low", "lower", "lowest", "large", "larger", "small", "smaller",
+    "fully", "enough", "already", "particularly", "especially", "primarily",
+    "point", "making", "fundamentally", "inherent", "inherently",
+    "ceiling", "incremental", "ever", "baked",
+})
+
+
 def extract_keywords(query: str, max_keywords: int = 8) -> list[str]:
-    """Extract informative keywords from a query. Helps S2/arXiv search."""
+    """Extract informative keywords from a query. Helps S2/arXiv search.
+    For long queries, prioritizes technical terms over generic language.
+    """
     words = re.findall(r"[a-zA-Z0-9][\w\-]*", query.lower())
-    keywords = [w for w in words if w not in STOPWORDS and len(w) > 1]
-    if len(keywords) <= max_keywords:
-        return keywords
-    return keywords[:max_keywords]
+    all_kw = [w for w in words if w not in STOPWORDS and len(w) > 1]
+    if len(all_kw) <= max_keywords:
+        return all_kw
+
+    strong = [w for w in all_kw if w not in WEAK_WORDS and len(w) > 3]
+    freq: dict[str, int] = {}
+    for w in strong:
+        freq[w] = freq.get(w, 0) + 1
+    ranked = sorted(set(strong), key=lambda w: (-freq[w], strong.index(w)))
+    if len(ranked) >= max_keywords:
+        return ranked[:max_keywords]
+    remaining = [w for w in all_kw if w not in set(ranked)]
+    return (ranked + remaining)[:max_keywords]
 
 
 def optimize_query(query: str) -> str:
@@ -56,10 +89,25 @@ def _normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+def tag_source_ranks(papers: list[dict], source_name: str) -> list[dict]:
+    """Tag each paper with its rank position from the given source.
+    Call this on each source's results before merging.
+    """
+    for rank, p in enumerate(papers):
+        if "_source_ranks" not in p:
+            p["_source_ranks"] = {}
+        p["_source_ranks"][source_name] = rank
+        if "source" not in p or not p["source"]:
+            p["source"] = source_name
+        if "_source_count" not in p:
+            p["_source_count"] = 1
+    return papers
+
+
 def _merge_two(a: dict, b: dict) -> dict:
     """Merge two paper dicts for the same paper from different sources.
     Take the best of each field: longest abstract, most authors, highest cites.
-    Track source count for consensus scoring.
+    Track source count and per-source ranks for RRF.
     """
     merged = dict(a)
     b_abs = b.get("abstract") or ""
@@ -83,6 +131,9 @@ def _merge_two(a: dict, b: dict) -> dict:
     all_sources = a_sources | b_sources
     merged["source"] = "+".join(sorted(all_sources))
     merged["_source_count"] = len(all_sources)
+    a_ranks = merged.get("_source_ranks") or {}
+    b_ranks = b.get("_source_ranks") or {}
+    merged["_source_ranks"] = {**a_ranks, **b_ranks}
     return merged
 
 
@@ -223,6 +274,48 @@ def _source_count(paper: dict) -> float:
     if count == 2:
         return 0.5
     return 1.0
+
+
+RRF_K = 60
+
+
+def rrf_score(paper: dict, k: int = RRF_K) -> float:
+    """Reciprocal Rank Fusion score: sum(1/(k + rank_i)) across sources.
+    Cormack et al. 2009. k=60 is the standard default.
+    Papers not returned by a source get no contribution from that source.
+    """
+    ranks = paper.get("_source_ranks") or {}
+    if not ranks:
+        return 0.0
+    return sum(1.0 / (k + r) for r in ranks.values())
+
+
+def consensus_rrf_score(paper: dict, k: int = RRF_K) -> float:
+    """Consensus-weighted RRF: vote_count * rrf_score.
+    Papers appearing in multiple sources get a multiplicative boost.
+    This implements the Condorcet-inspired ranking from our theory.
+    """
+    votes = paper.get("_source_count", 1)
+    return votes * rrf_score(paper, k)
+
+
+def rrf_fuse(papers: list[dict], method: str = "rrf",
+             k: int = RRF_K) -> list[dict]:
+    """Score and sort papers using RRF or consensus-RRF.
+
+    Args:
+        papers: deduplicated papers with _source_ranks populated
+        method: "rrf" for standard RRF, "consensus" for vote-weighted RRF
+        k: RRF smoothing constant (default 60)
+
+    Returns:
+        Papers sorted by fusion score descending, with _rrf_score attached.
+    """
+    score_fn = consensus_rrf_score if method == "consensus" else rrf_score
+    for p in papers:
+        p["_rrf_score"] = score_fn(p, k)
+    papers.sort(key=lambda x: x["_rrf_score"], reverse=True)
+    return papers
 
 
 _flashrank_ranker = None

@@ -17,7 +17,9 @@ mcp = FastMCP("scholar-mcp")
 
 def _collect_primary(search_query, limit, year, venue, fos_list,
                      min_citations, open_access_only):
-    """Query S2, arXiv, and OpenAlex in parallel. Returns (papers, sources_used, sources_failed)."""
+    """Query S2, arXiv, and OpenAlex in parallel. Returns (papers, sources_used, sources_failed).
+    Each paper is tagged with its rank position from the source for RRF fusion.
+    """
     all_papers = []
     sources_used = []
     sources_failed = []
@@ -32,6 +34,7 @@ def _collect_primary(search_query, limit, year, venue, fos_list,
             open_access_only=open_access_only,
         )
         if s2_results:
+            relevance.tag_source_ranks(s2_results, "semantic_scholar")
             all_papers.extend(s2_results)
             sources_used.append("semantic_scholar")
     except Exception as e:
@@ -40,6 +43,7 @@ def _collect_primary(search_query, limit, year, venue, fos_list,
     try:
         arxiv_results = arxiv_client.search_papers(search_query, max_results=limit)
         if arxiv_results:
+            relevance.tag_source_ranks(arxiv_results, "arxiv")
             all_papers.extend(arxiv_results)
             sources_used.append("arxiv")
     except Exception as e:
@@ -52,6 +56,7 @@ def _collect_primary(search_query, limit, year, venue, fos_list,
             fields_of_study=fos_list,
         )
         if oa_results:
+            relevance.tag_source_ranks(oa_results, "openalex")
             all_papers.extend(oa_results)
             sources_used.append("openalex")
     except Exception as e:
@@ -75,6 +80,7 @@ def _collect_fallback(query, limit, sources_failed):
         try:
             results = fetch()
             if results:
+                relevance.tag_source_ranks(results, name)
                 sources_used.append(name)
                 return results, sources_used
         except Exception as e:
@@ -120,6 +126,9 @@ def search_papers(
 
     total_before = len(all_papers)
     all_papers = relevance.deduplicate(all_papers)
+
+    if len(sources_used) > 1:
+        all_papers = relevance.rrf_fuse(all_papers, method="consensus")
 
     if fos_list:
         all_papers = relevance.filter_by_fields(all_papers, fos_list)
