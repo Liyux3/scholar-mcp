@@ -59,6 +59,7 @@ def _normalize_title(title: str) -> str:
 def _merge_two(a: dict, b: dict) -> dict:
     """Merge two paper dicts for the same paper from different sources.
     Take the best of each field: longest abstract, most authors, highest cites.
+    Track source count for consensus scoring.
     """
     merged = dict(a)
     b_abs = b.get("abstract") or ""
@@ -77,13 +78,22 @@ def _merge_two(a: dict, b: dict) -> dict:
         merged["is_open_access"] = True
     if not merged.get("tldr") and b.get("tldr"):
         merged["tldr"] = b["tldr"]
-    sources = {merged.get("source", ""), b.get("source", "")} - {""}
-    merged["source"] = "+".join(sorted(sources))
+    a_sources = set((merged.get("source") or "").split("+")) - {""}
+    b_sources = set((b.get("source") or "").split("+")) - {""}
+    all_sources = a_sources | b_sources
+    merged["source"] = "+".join(sorted(all_sources))
+    merged["_source_count"] = len(all_sources)
     return merged
 
 
 def deduplicate(papers: list[dict]) -> list[dict]:
-    """Deduplicate papers by DOI or normalized title, merging metadata from duplicates."""
+    """Deduplicate papers by DOI or normalized title, merging metadata from duplicates.
+    Tracks _source_count for consensus scoring.
+    """
+    for p in papers:
+        if "_source_count" not in p:
+            p["_source_count"] = 1
+
     by_doi: dict[str, dict] = {}
     by_title: dict[str, dict] = {}
     unique = []
@@ -185,7 +195,8 @@ def score_results(query: str, papers: list[dict],
                   min_score: float = 0.1) -> list[dict]:
     """Score and filter papers by relevance to query.
 
-    Weights: keyword_match=0.50, citations=0.20, venue=0.15, recency=0.15
+    Combines keyword matching, citation count, venue quality, recency,
+    and multi-source consensus (papers appearing in multiple sources get boosted).
     Papers below min_score are dropped. Returns sorted descending.
     """
     scored = []
@@ -194,13 +205,24 @@ def score_results(query: str, papers: list[dict],
         ci = _citation_score(p)
         ve = _venue_score(p)
         re_ = _recency_score(p)
-        total = 0.50 * kw + 0.20 * ci + 0.15 * ve + 0.15 * re_
+        sc = _source_count(p)
+        total = 0.45 * kw + 0.18 * ci + 0.12 * ve + 0.12 * re_ + 0.13 * sc
         if total >= min_score:
             p["_relevance_score"] = round(total, 3)
             scored.append(p)
 
     scored.sort(key=lambda x: x["_relevance_score"], reverse=True)
     return scored
+
+
+def _source_count(paper: dict) -> float:
+    """Consensus bonus: papers found by multiple sources are more likely relevant."""
+    count = paper.get("_source_count", 1)
+    if count <= 1:
+        return 0.0
+    if count == 2:
+        return 0.5
+    return 1.0
 
 
 _flashrank_ranker = None

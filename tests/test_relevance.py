@@ -178,3 +178,41 @@ def test_score_includes_relevance_key():
     assert len(scored) == 1
     assert "_relevance_score" in scored[0]
     assert 0.0 <= scored[0]["_relevance_score"] <= 1.0
+
+
+def test_consensus_score_multi_source():
+    """Papers from multiple sources should score higher."""
+    papers = [
+        {
+            "title": "Multi-Source Paper on Transformers",
+            "abstract": "Attention mechanism in transformer models",
+            "citation_count": 10, "venue": "", "year": 2025,
+            "fields_of_study": [], "_source_count": 3, "source": "s2+arxiv+openalex",
+        },
+        {
+            "title": "Single-Source Paper on Transformers",
+            "abstract": "Attention mechanism in transformer architecture",
+            "citation_count": 10, "venue": "", "year": 2025,
+            "fields_of_study": [], "_source_count": 1, "source": "arxiv",
+        },
+    ]
+    scored = relevance.score_results("transformer attention", papers)
+    assert len(scored) >= 2
+    assert scored[0]["title"] == "Multi-Source Paper on Transformers"
+    assert scored[0]["_relevance_score"] > scored[1]["_relevance_score"]
+
+
+def test_deduplicate_tracks_source_count():
+    """Deduplication should track how many sources found each paper."""
+    papers = [
+        {"title": "Same Paper Title Here", "abstract": "Test", "source": "s2",
+         "external_ids": {"DOI": "10.1234/test"}, "citation_count": 100},
+        {"title": "Same Paper Title Here", "abstract": "Test abstract longer",
+         "source": "openalex", "external_ids": {"DOI": "10.1234/test"}, "citation_count": 50},
+        {"title": "Different Paper", "abstract": "Other", "source": "arxiv",
+         "external_ids": {}},
+    ]
+    deduped = relevance.deduplicate(papers)
+    merged = [p for p in deduped if "same" in p["title"].lower()]
+    assert len(merged) == 1
+    assert merged[0].get("_source_count", 1) == 2
