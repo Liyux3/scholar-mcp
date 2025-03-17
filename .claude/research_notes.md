@@ -1318,3 +1318,61 @@ Matching is done via keep_letters(title) normalization
 ### Code
 - github.com/bytedance/pasa (Python, simple eval script)
 - We can reuse their keep_letters() and cal_micro() directly
+
+## Session: 2026-05-11 (Autonomous, RRF + Coverage Analysis)
+
+### Work Done
+1. Implemented RRF fusion in relevance.py (rrf_score, consensus_rrf_score, rrf_fuse)
+2. Added per-source rank tracking through dedup pipeline
+3. Improved keyword extraction for long research queries
+4. Built benchmark evaluation framework (eval_framework.py, coverage_analysis.py)
+5. Ran comprehensive coverage analysis across all 4 SAGE domains
+
+### Key Implementation: RRF Fusion
+- tag_source_ranks(papers, source_name): annotates each paper with rank position
+- rrf_score(paper, k=60): sum(1/(k+rank_i)) across sources (Cormack 2009)
+- consensus_rrf_score: vote_count * rrf_score (Condorcet-inspired)
+- rrf_fuse(papers, method="rrf"|"consensus"): score and sort
+- _source_ranks merged during dedup alongside _source_count
+- Pipeline: collect -> tag_ranks -> dedup (merge ranks) -> rrf_fuse -> filter -> score -> rerank
+
+### Critical Finding: Source Coverage Analysis
+
+Tested on SAGE benchmark, 20 queries per domain, title-based search:
+
+| Domain | Papers | OpenAlex | arXiv | Crossref | Union |
+|--------|--------|----------|-------|----------|-------|
+| CS | 96 | 97.9% | 71.9% | 47.9% | 97.9% |
+| Healthcare | 87 | 97.7% | 0.0% | 83.9% | 97.7% |
+| Humanities | 62 | 100% | 0.0% | 95.2% | 100% |
+| Nat. Science | 104 | 95.2% | 0.0% | 86.5% | 95.2% |
+
+Analysis:
+- OpenAlex alone = union coverage (no source adds marginal papers)
+- arXiv is a strict subset of OpenAlex for CS, 0% for non-CS
+- Crossref adds nothing beyond OpenAlex, but useful as 2nd choice for non-CS
+- All 3 sources combined still miss 2-5% of papers (very new or obscure)
+
+### Implication for Paper Story
+The original "source diversity amplifies recall" hypothesis is WRONG for coverage.
+Multi-source fusion value (if any) must come from ranking quality, not coverage.
+
+Possible pivots:
+1. Coverage analysis itself as empirical contribution (novel measurement)
+2. Ranking quality: multi-source RRF improves precision@K even with same coverage
+3. Query reformulation as the real bottleneck (coverage=97.9% but retrieval recall << 10%)
+4. S2 as the differentiator (SPECTER2 embeddings, but needs API key)
+5. Citation expansion as the coverage extender (single-hop coverage is high, multi-hop adds more)
+
+### Retrieval Results (preliminary)
+- SAGE open-ended (5 CS queries, arxiv+openalex): recall@20=0.029, hit_rate=0.200
+- SAGE short-form: 0% (queries reference visual/tabular content, not keyword-searchable)
+- Root cause: query reformulation, not source coverage
+- SAGE queries are 200-800 word research questions, keyword extraction loses key concepts
+
+### Next Steps
+1. Decide pivot direction
+2. Run OpenAlex-only vs multi-source ranking comparison
+3. Test LitSearch (more natural queries)
+4. LLM-based query reformulation experiment
+5. Citation expansion experiment
