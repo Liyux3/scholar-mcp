@@ -75,11 +75,14 @@ def extract_keywords(query: str, max_keywords: int = 8) -> list[str]:
 
 
 def optimize_query(query: str) -> str:
-    """Shorten long queries to core keywords for better API results."""
+    """Shorten very long queries to core keywords for better API results.
+    Preserves queries up to 20 words (typical agent-generated queries).
+    Only truncates user-pasted paragraphs or research questions.
+    """
     words = re.findall(r"[a-zA-Z0-9][\w\-]*", query)
-    if len(words) <= 12:
+    if len(words) <= 20:
         return query
-    keywords = extract_keywords(query, max_keywords=8)
+    keywords = extract_keywords(query, max_keywords=12)
     return " ".join(keywords)
 
 

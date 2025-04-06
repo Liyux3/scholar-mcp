@@ -99,8 +99,15 @@ def search_papers(
     min_citations: int = 0,
     open_access_only: bool = False,
 ) -> str:
-    """Search for academic papers across 214M+ papers in Semantic Scholar.
-    Falls back to arXiv, CORE, PubMed, then Google Scholar if Semantic Scholar is unavailable.
+    """Search for academic papers across multiple sources (Semantic Scholar, arXiv, OpenAlex).
+    Results are fused using Reciprocal Rank Fusion for better ranking quality.
+    Falls back to Crossref, CORE, PubMed if primary sources are unavailable.
+
+    Tips for best results:
+    - Use specific technical terms, method names, or paper titles as query
+    - Short focused queries (5-15 words) work better than long paragraphs
+    - Use year filter to narrow recent work (e.g., "2024-2025")
+    - Use fields_of_study for cross-domain queries to reduce noise
 
     Args:
         query: Search query (e.g., "attention is all you need", "CRISPR gene editing")
@@ -139,6 +146,11 @@ def search_papers(
     scored = relevance.score_results(query, all_papers, min_score=0.15)
     results = relevance.rerank(query, scored, top_n=limit)
     results = [r for r in results if r.get("_relevance_score", 0) >= 0.1]
+
+    for r in results:
+        r.pop("_source_ranks", None)
+        r.pop("_rrf_score", None)
+        r.pop("_source_count", None)
 
     if not results:
         return json.dumps({
@@ -182,7 +194,7 @@ def get_citations(paper_id: str, limit: int = 20) -> str:
     """Get papers that cite a given paper.
 
     Args:
-        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
+        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum number of citing papers (1-1000, default 20)
     """
     try:
@@ -191,8 +203,20 @@ def get_citations(paper_id: str, limit: int = 20) -> str:
             "total_returned": len(results),
             "citations": results,
         }, indent=2, default=str)
-    except Exception as e:
-        return json.dumps({"error": f"Could not get citations: {e}"})
+    except Exception:
+        pass
+    if paper_id.startswith("W") or paper_id.startswith("10."):
+        try:
+            results = openalex_client.get_citations(paper_id, limit=limit)
+            if results:
+                return json.dumps({
+                    "total_returned": len(results),
+                    "citations": results,
+                    "_source": "openalex",
+                }, indent=2, default=str)
+        except Exception:
+            pass
+    return json.dumps({"error": f"Could not get citations for '{paper_id}'"})
 
 
 @mcp.tool()
@@ -200,17 +224,30 @@ def get_references(paper_id: str, limit: int = 20) -> str:
     """Get papers referenced by a given paper.
 
     Args:
-        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
+        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum number of referenced papers (1-1000, default 20)
     """
     try:
         results = s2_client.get_references(paper_id, limit=limit)
-        return json.dumps({
-            "total_returned": len(results),
-            "references": results,
-        }, indent=2, default=str)
-    except Exception as e:
-        return json.dumps({"error": f"Could not get references: {e}"})
+        if results:
+            return json.dumps({
+                "total_returned": len(results),
+                "references": results,
+            }, indent=2, default=str)
+    except Exception:
+        pass
+    if paper_id.startswith("W") or paper_id.startswith("10."):
+        try:
+            results = openalex_client.get_references(paper_id, limit=limit)
+            if results:
+                return json.dumps({
+                    "total_returned": len(results),
+                    "references": results,
+                    "_source": "openalex",
+                }, indent=2, default=str)
+        except Exception:
+            pass
+    return json.dumps({"error": f"Could not get references for '{paper_id}'"})
 
 
 @mcp.tool()

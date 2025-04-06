@@ -123,3 +123,61 @@ def search_papers(query: str, limit: int = 10, year: str = None,
             results.append(paper)
 
     return results[:limit]
+
+
+def get_paper_by_id(openalex_id: str) -> dict | None:
+    """Get a single paper by OpenAlex ID (e.g., W2741809807) or DOI."""
+    if openalex_id.startswith("10."):
+        url = f"https://api.openalex.org/works/doi:{openalex_id}"
+    elif openalex_id.startswith("W"):
+        url = f"https://api.openalex.org/works/{openalex_id}"
+    else:
+        url = f"https://api.openalex.org/works/{openalex_id}"
+    params = _params_base()
+    r = httpx.get(url, params=params, timeout=30)
+    if r.status_code != 200:
+        return None
+    return format_paper(r.json())
+
+
+def get_citations(openalex_id: str, limit: int = 20) -> list[dict]:
+    """Get papers that cite the given paper. Uses OpenAlex cited_by filter."""
+    params = _params_base()
+    params["filter"] = f"cites:{openalex_id}"
+    params["sort"] = "cited_by_count:desc"
+    params["per_page"] = min(limit, 100)
+    r = httpx.get(BASE_URL, params=params, timeout=30)
+    if r.status_code != 200:
+        return []
+    results = []
+    for work in r.json().get("results") or []:
+        paper = format_paper(work)
+        if paper:
+            results.append(paper)
+    return results[:limit]
+
+
+def get_references(openalex_id: str, limit: int = 20) -> list[dict]:
+    """Get papers referenced by the given paper."""
+    url = f"https://api.openalex.org/works/{openalex_id}"
+    params = _params_base()
+    r = httpx.get(url, params=params, timeout=30)
+    if r.status_code != 200:
+        return []
+    data = r.json()
+    ref_ids = data.get("referenced_works") or []
+    if not ref_ids:
+        return []
+    id_filter = "|".join(ref_ids[:limit])
+    params2 = _params_base()
+    params2["filter"] = f"openalex:{id_filter}"
+    params2["per_page"] = min(limit, 100)
+    r2 = httpx.get(BASE_URL, params=params2, timeout=30)
+    if r2.status_code != 200:
+        return []
+    results = []
+    for work in r2.json().get("results") or []:
+        paper = format_paper(work)
+        if paper:
+            results.append(paper)
+    return results[:limit]

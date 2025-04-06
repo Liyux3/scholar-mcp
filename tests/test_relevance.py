@@ -19,10 +19,10 @@ def test_extract_keywords_limits_count():
 
 
 def test_optimize_query_shortens_long():
-    long_q = "how does the hybrid attention mechanism with sliding window and linear attention affect long context retrieval performance in frontier language models"
+    long_q = "I am wondering how does the hybrid attention mechanism with sliding window and linear attention approaches affect long context retrieval performance in modern frontier large language models and what are the tradeoffs"
     optimized = relevance.optimize_query(long_q)
     words = optimized.split()
-    assert len(words) <= 8
+    assert len(words) <= 12
 
 
 def test_optimize_query_preserves_short():
