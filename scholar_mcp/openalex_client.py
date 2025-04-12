@@ -125,14 +125,27 @@ def search_papers(query: str, limit: int = 10, year: str = None,
     return results[:limit]
 
 
-def get_paper_by_id(openalex_id: str) -> dict | None:
-    """Get a single paper by OpenAlex ID (e.g., W2741809807) or DOI."""
-    if openalex_id.startswith("10."):
-        url = f"https://api.openalex.org/works/doi:{openalex_id}"
-    elif openalex_id.startswith("W"):
-        url = f"https://api.openalex.org/works/{openalex_id}"
-    else:
-        url = f"https://api.openalex.org/works/{openalex_id}"
+def _resolve_oa_id(paper_id: str) -> str:
+    """Convert various ID formats to OpenAlex API URL."""
+    if paper_id.startswith("https://openalex.org/"):
+        return f"https://api.openalex.org/works/{paper_id.split('/')[-1]}"
+    if paper_id.startswith("10."):
+        return f"https://api.openalex.org/works/doi:{paper_id}"
+    if paper_id.startswith("W"):
+        return f"https://api.openalex.org/works/{paper_id}"
+    return f"https://api.openalex.org/works/{paper_id}"
+
+
+def _extract_oa_short_id(full_id: str) -> str:
+    """Extract W-id from full OpenAlex URL."""
+    if full_id.startswith("https://openalex.org/"):
+        return full_id.split("/")[-1]
+    return full_id
+
+
+def get_paper_by_id(paper_id: str) -> dict | None:
+    """Get a single paper by OpenAlex ID (W...), DOI, or full URL."""
+    url = _resolve_oa_id(paper_id)
     params = _params_base()
     r = httpx.get(url, params=params, timeout=30)
     if r.status_code != 200:
@@ -140,10 +153,11 @@ def get_paper_by_id(openalex_id: str) -> dict | None:
     return format_paper(r.json())
 
 
-def get_citations(openalex_id: str, limit: int = 20) -> list[dict]:
-    """Get papers that cite the given paper. Uses OpenAlex cited_by filter."""
+def get_citations(paper_id: str, limit: int = 20) -> list[dict]:
+    """Get papers that cite the given paper. Uses OpenAlex cites filter."""
+    oa_id = _extract_oa_short_id(paper_id)
     params = _params_base()
-    params["filter"] = f"cites:{openalex_id}"
+    params["filter"] = f"cites:{oa_id}"
     params["sort"] = "cited_by_count:desc"
     params["per_page"] = min(limit, 100)
     r = httpx.get(BASE_URL, params=params, timeout=30)
@@ -157,18 +171,19 @@ def get_citations(openalex_id: str, limit: int = 20) -> list[dict]:
     return results[:limit]
 
 
-def get_references(openalex_id: str, limit: int = 20) -> list[dict]:
+def get_references(paper_id: str, limit: int = 20) -> list[dict]:
     """Get papers referenced by the given paper."""
-    url = f"https://api.openalex.org/works/{openalex_id}"
+    url = _resolve_oa_id(paper_id)
     params = _params_base()
     r = httpx.get(url, params=params, timeout=30)
     if r.status_code != 200:
         return []
     data = r.json()
-    ref_ids = data.get("referenced_works") or []
-    if not ref_ids:
+    ref_urls = data.get("referenced_works") or []
+    if not ref_urls:
         return []
-    id_filter = "|".join(ref_ids[:limit])
+    ref_ids = [_extract_oa_short_id(u) for u in ref_urls[:limit]]
+    id_filter = "|".join(ref_ids)
     params2 = _params_base()
     params2["filter"] = f"openalex:{id_filter}"
     params2["per_page"] = min(limit, 100)
