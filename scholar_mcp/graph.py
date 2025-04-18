@@ -12,14 +12,19 @@ from . import relevance
 
 
 def _get_openalex_id(paper: dict) -> str | None:
-    """Extract OpenAlex-compatible ID from a paper dict."""
+    """Extract OpenAlex-compatible ID from a paper dict.
+    Prefers W-ID (works with citation filters), falls back to DOI.
+    """
+    pid = paper.get("paper_id", "")
+    if pid.startswith("W"):
+        return pid
     ext = paper.get("external_ids") or {}
-    doi = ext.get("DOI", "")
-    if doi:
-        return doi
     oa_id = ext.get("OpenAlex", "")
     if oa_id:
         return oa_id
+    doi = ext.get("DOI", "")
+    if doi:
+        return doi
     return None
 
 
@@ -149,13 +154,111 @@ def build_graph(
             edge_set.add(key)
             unique_edges.append(e)
 
-    return {
-        "nodes": list(nodes.values()),
-        "edges": unique_edges,
-        "stats": {
-            "total_nodes": len(nodes),
-            "total_edges": len(unique_edges),
-            "max_depth": max(n["depth"] for n in nodes.values()) if nodes else 0,
-            "seed_count": sum(1 for n in nodes.values() if n["depth"] == 0),
-        },
+    node_list = list(nodes.values())
+    stats = {
+        "total_nodes": len(nodes),
+        "total_edges": len(unique_edges),
+        "max_depth": max(n["depth"] for n in node_list) if node_list else 0,
+        "seed_count": sum(1 for n in node_list if n["depth"] == 0),
     }
+
+    summary = _summarize(node_list, unique_edges, stats)
+    mermaid = _to_mermaid(node_list, unique_edges)
+
+    return {
+        "summary": summary,
+        "mermaid": mermaid,
+        "nodes": node_list,
+        "edges": unique_edges,
+        "stats": stats,
+    }
+
+
+def _summarize(nodes: list[dict], edges: list[dict], stats: dict) -> str:
+    """Generate a human-readable summary of the citation graph."""
+    lines = []
+    lines.append(f"Citation graph: {stats['total_nodes']} papers, "
+                 f"{stats['total_edges']} connections, depth {stats['max_depth']}")
+    lines.append("")
+
+    seeds = [n for n in nodes if n["depth"] == 0]
+    if seeds:
+        lines.append("Seed papers:")
+        for s in seeds:
+            auth = s["authors"][0] if s["authors"] else "?"
+            lines.append(f"  {s['title'][:70]} ({auth}, {s.get('year', '?')})")
+        lines.append("")
+
+    by_depth = {}
+    for n in nodes:
+        by_depth.setdefault(n["depth"], []).append(n)
+
+    for d in sorted(by_depth):
+        if d == 0:
+            continue
+        papers = sorted(by_depth[d], key=lambda x: x.get("citation_count", 0), reverse=True)
+        label = "Most cited references" if d == 1 else f"Depth-{d} papers"
+        lines.append(f"{label} (top 5 of {len(papers)}):")
+        for p in papers[:5]:
+            auth = p["authors"][0] if p["authors"] else "?"
+            lines.append(f"  [{p.get('citation_count', 0):,} cites] "
+                         f"{p['title'][:55]} ({auth}, {p.get('year', '?')})")
+        lines.append("")
+
+    in_degree = {}
+    out_degree = {}
+    for e in edges:
+        out_degree[e["source"]] = out_degree.get(e["source"], 0) + 1
+        in_degree[e["target"]] = in_degree.get(e["target"], 0) + 1
+
+    id_to_title = {n["id"]: n["title"][:50] for n in nodes}
+    hubs = sorted(out_degree.items(), key=lambda x: x[1], reverse=True)[:3]
+    if hubs:
+        lines.append("Hub papers (most outgoing connections):")
+        for nid, deg in hubs:
+            lines.append(f"  {id_to_title.get(nid, nid)[:50]} -> {deg} papers")
+        lines.append("")
+
+    years = [n["year"] for n in nodes if n.get("year")]
+    if years:
+        lines.append(f"Timeline: {min(years)}-{max(years)}")
+
+    return "\n".join(lines)
+
+
+def _short_label(title: str, max_len: int = 30) -> str:
+    """Shorten title for graph labels."""
+    title = title.replace('"', "'")
+    if len(title) <= max_len:
+        return title
+    return title[:max_len - 3] + "..."
+
+
+def _to_mermaid(nodes: list[dict], edges: list[dict]) -> str:
+    """Generate Mermaid flowchart from graph data."""
+    lines = ["graph TD"]
+
+    id_map = {}
+    for i, n in enumerate(nodes):
+        safe_id = f"n{i}"
+        id_map[n["id"]] = safe_id
+        label = _short_label(n["title"])
+        year = n.get("year", "")
+        cites = n.get("citation_count", 0)
+        suffix = f" ({year})" if year else ""
+        if n["depth"] == 0:
+            lines.append(f'    {safe_id}["{label}{suffix}"]')
+        else:
+            lines.append(f'    {safe_id}("{label}{suffix}")')
+
+    for e in edges:
+        src = id_map.get(e["source"])
+        tgt = id_map.get(e["target"])
+        if src and tgt:
+            lines.append(f"    {src} --> {tgt}")
+
+    for i, n in enumerate(nodes):
+        if n["depth"] == 0:
+            lines.append(f"    style n{i} fill:#e1f5fe,stroke:#01579b")
+
+    return "\n".join(lines)
