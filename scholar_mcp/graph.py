@@ -175,53 +175,23 @@ def build_graph(
 
 
 def _summarize(nodes: list[dict], edges: list[dict], stats: dict) -> str:
-    """Generate a human-readable summary of the citation graph."""
+    """Compact summary with stats and structural insights. No paper lists (those are in mermaid)."""
     lines = []
-    lines.append(f"Citation graph: {stats['total_nodes']} papers, "
+    lines.append(f"Graph: {stats['total_nodes']} papers, "
                  f"{stats['total_edges']} connections, depth {stats['max_depth']}")
-    lines.append("")
-
-    seeds = [n for n in nodes if n["depth"] == 0]
-    if seeds:
-        lines.append("Seed papers:")
-        for s in seeds:
-            auth = s["authors"][0] if s["authors"] else "?"
-            lines.append(f"  {s['title'][:70]} ({auth}, {s.get('year', '?')})")
-        lines.append("")
-
-    by_depth = {}
-    for n in nodes:
-        by_depth.setdefault(n["depth"], []).append(n)
-
-    for d in sorted(by_depth):
-        if d == 0:
-            continue
-        papers = sorted(by_depth[d], key=lambda x: x.get("citation_count", 0), reverse=True)
-        label = "Most cited references" if d == 1 else f"Depth-{d} papers"
-        lines.append(f"{label} (top 5 of {len(papers)}):")
-        for p in papers[:5]:
-            auth = p["authors"][0] if p["authors"] else "?"
-            lines.append(f"  [{p.get('citation_count', 0):,} cites] "
-                         f"{p['title'][:55]} ({auth}, {p.get('year', '?')})")
-        lines.append("")
-
-    in_degree = {}
-    out_degree = {}
-    for e in edges:
-        out_degree[e["source"]] = out_degree.get(e["source"], 0) + 1
-        in_degree[e["target"]] = in_degree.get(e["target"], 0) + 1
-
-    id_to_title = {n["id"]: n["title"][:50] for n in nodes}
-    hubs = sorted(out_degree.items(), key=lambda x: x[1], reverse=True)[:3]
-    if hubs:
-        lines.append("Hub papers (most outgoing connections):")
-        for nid, deg in hubs:
-            lines.append(f"  {id_to_title.get(nid, nid)[:50]} -> {deg} papers")
-        lines.append("")
 
     years = [n["year"] for n in nodes if n.get("year")]
     if years:
         lines.append(f"Timeline: {min(years)}-{max(years)}")
+
+    out_degree = {}
+    for e in edges:
+        out_degree[e["source"]] = out_degree.get(e["source"], 0) + 1
+    id_to_title = {n["id"]: n["title"][:45] for n in nodes}
+    hubs = sorted(out_degree.items(), key=lambda x: x[1], reverse=True)[:3]
+    if hubs:
+        hub_strs = [f"{id_to_title.get(nid, '?')[:30]} ({deg})" for nid, deg in hubs]
+        lines.append(f"Hubs: {', '.join(hub_strs)}")
 
     return "\n".join(lines)
 
@@ -242,14 +212,15 @@ def _to_mermaid(nodes: list[dict], edges: list[dict]) -> str:
     for i, n in enumerate(nodes):
         safe_id = f"n{i}"
         id_map[n["id"]] = safe_id
-        label = _short_label(n["title"])
+        label = _short_label(n["title"], max_len=35)
         year = n.get("year", "")
         cites = n.get("citation_count", 0)
-        suffix = f" ({year})" if year else ""
+        cite_str = f"{cites:,}" if cites else "0"
+        tag = f"{year}, {cite_str}c" if year else f"{cite_str}c"
         if n["depth"] == 0:
-            lines.append(f'    {safe_id}["{label}{suffix}"]')
+            lines.append(f'    {safe_id}["{label}<br/>{tag}"]')
         else:
-            lines.append(f'    {safe_id}("{label}{suffix}")')
+            lines.append(f'    {safe_id}("{label}<br/>{tag}")')
 
     for e in edges:
         src = id_map.get(e["source"])

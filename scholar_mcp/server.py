@@ -410,17 +410,11 @@ def build_paper_graph(
         min_citations=min_citations,
     )
 
-    output = {
-        "summary": result["summary"],
-        "mermaid": result["mermaid"],
-        "stats": result["stats"],
-        "papers": [
-            {"title": n["title"], "year": n.get("year"), "citations": n.get("citation_count", 0),
-             "authors": n["authors"][:3], "depth": n["depth"]}
-            for n in sorted(result["nodes"], key=lambda x: x.get("citation_count", 0), reverse=True)
-        ],
-    }
-    return json.dumps(output, indent=2, default=str)
+    output = (
+        result["summary"] + "\n\n"
+        "```mermaid\n" + result["mermaid"] + "\n```"
+    )
+    return output
 
 
 def main():
