@@ -1376,3 +1376,55 @@ Possible pivots:
 3. Test LitSearch (more natural queries)
 4. LLM-based query reformulation experiment
 5. Citation expansion experiment
+
+## Session: 2026-05-11 (Continued, S2 Key + Citation Quality)
+
+### S2 API Key Obtained
+Configured in ~/.zshenv (env var, not committed). Added S2 to eval framework.
+
+### CRITICAL BUG FIX: Wrong Paper ID
+Previously used S2 ID `649def34...` thinking it was "Attention Is All You Need",
+but it was actually "Construction of the Literature Graph in Semantic Scholar" (Allen AI 2018).
+Correct AIAYN ID: `204e3073870fae3d05bcbc2f6a8e263d9b72e776` (175K citations).
+This invalidated earlier S2 reference quality claims.
+
+### Citation API Quality Comparison (corrected)
+
+**S2 citations**: Returns most recent citations only, no sort by impact.
+For AIAYN (175K cites), top 300 recent citations are all cites=0-1.
+Our fix: fetch 3x and sort locally by citation_count. Helps for <1K citation papers,
+but fundamentally limited for high-citation papers.
+
+**OpenAlex citations**: Sorted by cited_by_count:desc by default. Returns
+AlphaFold (43K), ViT (21K), etc. Far superior for finding influential follow-ups.
+
+**S2 references**: Quality is fine (confirmed with correct paper ID).
+Returns real references like Conv Seq2Seq, MoE, Xception.
+
+**OpenAlex references**: Also fine, different subset.
+Returns ResNet, Bahdanau attention, Penn Treebank.
+
+**Source strengths:**
+- S2: best for SEARCH (SPECTER2 semantic embeddings)
+- OpenAlex: best for COVERAGE (97.9%) and CITATION GRAPH (impact-ranked)
+- arXiv: CS preprints, adds diversity
+
+### LitSearch Results with S2
+
+| Config | N | R@5 | R@20 | Hit% | MRR |
+|--------|---|-----|------|------|-----|
+| OA+arXiv | 10 | 0.000 | 0.100 | 10% | 0.006 |
+| S2-only | 20 | 0.150 | 0.200 | 10% | 0.028 |
+| S2+OA+arXiv | 20 | 0.125 | 0.250 | 20% | 0.114 |
+
+S2 adds significant value for search (R@5 from 0 to 15%).
+Multi-source further improves R@20 and MRR.
+50-query eval running for more robust numbers.
+
+### Tool Improvements Made
+1. S2 citations sorted by citation_count (fetch 3x, sort locally)
+2. OpenAlex citation/reference fallback for S2-unavailable scenarios
+3. ID resolution for OpenAlex (handle full URLs, W-ids, DOIs)
+4. Query optimization threshold raised (20 words, preserve agent queries)
+5. Internal fields stripped from tool output
+6. Tool descriptions updated with usage tips
