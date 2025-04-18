@@ -192,6 +192,8 @@ def get_paper(paper_id: str) -> str:
 @mcp.tool()
 def get_citations(paper_id: str, limit: int = 20) -> str:
     """Get papers that cite a given paper.
+    Uses S2 first (recent citations, sorted by impact), falls back to OpenAlex
+    (sorted by citation count, better for finding influential follow-up work).
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)

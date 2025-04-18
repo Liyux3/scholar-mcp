@@ -139,14 +139,16 @@ def get_paper(paper_id: str) -> dict:
 
 
 def get_citations(paper_id: str, limit: int = 20):
-    params = {"fields": CITATION_FIELDS, "limit": min(limit, 1000)}
+    fetch_limit = min(max(limit * 3, 100), 1000)
+    params = {"fields": CITATION_FIELDS, "limit": fetch_limit}
     data = _get(f"{BASE_URL}/paper/{paper_id}/citations", params=params)
     results = []
     for item in data.get("data", []):
         citing = item.get("citingPaper", {})
         if citing and citing.get("paperId"):
             results.append(format_paper(citing))
-    return results
+    results.sort(key=lambda p: p.get("citation_count", 0), reverse=True)
+    return results[:limit]
 
 
 def get_references(paper_id: str, limit: int = 20):
