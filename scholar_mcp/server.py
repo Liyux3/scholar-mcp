@@ -11,6 +11,7 @@ from . import pubmed_client
 from . import scholar_client
 from . import pdf_utils
 from . import relevance
+from . import graph
 
 mcp = FastMCP("scholar-mcp")
 
@@ -351,6 +352,65 @@ def search_openreview(
         return json.dumps({"message": "No results found on OpenReview.", "query": query, "venue": venue})
     except Exception as e:
         return json.dumps({"error": f"OpenReview search failed: {e}"})
+
+
+@mcp.tool()
+def build_paper_graph(
+    paper_ids: str,
+    max_hops: int = 2,
+    max_papers: int = 50,
+    direction: str = "both",
+    min_citations: int = 0,
+) -> str:
+    """Build a citation graph starting from seed papers.
+    Recursively expands citations and references to map the research landscape.
+    Uses OpenAlex for citation data (impact-ranked, comprehensive coverage).
+
+    Best for: understanding a research area's structure, finding related work,
+    discovering influential papers, and mapping method evolution.
+
+    Args:
+        paper_ids: Comma-separated paper identifiers (S2 IDs, DOIs, or paper titles to search)
+        max_hops: How many citation/reference hops to expand (1-3, default 2)
+        max_papers: Maximum total papers in the graph (10-200, default 50)
+        direction: "citations" (who cites this), "references" (what it cites), or "both"
+        min_citations: Skip papers with fewer citations than this (helps focus on impactful work)
+    """
+    max_hops = min(max(max_hops, 1), 3)
+    max_papers = min(max(max_papers, 10), 200)
+
+    seeds = [pid.strip() for pid in paper_ids.split(",") if pid.strip()]
+    if not seeds:
+        return json.dumps({"error": "No paper IDs provided"})
+
+    seed_papers = []
+    for seed in seeds:
+        if len(seed) > 30 and " " not in seed:
+            try:
+                p = s2_client.get_paper(seed)
+                if p:
+                    seed_papers.append(p)
+                    continue
+            except Exception:
+                pass
+        results = s2_client.search_papers(seed, limit=1) if config.get_s2_api_key() else []
+        if not results:
+            results = openalex_client.search_papers(seed, limit=1)
+        if results:
+            seed_papers.append(results[0])
+
+    if not seed_papers:
+        return json.dumps({"error": "Could not find any of the specified papers"})
+
+    result = graph.build_graph(
+        seed_papers,
+        max_hops=max_hops,
+        max_papers=max_papers,
+        direction=direction,
+        min_citations=min_citations,
+    )
+
+    return json.dumps(result, indent=2, default=str)
 
 
 def main():
