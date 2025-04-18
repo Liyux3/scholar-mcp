@@ -213,11 +213,21 @@ def _keyword_score(query: str, paper: dict) -> float:
 
 
 def _citation_score(paper: dict) -> float:
-    """Log-scaled citation score. 0.0 to 1.0."""
+    """Citation impact score combining total citations and velocity.
+    Blends log-scaled total citations with citations-per-year to surface
+    papers that are both new and rapidly gaining traction.
+    """
     cites = paper.get("citation_count") or 0
     if cites <= 0:
         return 0.0
-    return min(math.log10(cites + 1) / 5.0, 1.0)
+    total = min(math.log10(cites + 1) / 5.0, 1.0)
+    year = paper.get("year")
+    if not year:
+        return total
+    current_year = datetime.now().year
+    age = max(current_year - year, 1)
+    velocity = min(math.log10(cites / age + 1) / 4.0, 1.0)
+    return 0.6 * total + 0.4 * velocity
 
 
 def _venue_score(paper: dict) -> float:
