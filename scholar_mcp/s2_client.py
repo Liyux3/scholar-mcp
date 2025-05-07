@@ -38,11 +38,17 @@ def _headers() -> dict:
     return h
 
 
-def _get(url: str, params: dict = None, retries: int = 4) -> dict:
+def _get(url: str, params: dict = None, retries: int = 3) -> dict:
     for attempt in range(retries):
-        r = httpx.get(url, params=params, headers=_headers(), timeout=config.S2_TIMEOUT)
+        try:
+            r = httpx.get(url, params=params, headers=_headers(), timeout=config.S2_TIMEOUT)
+        except httpx.TimeoutException:
+            if attempt < retries - 1:
+                time.sleep(1)
+                continue
+            raise
         if r.status_code == 429 and attempt < retries - 1:
-            wait = min(2 ** (attempt + 1), 30)
+            wait = min(2 ** attempt + 1, 8)
             time.sleep(wait)
             continue
         r.raise_for_status()

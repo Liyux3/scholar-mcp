@@ -148,27 +148,41 @@ def search_papers(
     results = relevance.rerank(query, scored, top_n=limit)
     results = [r for r in results if r.get("_relevance_score", 0) >= 0.1]
 
-    for r in results:
-        r.pop("_source_ranks", None)
-        r.pop("_rrf_score", None)
-        r.pop("_source_count", None)
-
     if not results:
         return json.dumps({
             "error": "No relevant results found.",
-            "_meta": {
-                "sources_used": sources_used,
-                "sources_failed": sources_failed,
-            },
+            "_meta": {"sources_used": sources_used, "sources_failed": sources_failed},
         })
 
+    compact = []
+    for r in results:
+        doi = (r.get("external_ids") or {}).get("DOI", "")
+        abstract = r.get("abstract") or ""
+        if len(abstract) > 300:
+            abstract = abstract[:300] + "..."
+        p = {
+            "paper_id": r.get("paper_id", ""),
+            "title": r.get("title", ""),
+            "authors": (r.get("authors") or [])[:5],
+            "year": r.get("year"),
+            "venue": r.get("venue", ""),
+            "citation_count": r.get("citation_count", 0),
+            "abstract": abstract,
+            "url": r.get("url", ""),
+        }
+        if doi:
+            p["doi"] = doi
+        if r.get("tldr"):
+            p["tldr"] = r["tldr"]
+        if r.get("publication_date"):
+            p["publication_date"] = r["publication_date"]
+        compact.append(p)
+
     return json.dumps({
-        "results": results,
+        "results": compact,
         "_meta": {
             "sources_used": sources_used,
-            "sources_failed": sources_failed,
-            "total_before_filter": total_before,
-            "total_after_filter": len(results),
+            "total": len(compact),
         },
     }, indent=2, default=str)
 
@@ -177,17 +191,25 @@ def search_papers(
 def get_paper(paper_id: str) -> str:
     """Get detailed information about a specific paper.
     Accepts: Semantic Scholar ID, DOI, ArXiv ID (prefix with "ArXiv:"),
-    PMID (prefix with "PMID:"), or a Semantic Scholar URL.
+    PMID (prefix with "PMID:"), OpenAlex ID (W...), or a URL.
 
     Args:
         paper_id: Paper identifier (e.g., "649def34f8be52c8b66281af98ae884c09aef38b",
-                  "10.1038/nature12373", "ArXiv:2106.09685", "PMID:19872477")
+                  "10.1038/nature12373", "ArXiv:2106.09685", "W2626778328")
     """
     try:
         result = s2_client.get_paper(paper_id)
         return json.dumps(result, indent=2, default=str)
-    except Exception as e:
-        return json.dumps({"error": f"Could not find paper '{paper_id}': {e}"})
+    except Exception:
+        pass
+    if paper_id.startswith("W") or paper_id.startswith("10."):
+        try:
+            result = openalex_client.get_paper_by_id(paper_id)
+            if result:
+                return json.dumps(result, indent=2, default=str)
+        except Exception:
+            pass
+    return json.dumps({"error": f"Could not find paper '{paper_id}'"})
 
 
 @mcp.tool()
