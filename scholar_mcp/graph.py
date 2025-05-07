@@ -6,6 +6,7 @@ Primarily uses OpenAlex for citation data (impact-ranked, generous rate limits).
 
 import time
 from collections import deque
+from . import config
 from . import openalex_client
 from . import s2_client
 from . import relevance
@@ -40,6 +41,39 @@ def _paper_to_node(paper: dict, depth: int) -> dict:
         "source": paper.get("source", ""),
         "depth": depth,
     }
+
+
+def _fetch_related(paper: dict, relation: str, limit: int, delay: float) -> list[dict]:
+    """Fetch citations or references, trying OpenAlex first then S2."""
+    oa_id = _get_openalex_id(paper)
+    results = []
+    if oa_id:
+        try:
+            fn = openalex_client.get_citations if relation == "citations" else openalex_client.get_references
+            results = fn(oa_id, limit=limit)
+            time.sleep(delay)
+        except Exception:
+            pass
+    if len(results) < limit // 2 and config.get_s2_api_key():
+        ext = paper.get("external_ids") or {}
+        s2_id = ext.get("DOI", "") or ext.get("ArXiv", "")
+        pid = paper.get("paper_id", "")
+        if pid and not pid.startswith("W"):
+            s2_id = s2_id or pid
+        if s2_id:
+            try:
+                fn = s2_client.get_citations if relation == "citations" else s2_client.get_references
+                s2_results = fn(s2_id, limit=limit)
+                time.sleep(delay)
+                existing_titles = {relevance._normalize_title(r.get("title", "")) for r in results}
+                for r in s2_results:
+                    nt = relevance._normalize_title(r.get("title", ""))
+                    if nt and nt not in existing_titles:
+                        results.append(r)
+                        existing_titles.add(nt)
+            except Exception:
+                pass
+    return results
 
 
 def build_graph(
@@ -90,10 +124,9 @@ def build_graph(
 
         oa_id = _get_openalex_id(paper)
 
-        if direction in ("citations", "both") and oa_id:
+        if direction in ("citations", "both"):
             try:
-                cites = openalex_client.get_citations(oa_id, limit=citations_per_paper)
-                time.sleep(delay)
+                cites = _fetch_related(paper, "citations", citations_per_paper, delay)
                 for c in cites:
                     if len(nodes) >= max_papers:
                         break
@@ -118,10 +151,9 @@ def build_graph(
             except Exception:
                 pass
 
-        if direction in ("references", "both") and oa_id:
+        if direction in ("references", "both"):
             try:
-                refs = openalex_client.get_references(oa_id, limit=references_per_paper)
-                time.sleep(delay)
+                refs = _fetch_related(paper, "references", references_per_paper, delay)
                 for r in refs:
                     if len(nodes) >= max_papers:
                         break
