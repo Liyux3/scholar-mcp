@@ -176,6 +176,9 @@ def search_papers(
             p["tldr"] = r["tldr"]
         if r.get("publication_date"):
             p["publication_date"] = r["publication_date"]
+        src = r.get("source", "")
+        if "+" in src:
+            p["found_in"] = src.split("+")
         compact.append(p)
 
     return json.dumps({

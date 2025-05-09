@@ -4,8 +4,8 @@ Builds paper relationship graphs via multi-hop citation/reference traversal.
 Primarily uses OpenAlex for citation data (impact-ranked, generous rate limits).
 """
 
+import heapq
 import time
-from collections import deque
 from . import config
 from . import openalex_client
 from . import s2_client
@@ -104,7 +104,8 @@ def build_graph(
     nodes = {}
     edges = []
     seen_titles = set()
-    queue = deque()
+    heap = []
+    counter = 0
 
     for p in seed_papers:
         nt = relevance._normalize_title(p.get("title", ""))
@@ -114,10 +115,12 @@ def build_graph(
         node = _paper_to_node(p, depth=0)
         node_id = node["id"] or nt
         nodes[node_id] = node
-        queue.append((p, node_id, 0))
+        cites = p.get("citation_count", 0) or 0
+        heapq.heappush(heap, (-cites, counter, p, node_id, 0))
+        counter += 1
 
-    while queue and len(nodes) < max_papers:
-        paper, parent_id, depth = queue.popleft()
+    while heap and len(nodes) < max_papers:
+        _, _, paper, parent_id, depth = heapq.heappop(heap)
 
         if depth >= max_hops:
             continue
@@ -147,7 +150,9 @@ def build_graph(
                     cid = node["id"] or ct
                     nodes[cid] = node
                     edges.append({"source": cid, "target": parent_id, "type": "cites"})
-                    queue.append((c, cid, depth + 1))
+                    cc = c.get("citation_count", 0) or 0
+                    heapq.heappush(heap, (-cc, counter, c, cid, depth + 1))
+                    counter += 1
             except Exception:
                 pass
 
@@ -174,7 +179,9 @@ def build_graph(
                     rid = node["id"] or rt
                     nodes[rid] = node
                     edges.append({"source": parent_id, "target": rid, "type": "cites"})
-                    queue.append((r, rid, depth + 1))
+                    rc = r.get("citation_count", 0) or 0
+                    heapq.heappush(heap, (-rc, counter, r, rid, depth + 1))
+                    counter += 1
             except Exception:
                 pass
 
