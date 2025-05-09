@@ -16,6 +16,24 @@ from . import graph
 mcp = FastMCP("scholar-mcp")
 
 
+def _compact_papers(papers: list[dict]) -> list[dict]:
+    """Slim down paper list for citation/reference output."""
+    compact = []
+    for p in papers:
+        c = {
+            "paper_id": p.get("paper_id", ""),
+            "title": p.get("title", ""),
+            "authors": (p.get("authors") or [])[:3],
+            "year": p.get("year"),
+            "citation_count": p.get("citation_count", 0),
+        }
+        doi = (p.get("external_ids") or {}).get("DOI", "")
+        if doi:
+            c["doi"] = doi
+        compact.append(c)
+    return compact
+
+
 def _collect_primary(search_query, limit, year, venue, fos_list,
                      min_citations, open_access_only):
     """Query S2, arXiv, and OpenAlex in parallel. Returns (papers, sources_used, sources_failed).
@@ -225,26 +243,22 @@ def get_citations(paper_id: str, limit: int = 20) -> str:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum number of citing papers (1-1000, default 20)
     """
+    results = None
     try:
         results = s2_client.get_citations(paper_id, limit=limit)
-        return json.dumps({
-            "total_returned": len(results),
-            "citations": results,
-        }, indent=2, default=str)
     except Exception:
         pass
-    if paper_id.startswith("W") or paper_id.startswith("10."):
+    if not results and (paper_id.startswith("W") or paper_id.startswith("10.")):
         try:
             results = openalex_client.get_citations(paper_id, limit=limit)
-            if results:
-                return json.dumps({
-                    "total_returned": len(results),
-                    "citations": results,
-                    "_source": "openalex",
-                }, indent=2, default=str)
         except Exception:
             pass
-    return json.dumps({"error": f"Could not get citations for '{paper_id}'"})
+    if not results:
+        return json.dumps({"error": f"Could not get citations for '{paper_id}'"})
+    return json.dumps({
+        "total": len(results),
+        "citations": _compact_papers(results),
+    }, indent=2, default=str)
 
 
 @mcp.tool()
@@ -255,27 +269,22 @@ def get_references(paper_id: str, limit: int = 20) -> str:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum number of referenced papers (1-1000, default 20)
     """
+    results = None
     try:
         results = s2_client.get_references(paper_id, limit=limit)
-        if results:
-            return json.dumps({
-                "total_returned": len(results),
-                "references": results,
-            }, indent=2, default=str)
     except Exception:
         pass
-    if paper_id.startswith("W") or paper_id.startswith("10."):
+    if not results and (paper_id.startswith("W") or paper_id.startswith("10.")):
         try:
             results = openalex_client.get_references(paper_id, limit=limit)
-            if results:
-                return json.dumps({
-                    "total_returned": len(results),
-                    "references": results,
-                    "_source": "openalex",
-                }, indent=2, default=str)
         except Exception:
             pass
-    return json.dumps({"error": f"Could not get references for '{paper_id}'"})
+    if not results:
+        return json.dumps({"error": f"Could not get references for '{paper_id}'"})
+    return json.dumps({
+        "total": len(results),
+        "references": _compact_papers(results),
+    }, indent=2, default=str)
 
 
 @mcp.tool()

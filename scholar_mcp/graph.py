@@ -12,6 +12,17 @@ from . import s2_client
 from . import relevance
 
 
+def _expansion_priority(paper: dict) -> float:
+    """Higher = expand first. Blends citation count with recency."""
+    cites = paper.get("citation_count", 0) or 0
+    year = paper.get("year")
+    if not year or not cites:
+        return float(cites)
+    from datetime import datetime
+    age = max(datetime.now().year - year, 1)
+    return cites + (cites / age) * 2
+
+
 def _get_openalex_id(paper: dict) -> str | None:
     """Extract OpenAlex-compatible ID from a paper dict.
     Prefers W-ID (works with citation filters), falls back to DOI.
@@ -115,8 +126,8 @@ def build_graph(
         node = _paper_to_node(p, depth=0)
         node_id = node["id"] or nt
         nodes[node_id] = node
-        cites = p.get("citation_count", 0) or 0
-        heapq.heappush(heap, (-cites, counter, p, node_id, 0))
+        prio = _expansion_priority(p)
+        heapq.heappush(heap, (-prio, counter, p, node_id, 0))
         counter += 1
 
     while heap and len(nodes) < max_papers:
@@ -150,8 +161,7 @@ def build_graph(
                     cid = node["id"] or ct
                     nodes[cid] = node
                     edges.append({"source": cid, "target": parent_id, "type": "cites"})
-                    cc = c.get("citation_count", 0) or 0
-                    heapq.heappush(heap, (-cc, counter, c, cid, depth + 1))
+                    heapq.heappush(heap, (-_expansion_priority(c), counter, c, cid, depth + 1))
                     counter += 1
             except Exception:
                 pass
@@ -179,8 +189,7 @@ def build_graph(
                     rid = node["id"] or rt
                     nodes[rid] = node
                     edges.append({"source": parent_id, "target": rid, "type": "cites"})
-                    rc = r.get("citation_count", 0) or 0
-                    heapq.heappush(heap, (-rc, counter, r, rid, depth + 1))
+                    heapq.heappush(heap, (-_expansion_priority(r), counter, r, rid, depth + 1))
                     counter += 1
             except Exception:
                 pass
