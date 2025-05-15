@@ -276,8 +276,14 @@ def _to_mermaid(nodes: list[dict], edges: list[dict]) -> str:
         if src and tgt:
             lines.append(f"    {src} --> {tgt}")
 
+    max_cites = max((n.get("citation_count", 0) for n in nodes), default=1) or 1
     for i, n in enumerate(nodes):
+        cites = n.get("citation_count", 0) or 0
         if n["depth"] == 0:
-            lines.append(f"    style n{i} fill:#e1f5fe,stroke:#01579b")
+            lines.append(f"    style n{i} fill:#e1f5fe,stroke:#01579b,stroke-width:3px")
+        elif cites > max_cites * 0.5:
+            lines.append(f"    style n{i} fill:#fff3e0,stroke:#e65100")
+        elif cites > max_cites * 0.1:
+            lines.append(f"    style n{i} fill:#f3e5f5,stroke:#7b1fa2")
 
     return "\n".join(lines)
