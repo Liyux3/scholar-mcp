@@ -297,7 +297,10 @@ def recommend_papers(paper_id: str, limit: int = 10) -> str:
     """
     try:
         results = s2_client.get_recommendations(paper_id, limit=limit)
-        return json.dumps(results, indent=2, default=str)
+        return json.dumps({
+            "total": len(results),
+            "recommendations": _compact_papers(results),
+        }, indent=2, default=str)
     except Exception as e:
         return json.dumps({"error": f"Could not get recommendations: {e}"})
 
