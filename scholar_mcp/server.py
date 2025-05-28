@@ -398,6 +398,7 @@ def build_paper_graph(
     max_papers: int = 50,
     direction: str = "both",
     min_citations: int = 0,
+    topic_filter: str = "",
 ) -> str:
     """Build a citation graph starting from seed papers.
     Recursively expands citations and references to map the research landscape.
@@ -412,6 +413,7 @@ def build_paper_graph(
         max_papers: Maximum total papers in the graph (10-200, default 50)
         direction: "citations" (who cites this), "references" (what it cites), or "both"
         min_citations: Skip papers with fewer citations than this (helps focus on impactful work)
+        topic_filter: Space-separated keywords to keep graph focused on a topic (e.g., "attention transformer")
     """
     max_hops = min(max(max_hops, 1), 3)
     max_papers = min(max(max_papers, 10), 200)
@@ -445,6 +447,7 @@ def build_paper_graph(
         max_papers=max_papers,
         direction=direction,
         min_citations=min_citations,
+        topic_filter=topic_filter,
     )
 
     output = (

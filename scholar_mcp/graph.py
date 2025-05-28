@@ -87,6 +87,14 @@ def _fetch_related(paper: dict, relation: str, limit: int, delay: float) -> list
     return results
 
 
+def _matches_topic(paper: dict, topic_keywords: list[str]) -> bool:
+    """Check if paper title/abstract contains any of the topic keywords."""
+    if not topic_keywords:
+        return True
+    text = ((paper.get("title") or "") + " " + (paper.get("abstract") or "")).lower()
+    return any(kw in text for kw in topic_keywords)
+
+
 def build_graph(
     seed_papers: list[dict],
     max_hops: int = 2,
@@ -96,6 +104,7 @@ def build_graph(
     citations_per_paper: int = 10,
     references_per_paper: int = 10,
     delay: float = 0.3,
+    topic_filter: str = "",
 ) -> dict:
     """Build citation graph from seed papers via BFS expansion.
 
@@ -108,10 +117,13 @@ def build_graph(
         citations_per_paper: max citations to fetch per paper
         references_per_paper: max references to fetch per paper
         delay: seconds between API calls
+        topic_filter: space-separated keywords to filter expanded papers (only keep relevant ones)
 
     Returns:
         dict with nodes, edges, and stats
     """
+    topic_keywords = [w.lower() for w in topic_filter.split() if len(w) > 2] if topic_filter else []
+
     nodes = {}
     edges = []
     seen_titles = set()
@@ -146,6 +158,8 @@ def build_graph(
                         break
                     if min_citations > 0 and (c.get("citation_count", 0) or 0) < min_citations:
                         continue
+                    if not _matches_topic(c, topic_keywords):
+                        continue
                     ct = relevance._normalize_title(c.get("title", ""))
                     if not ct or ct in seen_titles:
                         cid = None
@@ -173,6 +187,8 @@ def build_graph(
                     if len(nodes) >= max_papers:
                         break
                     if min_citations > 0 and (r.get("citation_count", 0) or 0) < min_citations:
+                        continue
+                    if not _matches_topic(r, topic_keywords):
                         continue
                     rt = relevance._normalize_title(r.get("title", ""))
                     if not rt or rt in seen_titles:
