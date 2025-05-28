@@ -1428,3 +1428,44 @@ Multi-source further improves R@20 and MRR.
 4. Query optimization threshold raised (20 words, preserve agent queries)
 5. Internal fields stripped from tool output
 6. Tool descriptions updated with usage tips
+
+## Citation Graph Visualization Tools Survey (2026-05-11)
+
+### Most Relevant Tools
+
+**citracer** (2026, Python, MIT, marcpinet/citracer)
+- Recursive citation tracing with keyword filtering
+- Sources: S2, arXiv, OpenReview, OpenAlex, Sci-Hub
+- pyvis interactive HTML rendering, networkx analytics (PageRank, centrality)
+- Forward + reverse tracing, fuzzy title matching (rapidfuzz)
+- Cross-graph bibliographic links post-processing
+- 5-depth trace: 50-150 papers in minutes
+
+**Paper Master** (2025, TypeScript, snooow1029/paper_master)
+- D3.js force-directed graph, LLM-powered relationship analysis
+- GROBID PDF parsing, arXiv search integration
+- Obsidian integration (export to knowledge graph)
+- Section-level citation filtering
+
+**oowekyala/citegraph** (Python, MIT)
+- S2 API, DOI-based exploration priority
+- Output: GEXF (Gephi), DOT (Graphviz), PDF, PNG, SVG
+- Smart exploration: degree-of-interest (DOI) calculation
+
+**Citegraph.io** (Java, 21 stars)
+- 5M papers, 294M edges, JanusGraph database
+- Deployed web service, too heavy for MCP tool
+
+### Key Design Insights
+1. pyvis > mermaid for interactive citation graphs (scalable, clickable, physics-based layout)
+2. Keyword-filtered expansion (citracer) is smarter than blind BFS
+3. Cross-graph link detection (fuzzy title matching after main traversal) catches indirect connections
+4. networkx analytics (PageRank, betweenness centrality) identify key papers better than raw citation count
+5. Obsidian/Gephi export broadens tool utility for researchers
+
+### Our Differentiation
+- MCP interface: agent-callable, not CLI-only
+- Multi-source backend: S2+OA+arXiv (citracer also does this)
+- Zero-LLM exploration: no LLM scorer needed (Paper Master needs LLM)
+- Compact agent-friendly output (summary + mermaid, not just raw data)
+- Could add pyvis HTML export as alternative to mermaid for larger graphs
