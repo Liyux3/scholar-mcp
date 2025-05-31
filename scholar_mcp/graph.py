@@ -239,6 +239,26 @@ def build_graph(
     }
 
 
+def _simple_pagerank(G, alpha: float = 0.85, max_iter: int = 50) -> dict:
+    """Power-iteration PageRank without scipy."""
+    nodes = list(G.nodes())
+    n = len(nodes)
+    if n == 0:
+        return {}
+    pr = {node: 1.0 / n for node in nodes}
+    for _ in range(max_iter):
+        new_pr = {}
+        for node in nodes:
+            rank = (1 - alpha) / n
+            for pred in G.predecessors(node):
+                out_deg = G.out_degree(pred)
+                if out_deg > 0:
+                    rank += alpha * pr[pred] / out_deg
+            new_pr[node] = rank
+        pr = new_pr
+    return pr
+
+
 def _analyze(nodes: list[dict], edges: list[dict]) -> dict:
     """Compute graph analytics using networkx if available."""
     try:
@@ -259,8 +279,7 @@ def _analyze(nodes: list[dict], edges: list[dict]) -> dict:
     try:
         pagerank = nx.pagerank(G)
     except Exception:
-        pagerank = {}
-
+        pagerank = _simple_pagerank(G)
     betweenness = nx.betweenness_centrality(G)
 
     id_to_node = {n["id"]: n for n in nodes}
