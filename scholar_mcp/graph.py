@@ -226,8 +226,9 @@ def build_graph(
         "seed_count": sum(1 for n in node_list if n["depth"] == 0),
     }
 
-    summary = _summarize(node_list, unique_edges, stats)
-    mermaid = _to_mermaid(node_list, unique_edges)
+    analytics = _analyze(node_list, unique_edges)
+    summary = _summarize(node_list, unique_edges, stats, analytics)
+    mermaid = _to_mermaid(node_list, unique_edges, analytics)
 
     return {
         "summary": summary,
@@ -238,8 +239,50 @@ def build_graph(
     }
 
 
-def _summarize(nodes: list[dict], edges: list[dict], stats: dict) -> str:
-    """Compact summary with stats and structural insights. No paper lists (those are in mermaid)."""
+def _analyze(nodes: list[dict], edges: list[dict]) -> dict:
+    """Compute graph analytics using networkx if available."""
+    try:
+        import networkx as nx
+    except ImportError:
+        return {}
+
+    if len(nodes) < 3:
+        return {}
+
+    G = nx.DiGraph()
+    for n in nodes:
+        G.add_node(n["id"])
+    for e in edges:
+        if e["source"] in G and e["target"] in G:
+            G.add_edge(e["source"], e["target"])
+
+    try:
+        pagerank = nx.pagerank(G)
+    except Exception:
+        pagerank = {}
+
+    betweenness = nx.betweenness_centrality(G)
+
+    id_to_node = {n["id"]: n for n in nodes}
+    pivots = []
+    if betweenness:
+        mean_btw = sum(betweenness.values()) / len(betweenness)
+        for nid, btw in betweenness.items():
+            if btw > mean_btw * 2 and nid in id_to_node:
+                pivots.append(nid)
+
+    top_pr = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    return {
+        "pagerank": {nid: round(pr, 4) for nid, pr in top_pr},
+        "pivots": pivots,
+        "betweenness": betweenness,
+    }
+
+
+def _summarize(nodes: list[dict], edges: list[dict], stats: dict,
+               analytics: dict = None) -> str:
+    """Compact summary with stats, structural insights, and analytics."""
     lines = []
     lines.append(f"Graph: {stats['total_nodes']} papers, "
                  f"{stats['total_edges']} connections, depth {stats['max_depth']}")
@@ -257,6 +300,18 @@ def _summarize(nodes: list[dict], edges: list[dict], stats: dict) -> str:
         hub_strs = [f"{id_to_title.get(nid, '?')[:30]} ({deg})" for nid, deg in hubs]
         lines.append(f"Hubs: {', '.join(hub_strs)}")
 
+    if analytics:
+        pivots = analytics.get("pivots", [])
+        if pivots:
+            pivot_names = [id_to_title.get(p, "?")[:35] for p in pivots[:3]]
+            lines.append(f"Bridge papers: {', '.join(pivot_names)}")
+
+        pr = analytics.get("pagerank", {})
+        if pr:
+            top = list(pr.items())[:3]
+            pr_strs = [f"{id_to_title.get(nid, '?')[:25]}" for nid, _ in top]
+            lines.append(f"Most central: {', '.join(pr_strs)}")
+
     return "\n".join(lines)
 
 
@@ -268,9 +323,11 @@ def _short_label(title: str, max_len: int = 30) -> str:
     return title[:max_len - 3] + "..."
 
 
-def _to_mermaid(nodes: list[dict], edges: list[dict]) -> str:
+def _to_mermaid(nodes: list[dict], edges: list[dict],
+                analytics: dict = None) -> str:
     """Generate Mermaid flowchart from graph data."""
     lines = ["graph TD"]
+    pivot_ids = set(analytics.get("pivots", [])) if analytics else set()
 
     id_map = {}
     for i, n in enumerate(nodes):
@@ -283,6 +340,8 @@ def _to_mermaid(nodes: list[dict], edges: list[dict]) -> str:
         tag = f"{year}, {cite_str}c" if year else f"{cite_str}c"
         if n["depth"] == 0:
             lines.append(f'    {safe_id}["{label}<br/>{tag}"]')
+        elif n["id"] in pivot_ids:
+            lines.append(f'    {safe_id}{{{{"{label}<br/>{tag}"}}}}')
         else:
             lines.append(f'    {safe_id}("{label}<br/>{tag}")')
 
@@ -297,6 +356,8 @@ def _to_mermaid(nodes: list[dict], edges: list[dict]) -> str:
         cites = n.get("citation_count", 0) or 0
         if n["depth"] == 0:
             lines.append(f"    style n{i} fill:#e1f5fe,stroke:#01579b,stroke-width:3px")
+        elif n["id"] in pivot_ids:
+            lines.append(f"    style n{i} fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px")
         elif cites > max_cites * 0.5:
             lines.append(f"    style n{i} fill:#fff3e0,stroke:#e65100")
         elif cites > max_cites * 0.1:
