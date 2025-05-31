@@ -1469,3 +1469,38 @@ Multi-source further improves R@20 and MRR.
 - Zero-LLM exploration: no LLM scorer needed (Paper Master needs LLM)
 - Compact agent-friendly output (summary + mermaid, not just raw data)
 - Could add pyvis HTML export as alternative to mermaid for larger graphs
+
+## Key Algorithms from Citation Graph Tools (2026-05-11)
+
+### oowekyala/citegraph: Degree of Interest (DOI) Algorithm
+DOI(n) = api_weight * API(n) - distance_penalty * distance(n)
+API(n) = min(degree(n), degree_cut) * (1 + clustering * clustering_coefficient(n))
+
+Key design choices:
+- degree_cut=3: caps influence of super-popular papers, favors niche connectors
+- clustering_coefficient: prefers papers tightly connected to existing graph
+- distance_penalty: papers closer to seed get higher priority
+- author_similarity for edge cost: same-group papers connected cheaper
+- biblio bonus: 3x for papers in user's bibliography
+- Dynamic DOI: recalculated each iteration as graph grows
+
+Our adaptation: citation velocity priority (simpler, no graph-structure awareness)
+Potential: add connectivity bonus (# existing nodes in references/citations)
+
+### citracer: Keyword-Filtered Recursive Tracing
+- Parse PDF, find sentences containing keyword
+- Only follow references cited in those keyword-matching sentences
+- Cross-graph bibliographic link detection (fuzzy title matching)
+- Reverse tracing: walk UP citations filtered by S2 citation contexts
+
+Our adaptation: topic_filter parameter for title/abstract keyword matching.
+Not as precise as section-level filtering (no PDF parsing) but lightweight.
+
+### citracer: Analytics (networkx)
+- Betweenness centrality > 2x mean + keyword match = pivot paper
+- PageRank on citation graph
+- Timeline: per-year keyword density
+- Global: density, avg_degree, connected_components
+
+Could integrate: add networkx-based analytics to our graph output.
+Would need networkx as dependency.
