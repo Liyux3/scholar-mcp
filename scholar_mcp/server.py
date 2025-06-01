@@ -12,6 +12,7 @@ from . import scholar_client
 from . import pdf_utils
 from . import relevance
 from . import graph
+from . import sources
 
 mcp = FastMCP("scholar-mcp")
 
@@ -217,18 +218,15 @@ def get_paper(paper_id: str) -> str:
         paper_id: Paper identifier (e.g., "649def34f8be52c8b66281af98ae884c09aef38b",
                   "10.1038/nature12373", "ArXiv:2106.09685", "W2626778328")
     """
-    try:
-        result = s2_client.get_paper(paper_id)
-        return json.dumps(result, indent=2, default=str)
-    except Exception:
-        pass
-    if paper_id.startswith("W") or paper_id.startswith("10."):
+    for src in sources.all_sources():
+        if not src.get_paper or not src.available():
+            continue
         try:
-            result = openalex_client.get_paper_by_id(paper_id)
+            result = src.get_paper(paper_id)
             if result:
                 return json.dumps(result, indent=2, default=str)
         except Exception:
-            pass
+            continue
     return json.dumps({"error": f"Could not find paper '{paper_id}'"})
 
 
@@ -242,22 +240,17 @@ def get_citations(paper_id: str, limit: int = 20) -> str:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum number of citing papers (1-1000, default 20)
     """
-    results = None
-    try:
-        results = s2_client.get_citations(paper_id, limit=limit)
-    except Exception:
-        pass
-    if not results and (paper_id.startswith("W") or paper_id.startswith("10.")):
+    for src in sources.citation_sources():
         try:
-            results = openalex_client.get_citations(paper_id, limit=limit)
+            results = src.get_citations(paper_id, limit=limit)
+            if results:
+                return json.dumps({
+                    "total": len(results),
+                    "citations": _compact_papers(results),
+                }, indent=2, default=str)
         except Exception:
-            pass
-    if not results:
-        return json.dumps({"error": f"Could not get citations for '{paper_id}'"})
-    return json.dumps({
-        "total": len(results),
-        "citations": _compact_papers(results),
-    }, indent=2, default=str)
+            continue
+    return json.dumps({"error": f"Could not get citations for '{paper_id}'"})
 
 
 @mcp.tool()
@@ -268,22 +261,17 @@ def get_references(paper_id: str, limit: int = 20) -> str:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum number of referenced papers (1-1000, default 20)
     """
-    results = None
-    try:
-        results = s2_client.get_references(paper_id, limit=limit)
-    except Exception:
-        pass
-    if not results and (paper_id.startswith("W") or paper_id.startswith("10.")):
+    for src in sources.reference_sources():
         try:
-            results = openalex_client.get_references(paper_id, limit=limit)
+            results = src.get_references(paper_id, limit=limit)
+            if results:
+                return json.dumps({
+                    "total": len(results),
+                    "references": _compact_papers(results),
+                }, indent=2, default=str)
         except Exception:
-            pass
-    if not results:
-        return json.dumps({"error": f"Could not get references for '{paper_id}'"})
-    return json.dumps({
-        "total": len(results),
-        "references": _compact_papers(results),
-    }, indent=2, default=str)
+            continue
+    return json.dumps({"error": f"Could not get references for '{paper_id}'"})
 
 
 @mcp.tool()
