@@ -59,6 +59,26 @@ def _try_scihub(doi: str, save_path: str, filename: str) -> str | None:
     return None
 
 
+def _try_unpaywall(doi: str) -> str | None:
+    """Query Unpaywall API for legal open access PDF URL."""
+    email = config.OPENALEX_EMAIL or "scholar-mcp@example.com"
+    try:
+        r = httpx.get(f"https://api.unpaywall.org/v2/{doi}",
+                      params={"email": email}, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            best = data.get("best_oa_location") or {}
+            pdf_url = best.get("url_for_pdf")
+            if pdf_url:
+                return pdf_url
+            landing = best.get("url_for_landing_page")
+            if landing:
+                return landing
+    except Exception:
+        pass
+    return None
+
+
 def _biorxiv_latest_version(doi: str, server: str = "biorxiv") -> int:
     """Query bioRxiv/medRxiv API for latest revision number."""
     try:
@@ -169,14 +189,32 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
             return {"success": True, "file_path": result, "source": "preprint",
                     "message": f"Downloaded from preprint server."}
 
-    # 5. Sci-Hub (opt-in only)
+    # 5. Unpaywall (legal OA discovery via DOI)
+    if doi:
+        unpaywall_url = _try_unpaywall(doi)
+        if unpaywall_url:
+            result = _try_download(unpaywall_url, save_path, filename)
+            if result:
+                return {"success": True, "file_path": result, "source": "unpaywall",
+                        "message": "Downloaded via Unpaywall (legal open access)."}
+
+    # 6. PubMed Central
+    pmcid = ext_ids.get("PubMedCentral") or ext_ids.get("PMC")
+    if pmcid:
+        pmc_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/pdf/"
+        result = _try_download(pmc_url, save_path, filename)
+        if result:
+            return {"success": True, "file_path": result, "source": "pmc",
+                    "message": f"Downloaded from PubMed Central ({pmcid})."}
+
+    # 7. Sci-Hub (opt-in only)
     if config.SCIHUB_ENABLED and doi:
         result = _try_scihub(doi, save_path, filename)
         if result:
             return {"success": True, "file_path": result, "source": "scihub",
                     "message": f"Downloaded via Sci-Hub (DOI: {doi})."}
 
-    # 6. Fail gracefully
+    # 8. Fail gracefully
     s2_url = paper_info.get("url", "")
     doi_link = f" or via DOI: https://doi.org/{doi}" if doi else ""
     return {
