@@ -59,6 +59,52 @@ def _try_scihub(doi: str, save_path: str, filename: str) -> str | None:
     return None
 
 
+def _biorxiv_latest_version(doi: str, server: str = "biorxiv") -> int:
+    """Query bioRxiv/medRxiv API for latest revision number."""
+    try:
+        r = httpx.get(f"https://api.biorxiv.org/details/{server}/{doi}/na/json", timeout=10)
+        if r.status_code == 200:
+            entries = r.json().get("collection", [])
+            if entries:
+                return max(int(e.get("version", 1)) for e in entries)
+    except Exception:
+        pass
+    return 1
+
+
+def _resolve_preprint_pdf(doi: str, oa_url: str | None = None) -> str | None:
+    """Resolve DOI to preprint server PDF URL.
+    Supports: bioRxiv, medRxiv, SSRN, PsyArXiv, engrXiv, AgriXiv, ChemRxiv.
+    """
+    if not doi:
+        return None
+    dl = doi.lower()
+
+    if dl.startswith("10.1101/"):
+        if oa_url and "medrxiv" in oa_url:
+            v = _biorxiv_latest_version(doi, "medrxiv")
+            return f"https://www.medrxiv.org/content/{doi}v{v}.full.pdf"
+        v = _biorxiv_latest_version(doi, "biorxiv")
+        return f"https://www.biorxiv.org/content/{doi}v{v}.full.pdf"
+
+    if dl.startswith("10.2139/"):
+        m = re.match(r"10\.2139/ssrn\.(\d+)", doi, re.IGNORECASE)
+        if m:
+            sid = m.group(1)
+            return f"https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID{sid}_code.pdf?abstractid={sid}"
+
+    for prefix in ("10.31234/", "10.31224/", "10.31220/"):
+        if dl.startswith(prefix):
+            m = re.match(rf"{re.escape(prefix)}osf\.io/(\w+)", doi, re.IGNORECASE)
+            if m:
+                return f"https://osf.io/{m.group(1)}/download"
+
+    if dl.startswith("10.26434/"):
+        return f"https://chemrxiv.org/engage/api-gateway/chemrxiv/assets/orp/resource/item/{doi}/original"
+
+    return None
+
+
 def download_paper(paper_info: dict, save_path: str) -> dict:
     """Smart download chain:
     1. S2 open access URL
@@ -104,14 +150,13 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
     except Exception:
         pass
 
-    # 4. bioRxiv / medRxiv
-    if doi.startswith("10.1101/"):
-        for name, base in [("bioRxiv", "biorxiv"), ("medRxiv", "medrxiv")]:
-            url = f"https://www.{base}.org/content/{doi}v1.full.pdf"
-            result = _try_download(url, save_path, filename)
-            if result:
-                return {"success": True, "file_path": result, "source": base,
-                        "message": f"Downloaded from {name}."}
+    # 4. Preprint servers (bioRxiv, medRxiv, SSRN, PsyArXiv, ChemRxiv, etc.)
+    preprint_url = _resolve_preprint_pdf(doi, oa_url)
+    if preprint_url:
+        result = _try_download(preprint_url, save_path, filename)
+        if result:
+            return {"success": True, "file_path": result, "source": "preprint",
+                    "message": f"Downloaded from preprint server."}
 
     # 5. Sci-Hub (opt-in only)
     if config.SCIHUB_ENABLED and doi:
