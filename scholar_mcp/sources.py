@@ -61,6 +61,7 @@ def reference_sources() -> list[Source]:
 def _register_defaults():
     from . import s2_client, arxiv_client, openalex_client, crossref_client
     from . import core_client, pubmed_client
+    from . import europepmc_client, dblp_client, inspirehep_client
 
     register(Source(
         name="semantic_scholar",
@@ -106,9 +107,30 @@ def _register_defaults():
     ))
 
     register(Source(
+        name="europepmc",
+        search=lambda q, limit, **kw: europepmc_client.search_papers(q, limit=limit),
+        priority=35,
+        domains=["medicine", "biology", "healthcare", "biochemistry"],
+    ))
+
+    register(Source(
+        name="dblp",
+        search=lambda q, limit, **kw: dblp_client.search_papers(q, limit=limit),
+        priority=25,
+        domains=["computer science"],
+    ))
+
+    register(Source(
+        name="inspirehep",
+        search=lambda q, limit, **kw: inspirehep_client.search_papers(q, limit=limit),
+        priority=15,
+        domains=["physics", "astronomy", "high-energy physics"],
+    ))
+
+    register(Source(
         name="core",
         search=lambda q, limit, **kw: core_client.search_papers(q, limit=limit),
-        priority=20,
+        priority=10,
         domains=["all"],
         requires_key=True,
         key_available=lambda: bool(config.CORE_API_KEY),

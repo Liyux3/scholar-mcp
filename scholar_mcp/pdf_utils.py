@@ -93,7 +93,15 @@ def _resolve_preprint_pdf(doi: str, oa_url: str | None = None) -> str | None:
             sid = m.group(1)
             return f"https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID{sid}_code.pdf?abstractid={sid}"
 
-    for prefix in ("10.31234/", "10.31224/", "10.31220/"):
+    osf_prefixes = (
+        "10.31234/",  # PsyArXiv
+        "10.31224/",  # engrXiv
+        "10.31220/",  # AgriXiv
+        "10.31223/",  # EarthArXiv
+        "10.31235/",  # SocArXiv
+        "10.51224/",  # SportRxiv
+    )
+    for prefix in osf_prefixes:
         if dl.startswith(prefix):
             m = re.match(rf"{re.escape(prefix)}osf\.io/(\w+)", doi, re.IGNORECASE)
             if m:
@@ -101,6 +109,9 @@ def _resolve_preprint_pdf(doi: str, oa_url: str | None = None) -> str | None:
 
     if dl.startswith("10.26434/"):
         return f"https://chemrxiv.org/engage/api-gateway/chemrxiv/assets/orp/resource/item/{doi}/original"
+
+    if dl.startswith("10.20944/"):
+        return f"https://www.preprints.org/manuscript/{doi}/download"
 
     return None
 
