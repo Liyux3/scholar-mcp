@@ -86,27 +86,36 @@ def _collect_primary(search_query, limit, year, venue, fos_list,
 
 
 def _collect_fallback(query, limit, sources_failed):
-    """Try CORE, PubMed, Google Scholar as last resort. Returns (papers, sources_used)."""
+    """Try secondary sources as fallback. Returns (papers, sources_used)."""
+    all_papers = []
     sources_used = []
 
-    fallbacks = [
-        ("crossref", lambda: crossref_client.search_papers(query, limit=limit)),
-        ("core", lambda: core_client.search_papers(query, limit=limit)),
-        ("pubmed", lambda: pubmed_client.search_papers(query, max_results=limit)),
-        ("google_scholar", lambda: scholar_client.search_papers(query, max_results=limit)),
-    ]
+    secondary = [s for s in sources.search_sources()
+                 if s.name not in ("semantic_scholar", "openalex", "arxiv")]
 
-    for name, fetch in fallbacks:
+    for src in secondary:
         try:
-            results = fetch()
+            results = src.search(query, limit=limit)
             if results:
-                relevance.tag_source_ranks(results, name)
-                sources_used.append(name)
-                return results, sources_used
+                relevance.tag_source_ranks(results, src.name)
+                all_papers.extend(results)
+                sources_used.append(src.name)
+                if len(all_papers) >= limit:
+                    break
         except Exception as e:
-            sources_failed.append(f"{name}: {type(e).__name__}")
+            sources_failed.append(f"{src.name}: {type(e).__name__}")
 
-    return [], sources_used
+    if not all_papers:
+        try:
+            results = scholar_client.search_papers(query, max_results=limit)
+            if results:
+                relevance.tag_source_ranks(results, "google_scholar")
+                all_papers.extend(results)
+                sources_used.append("google_scholar")
+        except Exception as e:
+            sources_failed.append(f"google_scholar: {type(e).__name__}")
+
+    return all_papers, sources_used
 
 
 @mcp.tool()
