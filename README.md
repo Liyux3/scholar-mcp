@@ -5,35 +5,25 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io)
 
-A fused A Model Context Protocol(MCP) server for academic paper search, cite, download, and read paper contents(gists, full text).
+Multi-source academic paper search, citation graph exploration, and PDF download as an MCP server. Designed for LLM agents doing research.
 
-Roughly covers ~97% of existing literature/papers via: 
-
-1. [Semantic Scholar](https://www.semanticscholar.org/)
-2. arXiv
-3. CORE
-4. PubMed
-5. bioRxiv/medRxiv
-6. Google Scholar
-7. [Sci-Hub] (optional)
-
-Unified tool calling interface with clear definitions.
+Fuses results from 9 academic sources via Reciprocal Rank Fusion, with PDF access across 10+ preprint servers.
 
 ## Quick Start
 
-**One-liner for Claude Code:**
+**Claude Code:**
 
 ```bash
 claude mcp add scholar -- uvx scholar-mcp
 ```
 
-**Or with an API key for higher rate limits:**
+**With API key (recommended, higher rate limits):**
 
 ```bash
 claude mcp add scholar -e S2_API_KEY=your_key -- uvx scholar-mcp
 ```
 
-**For Claude Desktop**, add to your config:
+**Claude Desktop** (add to config):
 
 ```json
 {
@@ -46,73 +36,70 @@ claude mcp add scholar -e S2_API_KEY=your_key -- uvx scholar-mcp
 }
 ```
 
-> [!NOTE]
-> Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/) installed. No API key needed for basic use (100 requests / 5 minutes free).
-
-## Features
-
-- **Search** across 214M+ papers with filters (year, venue, field of study, citation count, open access)
-- **Paper details** with TLDR summaries, BibTeX, venue metadata
-- **Citation graph** traversal (who cites this paper, what does it reference)
-- **Recommendations** for similar/related papers
-- **Author search** with h-index, affiliations, paper counts
-- **PDF download** with smart fallback chain (Semantic Scholar -> arXiv -> CORE -> bioRxiv/medRxiv)
-- **Full-text extraction** from downloaded PDFs
-- **Fallback search** via arXiv, [CORE](https://core.ac.uk/) (250M+ open access papers), [PubMed](https://pubmed.ncbi.nlm.nih.gov/) (36M+ biomedical), and Google Scholar
+> Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/). No API key needed for basic use.
 
 ## Tools
 
 | Tool | Description |
 |------|-------------|
-| `search_papers` | Search 214M+ papers with year, venue, field, citation filters. Falls back to arXiv, CORE, PubMed, then Google Scholar |
-| `get_paper` | Paper details by Semantic Scholar ID, DOI, ArXiv ID (`ArXiv:xxxx`), or PMID (`PMID:xxxx`) |
-| `get_citations` | Papers that cite a given paper (up to 1000) |
-| `get_references` | Papers referenced by a given paper (up to 1000) |
-| `recommend_papers` | Similar/related papers via S2 recommendation engine (up to 500) |
-| `search_authors` | Find researchers with h-index, affiliations, paper/citation counts |
-| `download_paper` | Download PDF: tries S2 open access, arXiv, CORE, bioRxiv/medRxiv |
-| `read_paper` | Download + extract full text from PDF (with optional page limit) |
+| `search_papers` | Multi-source search with RRF fusion. Filters: year, venue, field, citations, open access |
+| `get_paper` | Paper details by S2 ID, DOI, ArXiv ID, PMID, or OpenAlex ID |
+| `get_citations` | Papers citing a given paper (impact-sorted) |
+| `get_references` | Papers referenced by a given paper |
+| `recommend_papers` | Similar papers via SPECTER2 embeddings |
+| `search_authors` | Researchers with h-index, affiliations, paper counts |
+| `build_paper_graph` | Citation graph with PageRank analytics and Mermaid visualization |
+| `search_openreview` | Conference papers (ICLR, NeurIPS, ICML) |
+| `download_paper` | Smart PDF download across 10+ sources |
+| `read_paper` | Download + extract text from PDF |
+
+## Search Sources
+
+| Source | Coverage | Strength |
+|--------|----------|----------|
+| Semantic Scholar | 214M papers | SPECTER2 semantic search |
+| OpenAlex | 250M works | Best coverage, impact-ranked citations |
+| arXiv | CS/Math/Physics | Preprints |
+| PubMed | 36M biomedical | Medicine, biology |
+| Europe PMC | Biomedical + EU | PubMed superset |
+| Crossref | 150M DOIs | Metadata |
+| DBLP | CS bibliography | Conferences, proceedings |
+| INSPIRE-HEP | High-energy physics | Particle physics |
+| CORE | 250M open access | Institutional repositories |
+
+## PDF Download Chain
+
+1. Semantic Scholar open access
+2. arXiv direct
+3. CORE (institutional repositories)
+4. Preprint servers: bioRxiv, medRxiv, SSRN, ChemRxiv, PsyArXiv, EarthArXiv, SocArXiv, engrXiv, AgriXiv, SportRxiv, Preprints.org
+5. Unpaywall (legal OA discovery)
+6. PubMed Central
+7. Sci-Hub (opt-in via `SCIHUB_ENABLED=1`)
+
+## Citation Graph
+
+`build_paper_graph` builds an interactive citation network:
+
+- BFS expansion with velocity-weighted priority (new + influential papers first)
+- PageRank and betweenness centrality via networkx
+- Pivot/bridge paper detection
+- Topic filtering to keep graph focused
+- Mermaid output with color-coded nodes (seed, high-cite, bridge)
+
+```
+build_paper_graph("Attention Is All You Need", max_hops=2, max_papers=20, topic_filter="attention transformer")
+```
 
 ## Configuration
 
-All configuration is via environment variables (all optional):
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `S2_API_KEY` | — | [Semantic Scholar API key](https://www.semanticscholar.org/product/api#api-key-form) for higher rate limits |
-| `CORE_API_KEY` | — | [CORE API key](https://core.ac.uk/services/api) for institutional repository search (free) |
-| `SCHOLAR_DOWNLOAD_DIR` | `./downloads` | Directory for downloaded PDFs |
-| `S2_TIMEOUT` | `30` | API request timeout in seconds |
-| `SCIHUB_ENABLED` | `false` | Enable Sci-Hub as last-resort PDF source (opt-in) |
-
-**Rate limits:** Free tier allows 100 requests per 5 minutes. With an API key: ~100 requests per second.
-
-## Examples
-
-Search with filters:
-```python
-search_papers("transformer architecture", year="2020-2024", venue="NeurIPS", min_citations=100)
-```
-
-Look up specific papers:
-```python
-get_paper("ArXiv:1706.03762")      # by arXiv ID
-get_paper("10.1038/nature12373")   # by DOI
-get_paper("PMID:19872477")         # by PubMed ID
-```
-
-Explore the citation graph:
-```python
-get_citations("ArXiv:1706.03762", limit=20)   # who cites this?
-get_references("ArXiv:1706.03762", limit=20)  # what does it cite?
-recommend_papers("ArXiv:1706.03762")           # find similar work
-```
-
-Download and read:
-```python
-download_paper("ArXiv:1706.03762")
-read_paper("ArXiv:1706.03762", max_pages=5)
-```
+| `S2_API_KEY` | - | [Semantic Scholar API key](https://www.semanticscholar.org/product/api#api-key-form) (1 req/s) |
+| `CORE_API_KEY` | - | [CORE API key](https://core.ac.uk/services/api) |
+| `OPENALEX_EMAIL` | - | Email for Unpaywall + OpenAlex polite pool |
+| `SCHOLAR_DOWNLOAD_DIR` | `./downloads` | PDF save directory |
+| `SCIHUB_ENABLED` | `false` | Enable Sci-Hub as last-resort source |
 
 ## Development
 
@@ -123,14 +110,7 @@ uv venv && uv pip install -e ".[dev]"
 uv run pytest tests/
 ```
 
-## How It Works
-
-```
-Search:     S2 -> arXiv (preprints) -> CORE (institutional) -> PubMed (biomedical) -> Google Scholar (scraping)
-Download:   S2 open access -> arXiv -> CORE (by DOI/title) -> bioRxiv/medRxiv -> [Sci-Hub] -> fail
-```
-
-`[Sci-Hub]` only active when `SCIHUB_ENABLED=1`.
+35 tests (relevance scoring + graph analytics).
 
 ## License
 
