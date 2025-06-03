@@ -7,19 +7,25 @@ ARXIV_API_URL = "https://export.arxiv.org/api/query"
 def search_papers(query: str, max_results: int = 10) -> list[dict]:
     """Search arXiv. Returns results in the same dict format as s2_client."""
     words = query.split()
-    if len(words) <= 8:
+    if len(words) <= 10:
         search_q = f"all:{query}"
     else:
-        terms = " AND ".join(words[:6])
-        search_q = f"ti:{terms}"
+        kw = " ".join(words[:8])
+        search_q = f"all:{kw}"
     params = {
         "search_query": search_q,
         "max_results": max_results,
         "sortBy": "relevance",
         "sortOrder": "descending",
     }
-    response = httpx.get(ARXIV_API_URL, params=params, timeout=30)
-    response.raise_for_status()
+    for attempt in range(2):
+        response = httpx.get(ARXIV_API_URL, params=params, timeout=15)
+        if response.status_code == 429 and attempt == 0:
+            import time
+            time.sleep(3)
+            continue
+        response.raise_for_status()
+        break
     feed = feedparser.parse(response.content)
 
     papers = []

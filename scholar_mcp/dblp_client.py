@@ -12,10 +12,13 @@ def search_papers(query: str, limit: int = 10) -> list[dict]:
         "h": min(limit, 30),
         "format": "json",
     }
-    r = httpx.get(BASE_URL, params=params, timeout=15)
-    if r.status_code != 200:
+    try:
+        r = httpx.get(BASE_URL, params=params, timeout=10)
+        if r.status_code != 200:
+            return []
+        data = r.json()
+    except Exception:
         return []
-    data = r.json()
 
     papers = []
     hits = data.get("result", {}).get("hits", {}).get("hit", [])
