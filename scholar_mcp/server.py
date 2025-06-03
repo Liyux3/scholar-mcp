@@ -37,50 +37,43 @@ def _compact_papers(papers: list[dict]) -> list[dict]:
 
 def _collect_primary(search_query, limit, year, venue, fos_list,
                      min_citations, open_access_only):
-    """Query S2, arXiv, and OpenAlex in parallel. Returns (papers, sources_used, sources_failed).
+    """Query S2, arXiv, and OpenAlex in parallel via threads.
     Each paper is tagged with its rank position from the source for RRF fusion.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     all_papers = []
     sources_used = []
     sources_failed = []
 
-    try:
-        s2_results = s2_client.search_papers(
+    def _search_s2():
+        return "semantic_scholar", s2_client.search_papers(
             search_query, limit=limit,
-            year=year or None,
-            venue=venue or None,
+            year=year or None, venue=venue or None,
             fields_of_study=fos_list,
-            min_citations=min_citations,
-            open_access_only=open_access_only,
+            min_citations=min_citations, open_access_only=open_access_only,
         )
-        if s2_results:
-            relevance.tag_source_ranks(s2_results, "semantic_scholar")
-            all_papers.extend(s2_results)
-            sources_used.append("semantic_scholar")
-    except Exception as e:
-        sources_failed.append(f"semantic_scholar: {type(e).__name__}")
 
-    try:
-        arxiv_results = arxiv_client.search_papers(search_query, max_results=limit)
-        if arxiv_results:
-            relevance.tag_source_ranks(arxiv_results, "arxiv")
-            all_papers.extend(arxiv_results)
-            sources_used.append("arxiv")
-    except Exception as e:
-        sources_failed.append(f"arxiv: {type(e).__name__}")
+    def _search_arxiv():
+        return "arxiv", arxiv_client.search_papers(search_query, max_results=limit)
 
-    try:
-        oa_results = openalex_client.search_papers(
+    def _search_oa():
+        return "openalex", openalex_client.search_papers(
             search_query, limit=limit,
-            year=year or None,
-            fields_of_study=fos_list,
+            year=year or None, fields_of_study=fos_list,
         )
-        if oa_results:
-            relevance.tag_source_ranks(oa_results, "openalex")
-            all_papers.extend(oa_results)
-            sources_used.append("openalex")
-    except Exception as e:
-        sources_failed.append(f"openalex: {type(e).__name__}")
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures = [pool.submit(fn) for fn in [_search_s2, _search_arxiv, _search_oa]]
+        for future in as_completed(futures):
+            try:
+                name, results = future.result()
+                if results:
+                    relevance.tag_source_ranks(results, name)
+                    all_papers.extend(results)
+                    sources_used.append(name)
+            except Exception as e:
+                sources_failed.append(f"{type(e).__name__}")
 
     return all_papers, sources_used, sources_failed
 
