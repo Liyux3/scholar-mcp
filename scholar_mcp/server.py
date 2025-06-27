@@ -281,17 +281,27 @@ def recommend_papers(paper_id: str, limit: int = 10) -> str:
     """Find similar/related papers using Semantic Scholar's recommendation engine.
 
     Args:
-        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
+        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum recommendations (1-500, default 10)
     """
-    try:
-        results = s2_client.get_recommendations(paper_id, limit=limit)
-        return json.dumps({
-            "total": len(results),
-            "recommendations": _compact_papers(results),
-        }, indent=2, default=str)
-    except Exception as e:
-        return json.dumps({"error": f"Could not get recommendations: {e}"})
+    ids_to_try = [paper_id]
+    if paper_id.startswith("W"):
+        oa_paper = openalex_client.get_paper_by_id(paper_id)
+        if oa_paper:
+            doi = (oa_paper.get("external_ids") or {}).get("DOI", "")
+            if doi:
+                ids_to_try.insert(0, doi)
+    for pid in ids_to_try:
+        try:
+            results = s2_client.get_recommendations(pid, limit=limit)
+            if results:
+                return json.dumps({
+                    "total": len(results),
+                    "recommendations": _compact_papers(results),
+                }, indent=2, default=str)
+        except Exception:
+            continue
+    return json.dumps({"error": f"Could not get recommendations for '{paper_id}'"})
 
 
 @mcp.tool()

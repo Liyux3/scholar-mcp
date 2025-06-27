@@ -70,8 +70,9 @@ def format_paper(work: dict) -> dict | None:
 
     pub_date = work.get("publication_date")
 
+    oa_id = (work.get("id") or "").split("/")[-1]
     return {
-        "paper_id": (work.get("id") or "").split("/")[-1],
+        "paper_id": doi or oa_id,
         "title": title,
         "authors": authors,
         "abstract": abstract or "",
