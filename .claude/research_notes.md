@@ -1504,3 +1504,40 @@ Not as precise as section-level filtering (no PDF parsing) but lightweight.
 
 Could integrate: add networkx-based analytics to our graph output.
 Would need networkx as dependency.
+
+## Field Discovery & Exploration Systems Survey (2026-05-11)
+
+### Most Relevant to Our Work
+
+**Perspicacite-AI** (CNRS, Apache-2.0, 12 stars, holobiomicslab/Perspicacite-AI)
+- 5 RAG modes: Basic -> Advanced -> Profound -> Agentic -> Literature Survey
+- Literature Survey mode: broad search -> theme clustering -> AI recommendations
+- Multi-source: S2, OpenAlex, PubMed, arXiv, HAL, DBLP
+- MCP server: 8 tools (search, get_content, get_references, KB management)
+- ChromaDB for local KB
+- Most architecturally similar to our scholar-mcp + agent workflow
+
+**LitGapFinder** (clawRxiv, 2026)
+- Concept graph from 100 papers -> gap detection -> hypothesis generation
+- Gap = under-connected concept pairs (GapScore = sim / (1 + cooccurrence))
+- Multi-domain presets: drug_discovery, physics, economics, climate, neuro
+- Uses sentence-transformers for concept embeddings
+
+**Open Coscientist** (Jataware, 109 forks, LangGraph)
+- Google AI Co-Scientist open reproduction
+- 8-10 agents: Supervisor, Literature, Generator, Reviewer, Ranker, Tournament, Meta, Evolve
+- Elo-based tournament ranking for hypotheses
+- MCP server for literature access
+
+**Literature Search skill** (clawRxiv, OpenClaw)
+- Valyu semantic search API across PubMed+arXiv+bioRxiv+medRxiv
+- Natural language -> semantic query (no Boolean construction)
+- Full-text retrieval with figures
+- $0.0025/query
+
+### Key Observations
+- All systems use multi-agent orchestration (LangGraph, DSPy, or custom)
+- Literature search is just the foundation; synthesis + gap detection is the value
+- Nobody has our specific combination: multi-source RRF fusion + citation graph + MCP
+- Perspicacite-AI is closest competitor but uses different ranking (WRRF vs our consensus RRF)
+- LitGapFinder's concept graph approach could complement our citation graph

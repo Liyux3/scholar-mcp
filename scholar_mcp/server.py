@@ -285,6 +285,10 @@ def recommend_papers(paper_id: str, limit: int = 10) -> str:
         limit: Maximum recommendations (1-500, default 10)
     """
     ids_to_try = [paper_id]
+    if "arxiv" in paper_id.lower():
+        arxiv_id = paper_id.split("arxiv.")[-1] if "arxiv." in paper_id.lower() else ""
+        if arxiv_id:
+            ids_to_try.insert(0, f"ArXiv:{arxiv_id}")
     if paper_id.startswith("W"):
         oa_paper = openalex_client.get_paper_by_id(paper_id)
         if oa_paper:
