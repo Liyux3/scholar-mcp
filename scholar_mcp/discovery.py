@@ -1,0 +1,151 @@
+"""Field discovery: automated landscape mapping from a topic string.
+
+Combines survey-seeded search, reference expansion, and citation forward
+to build a structured view of a research field.
+"""
+
+import time
+from . import s2_client, openalex_client, relevance, graph
+from . import config
+
+
+def discover_field(
+    topic: str,
+    max_papers: int = 30,
+    recent_years: int = 3,
+) -> dict:
+    """Map a research field by finding surveys, expanding references, and tracing citations.
+
+    Strategy:
+    1. Search for survey/review papers on the topic
+    2. Search for recent high-cited papers on the topic
+    3. Expand references from top papers (foundational works)
+    4. Expand citations from foundational works (recent advances)
+    5. Build a citation graph connecting everything
+
+    Returns summary + mermaid graph + categorized paper lists.
+    """
+    all_papers = []
+    seen_titles = set()
+    from datetime import datetime
+    current_year = datetime.now().year
+
+    def _add_unique(papers):
+        added = 0
+        for p in papers:
+            nt = relevance._normalize_title(p.get("title", ""))
+            if nt and nt not in seen_titles and len(all_papers) < max_papers * 2:
+                seen_titles.add(nt)
+                all_papers.append(p)
+                added += 1
+        return added
+
+    # Step 1: Find survey papers
+    survey_query = f"survey review {topic}"
+    try:
+        surveys = openalex_client.search_papers(survey_query, limit=5)
+        _add_unique(surveys)
+    except Exception:
+        surveys = []
+
+    if config.get_s2_api_key():
+        time.sleep(1)
+        try:
+            s2_surveys = s2_client.search_papers(survey_query, limit=5)
+            _add_unique(s2_surveys)
+        except Exception:
+            pass
+
+    # Step 2: Find recent high-cited papers
+    recent_query = topic
+    year_filter = f"{current_year - recent_years}-"
+    try:
+        recent = openalex_client.search_papers(recent_query, limit=10, year=year_filter)
+        _add_unique(recent)
+    except Exception:
+        recent = []
+
+    if config.get_s2_api_key():
+        time.sleep(1)
+        try:
+            s2_recent = s2_client.search_papers(recent_query, limit=10, year=year_filter)
+            _add_unique(s2_recent)
+        except Exception:
+            pass
+
+    # Deduplicate and sort by citations
+    deduped = relevance.deduplicate(all_papers)
+    deduped.sort(key=lambda p: p.get("citation_count", 0) or 0, reverse=True)
+
+    # Step 3: Expand references from top papers (find foundations)
+    top_papers = deduped[:5]
+    for p in top_papers:
+        pid = p.get("paper_id", "")
+        if not pid:
+            continue
+        try:
+            refs = graph._fetch_related(p, "references", 5, 0.3)
+            _add_unique(refs)
+        except Exception:
+            pass
+
+    # Step 4: Build citation graph
+    seed_papers = deduped[:3]
+    citation_graph = graph.build_graph(
+        seed_papers,
+        max_hops=1,
+        max_papers=min(max_papers, 25),
+        direction="both",
+        min_citations=10,
+        citations_per_paper=5,
+        references_per_paper=5,
+        topic_filter=topic,
+    )
+
+    # Categorize papers
+    deduped = relevance.deduplicate(all_papers)
+    deduped.sort(key=lambda p: p.get("citation_count", 0) or 0, reverse=True)
+
+    foundational = [p for p in deduped if (p.get("citation_count", 0) or 0) > 500
+                    and (p.get("year") or 0) < current_year - 2][:5]
+    recent_hot = [p for p in deduped if (p.get("year") or 0) >= current_year - 2
+                  and (p.get("citation_count", 0) or 0) > 10][:5]
+    surveys_found = [p for p in deduped
+                     if any(w in (p.get("title") or "").lower() for w in ("survey", "review", "tutorial", "overview"))][:3]
+
+    # Build output
+    lines = [f"Field: {topic}", f"Papers found: {len(deduped)}", ""]
+
+    if surveys_found:
+        lines.append("Surveys:")
+        for p in surveys_found:
+            lines.append(f"  [{p.get('year')}] {p['title'][:60]} ({p.get('citation_count',0)}c)")
+        lines.append("")
+
+    if foundational:
+        lines.append("Foundational:")
+        for p in foundational:
+            lines.append(f"  [{p.get('year')}] {p['title'][:60]} ({p.get('citation_count',0)}c)")
+        lines.append("")
+
+    if recent_hot:
+        lines.append("Recent:")
+        for p in recent_hot:
+            lines.append(f"  [{p.get('year')}] {p['title'][:60]} ({p.get('citation_count',0)}c)")
+        lines.append("")
+
+    summary = "\n".join(lines) + "\n" + citation_graph["summary"]
+
+    return {
+        "summary": summary,
+        "mermaid": citation_graph["mermaid"],
+        "papers": {
+            "surveys": [{"title": p["title"], "year": p.get("year"), "citations": p.get("citation_count", 0)}
+                        for p in surveys_found],
+            "foundational": [{"title": p["title"], "year": p.get("year"), "citations": p.get("citation_count", 0)}
+                             for p in foundational],
+            "recent": [{"title": p["title"], "year": p.get("year"), "citations": p.get("citation_count", 0)}
+                       for p in recent_hot],
+        },
+        "total_papers": len(deduped),
+    }

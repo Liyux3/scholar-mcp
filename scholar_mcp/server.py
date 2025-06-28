@@ -12,6 +12,7 @@ from . import scholar_client
 from . import pdf_utils
 from . import relevance
 from . import graph
+from . import discovery
 from . import sources
 
 mcp = FastMCP("scholar-mcp")
@@ -457,6 +458,29 @@ def build_paper_graph(
         result["summary"] + "\n\n"
         "```mermaid\n" + result["mermaid"] + "\n```"
     )
+    return output
+
+
+@mcp.tool()
+def discover_field(
+    topic: str,
+    max_papers: int = 30,
+) -> str:
+    """Map a research field: find surveys, foundational papers, and recent advances.
+    Automatically searches for survey papers, expands references to find foundations,
+    traces citations to find recent trends, and builds a citation graph.
+
+    Best for: getting up to speed on a new field, understanding the landscape,
+    finding key papers you should read, identifying research trends.
+
+    Args:
+        topic: Research topic to explore (e.g., "RLHF language model alignment")
+        max_papers: Maximum papers to collect (10-50, default 30)
+    """
+    max_papers = min(max(max_papers, 10), 50)
+    result = discovery.discover_field(topic, max_papers=max_papers)
+
+    output = result["summary"] + "\n\n```mermaid\n" + result["mermaid"] + "\n```"
     return output
 
 
