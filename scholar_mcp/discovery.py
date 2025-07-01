@@ -105,10 +105,17 @@ def discover_field(
     # Categorize papers (filter by topic relevance first)
     deduped = relevance.deduplicate(all_papers)
     topic_words = [w.lower() for w in topic.split() if len(w) > 3]
-    if topic_words:
-        deduped = [p for p in deduped
-                   if any(w in ((p.get("title") or "") + " " + (p.get("abstract") or "")).lower()
-                          for w in topic_words)]
+    if len(topic_words) >= 2:
+        filtered = []
+        for p in deduped:
+            title_lower = (p.get("title") or "").lower()
+            abstract_lower = (p.get("abstract") or "").lower()
+            text = title_lower + " " + abstract_lower
+            n_matches = sum(1 for w in topic_words if w in text)
+            title_matches = sum(1 for w in topic_words if w in title_lower)
+            if n_matches >= 2 or title_matches >= 1:
+                filtered.append(p)
+        deduped = filtered
     deduped.sort(key=lambda p: p.get("citation_count", 0) or 0, reverse=True)
 
     foundational = [p for p in deduped if (p.get("citation_count", 0) or 0) > 500
