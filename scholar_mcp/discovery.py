@@ -102,8 +102,13 @@ def discover_field(
         topic_filter=topic,
     )
 
-    # Categorize papers
+    # Categorize papers (filter by topic relevance first)
     deduped = relevance.deduplicate(all_papers)
+    topic_words = [w.lower() for w in topic.split() if len(w) > 3]
+    if topic_words:
+        deduped = [p for p in deduped
+                   if any(w in ((p.get("title") or "") + " " + (p.get("abstract") or "")).lower()
+                          for w in topic_words)]
     deduped.sort(key=lambda p: p.get("citation_count", 0) or 0, reverse=True)
 
     foundational = [p for p in deduped if (p.get("citation_count", 0) or 0) > 500
