@@ -60,8 +60,10 @@ def _try_scihub(doi: str, save_path: str, filename: str) -> str | None:
 
 
 def _try_unpaywall(doi: str) -> str | None:
-    """Query Unpaywall API for legal open access PDF URL."""
-    email = config.OPENALEX_EMAIL or "scholar-mcp@example.com"
+    """Query Unpaywall API for legal open access PDF URL. Requires OPENALEX_EMAIL."""
+    email = config.OPENALEX_EMAIL
+    if not email:
+        return None
     try:
         r = httpx.get(f"https://api.unpaywall.org/v2/{doi}",
                       params={"email": email}, timeout=10)
