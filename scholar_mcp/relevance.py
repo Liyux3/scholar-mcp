@@ -270,7 +270,7 @@ def score_results(query: str, papers: list[dict],
         ve = _venue_score(p)
         re_ = _recency_score(p)
         sc = _source_count(p)
-        total = 0.45 * kw + 0.18 * ci + 0.12 * ve + 0.12 * re_ + 0.13 * sc
+        total = 0.30 * kw + 0.25 * ci + 0.15 * ve + 0.15 * re_ + 0.15 * sc
         if total >= min_score:
             p["_relevance_score"] = round(total, 3)
             scored.append(p)
