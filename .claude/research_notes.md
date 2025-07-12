@@ -1541,3 +1541,20 @@ Would need networkx as dependency.
 - Nobody has our specific combination: multi-source RRF fusion + citation graph + MCP
 - Perspicacite-AI is closest competitor but uses different ranking (WRRF vs our consensus RRF)
 - LitGapFinder's concept graph approach could complement our citation graph
+
+## Learned Fusion Weights Idea (2026-05-11)
+
+Replace hardcoded scoring weights with a tiny learned network:
+- Input: [keyword_score, citation_score, venue_score, recency_score, source_count, query_features]
+- Output: relevance_score
+- Training: LitSearch 597 queries with ground truth
+- Model: 3-layer MLP, hidden=16, <10KB
+- Query features: length, domain keywords detected, has_title_words
+
+Why novel:
+- MoR (EMNLP 2025): score-level fusion with learned weights, needs scores from each retriever
+- GRO-RAG: gradient-based source selection, needs LLM gradients
+- Ours: rank-level fusion with learned weights, zero training infrastructure needed
+- Plus: query-adaptive weights (different queries need different weight balance)
+
+Could compare: static weights vs learned MLP vs per-domain presets
