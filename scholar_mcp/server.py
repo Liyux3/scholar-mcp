@@ -13,6 +13,7 @@ from . import pdf_utils
 from . import relevance
 from . import graph
 from . import discovery
+from . import knowledge_base as kb
 from . import sources
 
 mcp = FastMCP("scholar-mcp")
@@ -459,6 +460,74 @@ def build_paper_graph(
         "```mermaid\n" + result["mermaid"] + "\n```"
     )
     return output
+
+
+@mcp.tool()
+def save_papers(
+    paper_titles: str,
+    collection: str = "default",
+    notes: str = "",
+) -> str:
+    """Save papers to a persistent knowledge base collection for later reference.
+    Papers persist across sessions. Use to build a reading list or track important papers.
+
+    Args:
+        paper_titles: Comma-separated paper titles or DOIs to save (searches and saves best match)
+        collection: Collection name to save to (e.g., "rlhf-survey", "my-thesis")
+        notes: Optional notes to attach to saved papers
+    """
+    titles = [t.strip() for t in paper_titles.split(",") if t.strip()]
+    if not titles:
+        return json.dumps({"error": "No paper titles provided"})
+
+    papers_to_save = []
+    for title in titles:
+        try:
+            results = openalex_client.search_papers(title, limit=1)
+            if results:
+                papers_to_save.append(results[0])
+        except Exception:
+            pass
+
+    if not papers_to_save:
+        return json.dumps({"error": "Could not find any of the specified papers"})
+
+    result = kb.add_papers(papers_to_save, collection=collection, notes=notes)
+    return json.dumps(result)
+
+
+@mcp.tool()
+def list_saved_papers(
+    collection: str = "default",
+    query: str = "",
+    limit: int = 20,
+) -> str:
+    """List or search papers in a knowledge base collection.
+
+    Args:
+        collection: Collection name (default: "default"). Use "all" to list all collections.
+        query: Optional search query to filter papers by keywords in title/abstract
+        limit: Maximum papers to return
+    """
+    if collection == "all":
+        collections = kb.list_collections()
+        return json.dumps({"collections": collections})
+
+    if query:
+        papers = kb.search_kb(query, collection=collection, limit=limit)
+    else:
+        papers = kb.list_papers(collection=collection, limit=limit)
+
+    compact = []
+    for p in papers:
+        compact.append({
+            "title": p.get("title", ""),
+            "year": p.get("year"),
+            "citations": p.get("citation_count", 0),
+            "notes": p.get("notes", ""),
+        })
+
+    return json.dumps({"collection": collection, "total": len(compact), "papers": compact}, indent=2)
 
 
 @mcp.tool()
