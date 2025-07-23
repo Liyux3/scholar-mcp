@@ -1558,3 +1558,44 @@ Why novel:
 - Plus: query-adaptive weights (different queries need different weight balance)
 
 Could compare: static weights vs learned MLP vs per-domain presets
+
+## Reference Implementation Deep Dive (2026-05-11)
+
+### Perspicacite-AI (most relevant competitor)
+Architecture: FastMCP + ChromaDB + SciLExAdapter
+Key features we lack:
+- Knowledge Base management (create/add/search KB) - persistent paper collections
+- Full-text retrieval pipeline (PMC JATS XML, arXiv HTML)
+- Multiple RAG modes (Basic -> Advanced -> Profound -> Agentic -> Literature Survey)
+- generate_report tool (synthesize from KB)
+- async design throughout
+
+What we have that they don't:
+- RRF multi-source fusion (they use SciLEx which is different)
+- Citation graph with PageRank analytics
+- discover_field tool
+- Priority BFS with velocity weighting
+
+### RE-literature-discovery
+Architecture: Agent skills (markdown files + Python scripts)
+Key ideas:
+- authority-ranking: multi-component scoring with explainable components
+- CCF ranking, journal metrics, venue authority resolution
+- evidence-grading: calibrate evidence strength independently of venue prestige
+- field-ranking-profile: switch weights by field (CS vs bio vs econ)
+- Pipeline: search -> venue-resolve -> quality-filter -> rank -> review -> write
+
+Actionable for us:
+- field-ranking-profile could inform our learned fusion weights idea
+- venue authority resolution is much better than our TOP_VENUES set
+
+### Open Coscientist
+Architecture: LangGraph multi-agent + FastMCP
+MCP server: PubMed-focused, INDRA for biomedical KG
+Not directly useful for our general-purpose tool.
+
+### Awesome-AI-Research landscape
+Our position: Infrastructure/Module layer for Literature Discovery
+Above us: Agent systems (AI Scientist, AutoResearchClaw, etc.)
+Key competitors at our level: PaperQA2, OpenScholar, Perspicacite-AI
+Our unique combo: multi-source RRF + citation graph + MCP + zero-LLM-required
