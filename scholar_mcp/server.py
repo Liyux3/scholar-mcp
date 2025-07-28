@@ -19,6 +19,15 @@ from . import sources
 mcp = FastMCP("scholar-mcp")
 
 
+def _normalize_paper_id(paper_id: str) -> str:
+    """Convert arXiv DOI format to ArXiv: prefix that S2 understands."""
+    import re
+    m = re.match(r"10\.48550/arXiv\.(\d+\.\d+)", paper_id, re.IGNORECASE)
+    if m:
+        return f"ArXiv:{m.group(1)}"
+    return paper_id
+
+
 def _compact_papers(papers: list[dict]) -> list[dict]:
     """Slim down paper list for citation/reference output."""
     compact = []
@@ -222,6 +231,7 @@ def get_paper(paper_id: str) -> str:
         paper_id: Paper identifier (e.g., "649def34f8be52c8b66281af98ae884c09aef38b",
                   "10.1038/nature12373", "ArXiv:2106.09685", "W2626778328")
     """
+    paper_id = _normalize_paper_id(paper_id)
     for src in sources.all_sources():
         if not src.get_paper or not src.available():
             continue
@@ -244,6 +254,7 @@ def get_citations(paper_id: str, limit: int = 20) -> str:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum number of citing papers (1-1000, default 20)
     """
+    paper_id = _normalize_paper_id(paper_id)
     for src in sources.citation_sources():
         try:
             results = src.get_citations(paper_id, limit=limit)
@@ -265,6 +276,7 @@ def get_references(paper_id: str, limit: int = 20) -> str:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum number of referenced papers (1-1000, default 20)
     """
+    paper_id = _normalize_paper_id(paper_id)
     for src in sources.reference_sources():
         try:
             results = src.get_references(paper_id, limit=limit)
@@ -286,6 +298,7 @@ def recommend_papers(paper_id: str, limit: int = 10) -> str:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum recommendations (1-500, default 10)
     """
+    paper_id = _normalize_paper_id(paper_id)
     ids_to_try = [paper_id]
     if "arxiv" in paper_id.lower():
         arxiv_id = paper_id.split("arxiv.")[-1] if "arxiv." in paper_id.lower() else ""
