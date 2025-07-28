@@ -50,6 +50,9 @@ claude mcp add scholar -e S2_API_KEY=your_key -- uvx scholar-mcp
 | `search_authors` | Researchers with h-index, affiliations, paper counts |
 | `build_paper_graph` | Citation graph with PageRank analytics and Mermaid visualization |
 | `search_openreview` | Conference papers (ICLR, NeurIPS, ICML) |
+| `discover_field` | Auto-map a research field: find surveys, foundations, recent trends, build citation graph |
+| `save_papers` | Save papers to a persistent collection for later reference |
+| `list_saved_papers` | List or search saved paper collections (persists across sessions) |
 | `download_paper` | Smart PDF download across 10+ sources |
 | `read_paper` | Download + extract text from PDF |
 
