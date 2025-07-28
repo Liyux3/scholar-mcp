@@ -6,7 +6,7 @@ to build a structured view of a research field.
 
 import time
 from . import s2_client, openalex_client, relevance, graph
-from . import config
+from . import config, knowledge_base as kb
 
 
 def discover_field(
@@ -146,7 +146,12 @@ def discover_field(
             lines.append(f"  [{p.get('year')}] {p['title'][:60]} ({p.get('citation_count',0)}c)")
         lines.append("")
 
+    # Auto-save to KB
+    safe_topic = topic.replace(" ", "-")[:30]
+    kb.add_papers(deduped, collection=f"discover-{safe_topic}", notes=f"Auto-discovered: {topic}")
+
     summary = "\n".join(lines) + "\n" + citation_graph["summary"]
+    summary += f"\n\nSaved to KB collection: discover-{safe_topic}"
 
     return {
         "summary": summary,
