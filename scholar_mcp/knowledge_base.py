@@ -44,16 +44,19 @@ def add_papers(papers: list[dict], collection: str = "default", notes: str = "")
             if not nt or nt in existing:
                 continue
             existing.add(nt)
+            ext = paper.get("external_ids") or {}
+            doi = ext.get("DOI", "") if isinstance(ext, dict) else paper.get("doi", "")
             entry = {
                 "title": paper.get("title", ""),
                 "authors": (paper.get("authors") or [])[:5],
                 "year": paper.get("year"),
                 "citation_count": paper.get("citation_count", 0),
                 "paper_id": paper.get("paper_id", ""),
-                "doi": (paper.get("external_ids") or paper.get("doi") or {}).get("DOI", "") if isinstance(paper.get("external_ids"), dict) else paper.get("doi", ""),
+                "doi": doi,
                 "venue": paper.get("venue", ""),
                 "abstract": (paper.get("abstract") or "")[:300],
                 "url": paper.get("url", ""),
+                "pdf_path": paper.get("pdf_path", ""),
                 "added_at": datetime.now().isoformat(),
                 "notes": notes,
             }

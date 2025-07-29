@@ -352,7 +352,11 @@ def download_paper(paper_id: str, save_dir: str = "") -> str:
     except Exception as e:
         return json.dumps({"error": f"Could not find paper '{paper_id}': {e}"})
 
+    paper_id = _normalize_paper_id(paper_id)
     result = pdf_utils.download_paper(paper_info, save_path)
+    if result.get("success") and result.get("file_path"):
+        paper_info["pdf_path"] = result["file_path"]
+        kb.add_papers([paper_info], collection="downloads")
     return json.dumps(result, indent=2)
 
 
