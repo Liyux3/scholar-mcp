@@ -176,8 +176,8 @@ def search_papers(
     if min_citations > 0:
         all_papers = [p for p in all_papers if (p.get("citation_count") or 0) >= min_citations]
 
-    scored = relevance.score_results(query, all_papers, min_score=0.05)
-    results = relevance.rerank(query, scored, top_n=limit)
+    reranked = relevance.rerank(query, all_papers, top_n=limit * 2)
+    results = relevance.score_results(query, reranked, min_score=0.0)[:limit]
 
     if not results:
         return json.dumps({
