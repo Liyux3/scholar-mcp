@@ -168,10 +168,16 @@ def get_references(paper_id: str, limit: int = 20):
     return results
 
 
+REC_FIELDS = ",".join([
+    "paperId", "title", "abstract", "year", "venue",
+    "citationCount", "authors", "externalIds", "openAccessPdf",
+])
+
+
 def get_recommendations(paper_id: str, limit: int = 10):
     data = _get(
         f"{REC_URL}/papers/forpaper/{paper_id}",
-        params={"fields": SEARCH_FIELDS, "limit": min(limit, 500)},
+        params={"fields": REC_FIELDS, "limit": min(limit, 500)},
     )
     return [format_paper(p) for p in data.get("recommendedPapers", [])]
 
