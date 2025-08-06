@@ -1599,3 +1599,60 @@ Our position: Infrastructure/Module layer for Literature Discovery
 Above us: Agent systems (AI Scientist, AutoResearchClaw, etc.)
 Key competitors at our level: PaperQA2, OpenScholar, Perspicacite-AI
 Our unique combo: multi-source RRF + citation graph + MCP + zero-LLM-required
+
+## Final Session Status (2026-05-11, 98 commits)
+
+### What Works (verified via actual testing)
+- MCP connection: stable, tested search + citations + graph
+- Search pipeline: parallel (6.5s), 3 sources concurrent
+- FlashRank reranking: swapped to rerank-first pipeline
+- KB: add, list, search, auto-save on download and discover_field
+- arXiv DOI auto-conversion: 10.48550/arXiv.XXXX -> ArXiv:XXXX
+- Source registry: 9 search sources, priority-based dispatch
+- PDF download: 8-layer chain, 10+ preprint servers
+
+### What Needs Attention
+- MCP server runs OLD code (needs restart to pick up changes)
+- S2 citation quality: recency-only for high-cite papers, our sort helps but limited
+- Generic query ranking: API-level issue, canonical papers sometimes missing from results
+- FlashRank gives all 1.000 scores when candidates are all similar
+
+### Scholar-MCP v0.6 Architecture Summary
+
+```
+Agent
+  |
+  v
+[MCP Tools] (13 tools)
+  |
+  ├── search_papers ──> [Parallel: S2 + OpenAlex + arXiv] ──> RRF fusion ──> FlashRank rerank ──> score_results
+  ├── get_paper ──────> [Source registry fallback chain]
+  ├── get_citations ──> [Source registry: S2 -> OpenAlex]
+  ├── get_references ─> [Source registry: S2 -> OpenAlex]
+  ├── recommend_papers > [S2 SPECTER2]
+  ├── search_authors ─> [S2]
+  ├── build_paper_graph > [Priority BFS + networkx analytics + mermaid]
+  ├── discover_field ──> [Survey search + expand + graph + auto-save KB]
+  ├── save_papers ────> [JSONL KB, ~/.scholar-mcp/kb/]
+  ├── list_saved_papers > [KB search/list]
+  ├── download_paper ─> [8-layer chain + auto-save KB]
+  ├── read_paper ─────> [download + pypdf extract]
+  └── search_openreview > [OpenReview API]
+```
+
+### Files Changed This Session
+- scholar_mcp/relevance.py: RRF, consensus scoring, velocity scoring, weight rebalance
+- scholar_mcp/server.py: parallel search, compact output, source registry, KB integration
+- scholar_mcp/graph.py: priority BFS, topic filter, networkx analytics, mermaid
+- scholar_mcp/discovery.py: field discovery with auto-KB save
+- scholar_mcp/knowledge_base.py: persistent JSONL KB
+- scholar_mcp/sources.py: source registry pattern
+- scholar_mcp/openalex_client.py: citations, references, ID resolution
+- scholar_mcp/s2_client.py: citation sorting, retry hardening
+- scholar_mcp/arxiv_client.py: query handling, timeout, retry
+- scholar_mcp/pdf_utils.py: preprint servers, Unpaywall, PMC
+- scholar_mcp/europepmc_client.py: NEW
+- scholar_mcp/dblp_client.py: NEW
+- scholar_mcp/inspirehep_client.py: NEW
+- tests/test_graph.py: NEW (9 tests)
+- README.md: updated for v0.6
