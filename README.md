@@ -110,10 +110,11 @@ build_paper_graph("Attention Is All You Need", max_hops=2, max_papers=20, topic_
 git clone https://github.com/Liyux3/scholar-mcp.git
 cd scholar-mcp
 uv venv && uv pip install -e ".[dev]"
-uv run pytest tests/
+uv run pytest tests/                          # 42 unit tests
+S2_API_KEY=... uv run python tests/smoke_test.py  # quick integration check
 ```
 
-35 tests (relevance scoring + graph analytics).
+42 tests: relevance scoring (26), graph analytics (9), knowledge base (7).
 
 ## License
 
