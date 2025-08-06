@@ -40,38 +40,33 @@ def discover_field(
                 added += 1
         return added
 
-    # Step 1: Find survey papers
+    # Steps 1+2: Search surveys and recent papers in parallel
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     survey_query = f"survey review {topic}"
-    try:
-        surveys = openalex_client.search_papers(survey_query, limit=5)
-        _add_unique(surveys)
-    except Exception:
-        surveys = []
-
-    if config.get_s2_api_key():
-        time.sleep(1)
-        try:
-            s2_surveys = s2_client.search_papers(survey_query, limit=5)
-            _add_unique(s2_surveys)
-        except Exception:
-            pass
-
-    # Step 2: Find recent high-cited papers
-    recent_query = topic
     year_filter = f"{current_year - recent_years}-"
-    try:
-        recent = openalex_client.search_papers(recent_query, limit=10, year=year_filter)
-        _add_unique(recent)
-    except Exception:
-        recent = []
 
-    if config.get_s2_api_key():
-        time.sleep(1)
-        try:
-            s2_recent = s2_client.search_papers(recent_query, limit=10, year=year_filter)
-            _add_unique(s2_recent)
-        except Exception:
-            pass
+    def _oa_survey():
+        return openalex_client.search_papers(survey_query, limit=5)
+
+    def _oa_recent():
+        return openalex_client.search_papers(topic, limit=10, year=year_filter)
+
+    def _s2_survey():
+        return s2_client.search_papers(survey_query, limit=5) if config.get_s2_api_key() else []
+
+    def _s2_recent():
+        return s2_client.search_papers(topic, limit=10, year=year_filter) if config.get_s2_api_key() else []
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = [pool.submit(fn) for fn in [_oa_survey, _oa_recent, _s2_survey, _s2_recent]]
+        for f in as_completed(futures):
+            try:
+                results = f.result()
+                if results:
+                    _add_unique(results)
+            except Exception:
+                pass
 
     # Deduplicate and sort by citations
     deduped = relevance.deduplicate(all_papers)
