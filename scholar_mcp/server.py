@@ -131,6 +131,7 @@ def search_papers(
     fields_of_study: str = "",
     min_citations: int = 0,
     open_access_only: bool = False,
+    sort: str = "",
 ) -> str:
     """Search for academic papers across multiple sources (Semantic Scholar, arXiv, OpenAlex).
     Results are fused using Reciprocal Rank Fusion for better ranking quality.
@@ -150,6 +151,7 @@ def search_papers(
         fields_of_study: Comma-separated fields (e.g., "Computer Science,Mathematics")
         min_citations: Minimum citation count filter (default 0)
         open_access_only: Only return papers with free PDF access
+        sort: Sort results by "citations" (most cited first) or "date" (newest first). Default: relevance.
     """
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
     search_query = relevance.optimize_query(query)
@@ -177,7 +179,14 @@ def search_papers(
         all_papers = [p for p in all_papers if (p.get("citation_count") or 0) >= min_citations]
 
     reranked = relevance.rerank(query, all_papers, top_n=limit * 2)
-    results = relevance.score_results(query, reranked, min_score=0.0)[:limit]
+    results = relevance.score_results(query, reranked, min_score=0.0)
+
+    if sort == "citations":
+        results.sort(key=lambda p: p.get("citation_count", 0) or 0, reverse=True)
+    elif sort == "date":
+        results.sort(key=lambda p: p.get("publication_date") or p.get("year") or 0, reverse=True)
+
+    results = results[:limit]
 
     if not results:
         return json.dumps({
