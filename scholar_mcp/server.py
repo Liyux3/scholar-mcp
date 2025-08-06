@@ -455,19 +455,32 @@ def build_paper_graph(
 
     seed_papers = []
     for seed in seeds:
+        seed = seed.strip()
         if len(seed) > 30 and " " not in seed:
             try:
-                p = s2_client.get_paper(seed)
+                p = s2_client.get_paper(_normalize_paper_id(seed))
                 if p:
                     seed_papers.append(p)
                     continue
             except Exception:
                 pass
-        results = s2_client.search_papers(seed, limit=1) if config.get_s2_api_key() else []
-        if not results:
-            results = openalex_client.search_papers(seed, limit=1)
-        if results:
-            seed_papers.append(results[0])
+        candidates = []
+        try:
+            oa = openalex_client.search_papers(seed, limit=1)
+            if oa:
+                candidates.extend(oa)
+        except Exception:
+            pass
+        if config.get_s2_api_key():
+            try:
+                s2 = s2_client.search_papers(seed, limit=1)
+                if s2:
+                    candidates.extend(s2)
+            except Exception:
+                pass
+        if candidates:
+            best = max(candidates, key=lambda p: p.get("citation_count", 0) or 0)
+            seed_papers.append(best)
 
     if not seed_papers:
         return json.dumps({"error": "Could not find any of the specified papers"})
