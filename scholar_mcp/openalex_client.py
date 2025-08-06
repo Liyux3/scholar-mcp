@@ -2,6 +2,7 @@
 
 import httpx
 from . import config
+from .cache import cached
 
 BASE_URL = "https://api.openalex.org/works"
 
@@ -91,6 +92,7 @@ def format_paper(work: dict) -> dict | None:
     }
 
 
+@cached(ttl=300)
 def search_papers(query: str, limit: int = 10, year: str = None,
                   fields_of_study: list[str] = None) -> list[dict]:
     """Search OpenAlex works."""

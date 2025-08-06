@@ -3,6 +3,7 @@
 import time
 import httpx
 from . import config
+from .cache import cached
 
 BASE_URL = "https://api.semanticscholar.org/graph/v1"
 REC_URL = "https://api.semanticscholar.org/recommendations/v1"
@@ -115,6 +116,7 @@ def format_paper_detail(data: dict) -> dict:
     return result
 
 
+@cached(ttl=300)
 def search_papers(query, limit=10, year=None, venue=None,
                   fields_of_study=None, min_citations=0,
                   open_access_only=False):
