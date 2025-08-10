@@ -1656,3 +1656,30 @@ Agent
 - scholar_mcp/inspirehep_client.py: NEW
 - tests/test_graph.py: NEW (9 tests)
 - README.md: updated for v0.6
+
+## Session Wrap Notes for Next Session (2026-05-11)
+
+### Critical: MCP Server Restart
+The MCP server process is running OLD code. All improvements from this session
+(106 commits) are NOT active in the live MCP connection. First thing next session:
+restart the MCP server (kill old process, Claude Code will auto-restart).
+
+### What to Test After Restart
+1. search_papers with sort="citations" (new feature)
+2. build_paper_graph should produce >1 node graphs (seed resolution fixed)
+3. get_paper with arXiv DOI (10.48550/arXiv.XXXX) should auto-convert
+4. recommend_papers should work (fixed REC_FIELDS)
+5. save_papers + list_saved_papers should persist across sessions
+6. discover_field should complete in ~30-40s (parallelized)
+
+### API Rate Limits to Remember
+- S2: 1 req/s with key, frequent 429s. Cache helps (5 min TTL).
+- arXiv: often 429 or timeout at 15s. Parallel means no blocking.
+- OpenAlex: generous, no observed limits.
+- DBLP: intermittent 500s.
+
+### Top Priority Next Steps
+1. Verify all tools via live MCP connection
+2. Run LitSearch benchmark with new pipeline (FlashRank-first)
+3. Start paper draft (coverage analysis is the easiest contribution)
+4. Consider: learned fusion weights as the "novel" contribution
