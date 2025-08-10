@@ -146,6 +146,7 @@ def _extract_oa_short_id(full_id: str) -> str:
     return full_id
 
 
+@cached(ttl=300)
 def get_paper_by_id(paper_id: str) -> dict | None:
     """Get a single paper by OpenAlex ID (W...), DOI, or full URL."""
     url = _resolve_oa_id(paper_id)
@@ -156,6 +157,7 @@ def get_paper_by_id(paper_id: str) -> dict | None:
     return format_paper(r.json())
 
 
+@cached(ttl=300)
 def get_citations(paper_id: str, limit: int = 20) -> list[dict]:
     """Get papers that cite the given paper. Uses OpenAlex cites filter."""
     oa_id = _extract_oa_short_id(paper_id)
@@ -174,6 +176,7 @@ def get_citations(paper_id: str, limit: int = 20) -> list[dict]:
     return results[:limit]
 
 
+@cached(ttl=300)
 def get_references(paper_id: str, limit: int = 20) -> list[dict]:
     """Get papers referenced by the given paper."""
     url = _resolve_oa_id(paper_id)
