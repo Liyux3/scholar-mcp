@@ -1683,3 +1683,21 @@ restart the MCP server (kill old process, Claude Code will auto-restart).
 2. Run LitSearch benchmark with new pipeline (FlashRank-first)
 3. Start paper draft (coverage analysis is the easiest contribution)
 4. Consider: learned fusion weights as the "novel" contribution
+
+## GPT Researcher Reference (2026-05-11)
+URL: github.com/assafelovic/gpt-researcher (26.8K stars)
+
+Architecture: Planner-Executor-Publisher
+- Plan: decompose query into sub-queries
+- Execute: parallel search via retrievers, aggregate context
+- Publish: LLM generates structured report
+
+Key patterns for us:
+- Retriever plugin: same as our source registry concept
+- Sub-query decomposition: complex question -> multiple focused searches
+- Deep research mode: recursive tree exploration
+- MCP integration: can use other MCP servers as data sources
+
+We don't need to implement sub-query decomposition in the tool
+(agent does it by calling search_papers multiple times), but the
+retriever plugin pattern validates our source registry design.
