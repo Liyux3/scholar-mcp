@@ -592,6 +592,22 @@ def discover_field(
     return output
 
 
+@mcp.tool()
+def scholar_status() -> str:
+    """Check scholar-mcp server version, available sources, and KB collections."""
+    from . import knowledge_base as kb_mod
+    available = [s.name for s in sources.search_sources()]
+    colls = kb_mod.list_collections()
+    return json.dumps({
+        "version": "0.6.0",
+        "tools": 14,
+        "search_sources": available,
+        "kb_collections": [{"name": c["name"], "papers": c["papers"]} for c in colls],
+        "s2_key": bool(config.get_s2_api_key()),
+        "cache_enabled": True,
+    }, indent=2)
+
+
 def main():
     mcp.run(transport="stdio", show_banner=False)
 
