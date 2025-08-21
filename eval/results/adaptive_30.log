@@ -1,0 +1,35 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+  [1/30] uniform=MISS adaptive=HIT  +
+  [2/30] uniform=MISS adaptive=MISS =
+  [3/30] uniform=HIT  adaptive=MISS -
+  [4/30] uniform=HIT  adaptive=MISS -
+  [5/30] uniform=MISS adaptive=MISS =
+  [6/30] uniform=HIT  adaptive=HIT  =
+  [7/30] uniform=HIT  adaptive=HIT  =
+  [8/30] uniform=MISS adaptive=HIT  +
+  [9/30] uniform=MISS adaptive=MISS =
+  [10/30] uniform=MISS adaptive=MISS =
+  [11/30] uniform=MISS adaptive=MISS =
+  [12/30] uniform=MISS adaptive=MISS =
+  [13/30] uniform=MISS adaptive=MISS =
+  [14/30] uniform=HIT  adaptive=HIT  =
+  [15/30] uniform=MISS adaptive=MISS =
+  [16/30] uniform=MISS adaptive=MISS =
+  [17/30] uniform=HIT  adaptive=HIT  =
+  [18/30] uniform=MISS adaptive=MISS =
+  [19/30] uniform=MISS adaptive=MISS =
+  [20/30] uniform=MISS adaptive=MISS =
+  [21/30] uniform=MISS adaptive=MISS =
+  [22/30] uniform=MISS adaptive=MISS =
+  [23/30] uniform=MISS adaptive=MISS =
+  [24/30] uniform=MISS adaptive=MISS =
+  [25/30] uniform=MISS adaptive=MISS =
+  [26/30] uniform=MISS adaptive=MISS =
+  [27/30] uniform=HIT  adaptive=HIT  =
+  [28/30] uniform=HIT  adaptive=HIT  =
+  [29/30] uniform=MISS adaptive=MISS =
+  [30/30] uniform=HIT  adaptive=HIT  =
+
+Uniform hits: 9/30 (30.0%)
+Adaptive hits: 9/30 (30.0%)
+Delta: +0
