@@ -25,7 +25,7 @@ def _expansion_priority(paper: dict) -> float:
 
 def _get_openalex_id(paper: dict) -> str | None:
     """Extract OpenAlex-compatible ID from a paper dict.
-    Prefers W-ID (works with citation filters), falls back to DOI.
+    Prefers W-ID, falls back to DOI, then constructs DOI from ArXiv ID.
     """
     pid = paper.get("paper_id", "")
     if pid.startswith("W"):
@@ -37,6 +37,9 @@ def _get_openalex_id(paper: dict) -> str | None:
     doi = ext.get("DOI", "")
     if doi:
         return doi
+    arxiv_id = ext.get("ArXiv", "")
+    if arxiv_id:
+        return f"10.48550/arXiv.{arxiv_id}"
     return None
 
 
@@ -67,7 +70,9 @@ def _fetch_related(paper: dict, relation: str, limit: int, delay: float) -> list
             pass
     if len(results) < limit // 2 and config.get_s2_api_key():
         ext = paper.get("external_ids") or {}
-        s2_id = ext.get("DOI", "") or ext.get("ArXiv", "")
+        arxiv_id = ext.get("ArXiv", "")
+        doi = ext.get("DOI", "")
+        s2_id = doi or (f"ArXiv:{arxiv_id}" if arxiv_id else "")
         pid = paper.get("paper_id", "")
         if pid and not pid.startswith("W"):
             s2_id = s2_id or pid
