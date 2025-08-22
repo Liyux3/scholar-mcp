@@ -46,31 +46,36 @@ def _compact_papers(papers: list[dict]) -> list[dict]:
     return compact
 
 
+INTERNAL_FETCH_LIMIT = 100
+
+
 def _collect_primary(search_query, limit, year, venue, fos_list,
                      min_citations, open_access_only):
     """Query S2, arXiv, and OpenAlex in parallel via threads.
-    Each paper is tagged with its rank position from the source for RRF fusion.
+    Each source fetches up to INTERNAL_FETCH_LIMIT results for a larger
+    candidate pool; the user's limit controls final output truncation only.
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
+    fetch = INTERNAL_FETCH_LIMIT
     all_papers = []
     sources_used = []
     sources_failed = []
 
     def _search_s2():
         return "semantic_scholar", s2_client.search_papers(
-            search_query, limit=limit,
+            search_query, limit=fetch,
             year=year or None, venue=venue or None,
             fields_of_study=fos_list,
             min_citations=min_citations, open_access_only=open_access_only,
         )
 
     def _search_arxiv():
-        return "arxiv", arxiv_client.search_papers(search_query, max_results=limit)
+        return "arxiv", arxiv_client.search_papers(search_query, max_results=fetch)
 
     def _search_oa():
         return "openalex", openalex_client.search_papers(
-            search_query, limit=limit,
+            search_query, limit=fetch,
             year=year or None, fields_of_study=fos_list,
         )
 

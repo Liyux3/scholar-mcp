@@ -6,6 +6,12 @@ from .cache import cached
 
 BASE_URL = "https://api.openalex.org/works"
 
+OA_SELECT_FIELDS = ",".join([
+    "id", "doi", "title", "authorships", "publication_year",
+    "cited_by_count", "abstract_inverted_index", "open_access",
+    "primary_location", "publication_date", "concepts",
+])
+
 
 def _params_base() -> dict:
     """Base params shared across requests."""
@@ -86,7 +92,7 @@ def format_paper(work: dict) -> dict | None:
         "fields_of_study": topics,
         "publication_date": pub_date[:10] if pub_date and len(pub_date) >= 10 else None,
         "tldr": None,
-        "external_ids": {"DOI": doi} if doi else {},
+        "external_ids": {**({"DOI": doi} if doi else {}), "OpenAlex": oa_id},
         "url": work.get("id") or "",
         "source": "openalex",
     }
@@ -98,7 +104,8 @@ def search_papers(query: str, limit: int = 10, year: str = None,
     """Search OpenAlex works."""
     params = _params_base()
     params["search"] = query
-    params["per_page"] = min(limit * 2, 100)
+    params["per_page"] = min(limit, 100)
+    params["select"] = OA_SELECT_FIELDS
 
     filters = []
     if year:
@@ -146,11 +153,34 @@ def _extract_oa_short_id(full_id: str) -> str:
     return full_id
 
 
+def _resolve_to_wid(paper_id: str) -> str | None:
+    """Resolve any paper ID to an OA W-ID for use in cites/cited_by filters.
+    Tries direct ID lookup first, then DOI lookup.
+    """
+    if paper_id.startswith("W"):
+        return paper_id
+    if paper_id.startswith("https://openalex.org/"):
+        wid = paper_id.split("/")[-1]
+        if wid.startswith("W"):
+            return wid
+    if paper_id.startswith("10."):
+        url = f"https://api.openalex.org/works/doi:{paper_id}"
+        params = _params_base()
+        params["select"] = "id"
+        r = httpx.get(url, params=params, timeout=15)
+        if r.status_code == 200:
+            oa_url = r.json().get("id", "")
+            if "openalex.org/" in oa_url:
+                return oa_url.split("/")[-1]
+    return None
+
+
 @cached(ttl=300)
 def get_paper_by_id(paper_id: str) -> dict | None:
     """Get a single paper by OpenAlex ID (W...), DOI, or full URL."""
     url = _resolve_oa_id(paper_id)
     params = _params_base()
+    params["select"] = OA_SELECT_FIELDS
     r = httpx.get(url, params=params, timeout=30)
     if r.status_code != 200:
         return None
@@ -159,12 +189,15 @@ def get_paper_by_id(paper_id: str) -> dict | None:
 
 @cached(ttl=300)
 def get_citations(paper_id: str, limit: int = 20) -> list[dict]:
-    """Get papers that cite the given paper. Uses OpenAlex cites filter."""
-    oa_id = _extract_oa_short_id(paper_id)
+    """Get papers that cite the given paper, sorted by impact."""
+    wid = _resolve_to_wid(paper_id)
+    if not wid:
+        return []
     params = _params_base()
-    params["filter"] = f"cites:{oa_id}"
+    params["filter"] = f"cites:{wid}"
     params["sort"] = "cited_by_count:desc"
     params["per_page"] = min(limit, 100)
+    params["select"] = OA_SELECT_FIELDS
     r = httpx.get(BASE_URL, params=params, timeout=30)
     if r.status_code != 200:
         return []
@@ -181,6 +214,7 @@ def get_references(paper_id: str, limit: int = 20) -> list[dict]:
     """Get papers referenced by the given paper."""
     url = _resolve_oa_id(paper_id)
     params = _params_base()
+    params["select"] = "id,referenced_works"
     r = httpx.get(url, params=params, timeout=30)
     if r.status_code != 200:
         return []
@@ -193,6 +227,7 @@ def get_references(paper_id: str, limit: int = 20) -> list[dict]:
     params2 = _params_base()
     params2["filter"] = f"openalex:{id_filter}"
     params2["per_page"] = min(limit, 100)
+    params2["select"] = OA_SELECT_FIELDS
     r2 = httpx.get(BASE_URL, params=params2, timeout=30)
     if r2.status_code != 200:
         return []
