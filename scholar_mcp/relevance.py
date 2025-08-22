@@ -345,7 +345,7 @@ def rerank(query: str, papers: list[dict], top_n: int = 10) -> list[dict]:
 
     global _flashrank_ranker
     if _flashrank_ranker is None:
-        _flashrank_ranker = Ranker(max_length=256)
+        _flashrank_ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", max_length=512)
 
     passages = []
     for i, p in enumerate(papers):
@@ -361,6 +361,11 @@ def rerank(query: str, papers: list[dict], top_n: int = 10) -> list[dict]:
         paper = papers[orig_idx]
         paper["_relevance_score"] = round(float(item["score"]), 3)
         reranked.append(paper)
+
+    reranked.sort(key=lambda p: (
+        -p.get("_relevance_score", 0),
+        -(p.get("citation_count", 0) or 0),
+    ))
 
     return reranked
 
