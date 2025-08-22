@@ -8,3 +8,4 @@ build/
 downloads/
 .DS_Store
 uv.lock
+.flashrank_cache/
