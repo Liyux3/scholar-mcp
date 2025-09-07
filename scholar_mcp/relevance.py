@@ -208,7 +208,16 @@ def _load_rank_params() -> dict:
     return _rank_params
 
 
-def _rerank_dashscope(query: str, papers: list[dict], top_n: int) -> list[dict] | None:
+INTENT_INSTRUCTS = {
+    "foundational": "Given a scientific literature search query, retrieve seminal and highly-cited research papers that established this field or method.",
+    "recent": "Given a scientific literature search query, retrieve the most recent papers with novel contributions. Prioritize papers from the last 2 years.",
+    "survey": "Given a scientific literature search query, retrieve survey and review papers that provide comprehensive overviews of this topic.",
+    "method": "Given a scientific literature search query, retrieve papers that propose specific methods or techniques directly addressing the query.",
+    "": "Given a scientific literature search query, retrieve relevant research papers that answer the query. Prioritize papers whose methods, findings, or contributions directly address the query topic.",
+}
+
+
+def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = "") -> list[dict] | None:
     """Rerank via DashScope qwen3-rerank API. Returns None on failure."""
     api_key = config.DASHSCOPE_API_KEY
     if not api_key:
@@ -218,6 +227,8 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int) -> list[dict] 
     for p in papers:
         text = (p.get("title") or "") + ". " + (p.get("abstract") or "")
         documents.append(text[:1500])
+
+    instruct = INTENT_INSTRUCTS.get(intent, INTENT_INSTRUCTS[""])
 
     try:
         import httpx
@@ -229,7 +240,7 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int) -> list[dict] 
                 "query": query[:500],
                 "documents": documents[:500],
                 "top_n": min(top_n, len(documents)),
-                "instruct": "Given a scientific literature search query, retrieve relevant research papers that answer the query. Prioritize papers whose methods, findings, or contributions directly address the query topic.",
+                "instruct": instruct,
             },
             timeout=15,
         )
@@ -273,11 +284,11 @@ def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
     return reranked
 
 
-def rerank(query: str, papers: list[dict], top_n: int = 50) -> list[dict]:
+def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") -> list[dict]:
     """Rerank papers. Tries DashScope qwen3-rerank first, falls back to FlashRank."""
     if not papers:
         return papers
-    result = _rerank_dashscope(query, papers, top_n)
+    result = _rerank_dashscope(query, papers, top_n, intent=intent)
     if result is not None:
         return result
     return _rerank_flashrank(query, papers, top_n)

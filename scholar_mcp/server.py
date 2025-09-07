@@ -22,6 +22,7 @@ def _pipeline(
     query_or_id: str,
     limit: int,
     rerank_query: str = "",
+    intent: str = "",
     **kwargs,
 ) -> tuple[list[dict], list[dict]]:
     """Shared pipeline: parallel fetch -> dedup -> rerank -> rank -> truncate.
@@ -64,7 +65,7 @@ def _pipeline(
     all_papers = relevance.deduplicate(all_papers)
 
     if rerank_query:
-        all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)))
+        all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
         all_papers = relevance.rank_final(all_papers)
     else:
         all_papers.sort(key=lambda p: -(p.get("citation_count", 0) or 0))
@@ -128,10 +129,10 @@ def search_papers(
     min_citations: int = 0,
     open_access_only: bool = False,
     sort: str = "",
+    intent: str = "",
 ) -> str:
     """Search for academic papers across multiple sources (Semantic Scholar, arXiv, OpenAlex).
     Results are ranked using LLM-based reranking for better relevance.
-    Falls back to Crossref, CORE, PubMed if primary sources are unavailable.
 
     Args:
         query: Search query (e.g., "attention is all you need", "CRISPR gene editing")
@@ -142,11 +143,12 @@ def search_papers(
         min_citations: Minimum citation count filter (default 0)
         open_access_only: Only return papers with free PDF access
         sort: Sort results by "citations" (most cited first) or "date" (newest first). Default: relevance.
+        intent: Ranking preference. "foundational" for seminal papers, "recent" for latest work, "survey" for reviews, "method" for specific techniques. Default: balanced relevance.
     """
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
     search_query = relevance.optimize_query(query)
 
-    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query)
+    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query, intent=intent)
 
     if fos_list:
         results = relevance.filter_by_fields(results, fos_list)
