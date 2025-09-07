@@ -1,5 +1,6 @@
 """Semantic Scholar API client using direct httpx calls."""
 
+import re
 import time
 import httpx
 from . import config
@@ -56,6 +57,22 @@ def _get(url: str, params: dict = None, retries: int = 3) -> dict:
         return r.json()
     r.raise_for_status()
     return {}
+
+
+def _normalize_s2_id(paper_id: str) -> str:
+    """Ensure paper_id has the correct prefix for S2 API.
+    S2 requires DOI:xxx, ArXiv:xxx, CorpusID:xxx, or a 40-char SHA hash.
+    """
+    pid = paper_id.strip()
+    if pid.startswith(("DOI:", "ArXiv:", "CorpusID:", "PMID:", "MAG:", "ACL:")):
+        return pid
+    if len(pid) == 40 and all(c in "0123456789abcdef" for c in pid):
+        return pid
+    if pid.startswith("10."):
+        return f"DOI:{pid}"
+    if re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", pid):
+        return f"ArXiv:{pid}"
+    return pid
 
 
 def _post(url: str, json_data: dict = None, params: dict = None) -> dict:
@@ -143,12 +160,14 @@ def search_papers(query, limit=10, year=None, venue=None,
 
 @cached(ttl=300)
 def get_paper(paper_id: str) -> dict:
+    paper_id = _normalize_s2_id(paper_id)
     data = _get(f"{BASE_URL}/paper/{paper_id}", params={"fields": DETAIL_FIELDS})
     return format_paper_detail(data)
 
 
 @cached(ttl=300)
 def get_citations(paper_id: str, limit: int = 20):
+    paper_id = _normalize_s2_id(paper_id)
     fetch_limit = min(max(limit * 3, 100), 1000)
     params = {"fields": CITATION_FIELDS, "limit": fetch_limit}
     data = _get(f"{BASE_URL}/paper/{paper_id}/citations", params=params)
@@ -163,6 +182,7 @@ def get_citations(paper_id: str, limit: int = 20):
 
 @cached(ttl=300)
 def get_references(paper_id: str, limit: int = 20):
+    paper_id = _normalize_s2_id(paper_id)
     params = {"fields": CITATION_FIELDS, "limit": min(limit, 1000)}
     data = _get(f"{BASE_URL}/paper/{paper_id}/references", params=params)
     results = []

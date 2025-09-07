@@ -23,7 +23,8 @@ def cached(ttl: int = DEFAULT_TTL):
                 if now < expires:
                     return value
             result = fn(*args, **kwargs)
-            _cache[key] = (now + ttl, result)
+            if result is not None and result != [] and result != {}:
+                _cache[key] = (now + ttl, result)
             if len(_cache) > 500:
                 _evict()
             return result

@@ -70,9 +70,7 @@ def _fetch_related(paper: dict, relation: str, limit: int, delay: float) -> list
             pass
     if len(results) < limit // 2 and config.get_s2_api_key():
         ext = paper.get("external_ids") or {}
-        arxiv_id = ext.get("ArXiv", "")
-        doi = ext.get("DOI", "")
-        s2_id = doi or (f"ArXiv:{arxiv_id}" if arxiv_id else "")
+        s2_id = ext.get("DOI", "") or ext.get("ArXiv", "")
         pid = paper.get("paper_id", "")
         if pid and not pid.startswith("W"):
             s2_id = s2_id or pid
