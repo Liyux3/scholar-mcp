@@ -1,8 +1,10 @@
-"""Query preprocessing, relevance scoring, deduplication, and field filtering."""
+"""Query preprocessing, reranking, deduplication, and field filtering."""
 
 import math
 import re
 from datetime import datetime
+
+from . import config
 
 STOPWORDS = frozenset({
     "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
@@ -188,186 +190,126 @@ def deduplicate(papers: list[dict]) -> list[dict]:
     return result
 
 
-def _keyword_score(query: str, paper: dict) -> float:
-    """Fraction of query keywords found in title+abstract, with title boost. 0.0 to 1.0.
-    Returns 0.0 if fewer than 40% of keywords match (prevents single-word false positives).
-    """
-    keywords = extract_keywords(query)
-    if not keywords:
-        return 0.0
-
-    title = (paper.get("title") or "").lower()
-    abstract = (paper.get("abstract") or "").lower()
-    full_text = title + " " + abstract
-
-    hits = sum(1 for kw in keywords if kw in full_text)
-    hit_ratio = hits / len(keywords)
-
-    if hit_ratio < 0.4:
-        return 0.0
-
-    title_hits = sum(1 for kw in keywords if kw in title)
-    title_bonus = 0.2 * (title_hits / len(keywords))
-
-    return min(hit_ratio + title_bonus, 1.0)
-
-
-def _citation_score(paper: dict) -> float:
-    """Citation impact score combining total citations and velocity.
-    Blends log-scaled total citations with citations-per-year to surface
-    papers that are both new and rapidly gaining traction.
-    """
-    cites = paper.get("citation_count") or 0
-    if cites <= 0:
-        return 0.0
-    total = min(math.log10(cites + 1) / 5.0, 1.0)
-    year = paper.get("year")
-    if not year:
-        return total
-    current_year = datetime.now().year
-    age = max(current_year - year, 1)
-    velocity = min(math.log10(cites / age + 1) / 4.0, 1.0)
-    return 0.6 * total + 0.4 * velocity
-
-
-def _venue_score(paper: dict) -> float:
-    """Bonus for known top venues."""
-    venue = (paper.get("venue") or "").lower()
-    if not venue:
-        return 0.0
-    for top in TOP_VENUES:
-        if top in venue:
-            return 1.0
-    return 0.0
-
-
-def _recency_score(paper: dict) -> float:
-    """Slight bonus for recent papers. 0.0 to 1.0."""
-    year = paper.get("year")
-    if not year:
-        return 0.0
-    current_year = datetime.now().year
-    age = current_year - year
-    if age <= 0:
-        return 1.0
-    if age >= 10:
-        return 0.0
-    return 1.0 - (age / 10.0)
-
-
-def score_results(query: str, papers: list[dict],
-                  min_score: float = 0.1) -> list[dict]:
-    """Score and filter papers by relevance to query.
-
-    Combines keyword matching, citation count, venue quality, recency,
-    and multi-source consensus (papers appearing in multiple sources get boosted).
-    Papers below min_score are dropped. Returns sorted descending.
-    """
-    scored = []
-    for p in papers:
-        kw = _keyword_score(query, p)
-        ci = _citation_score(p)
-        ve = _venue_score(p)
-        re_ = _recency_score(p)
-        sc = _source_count(p)
-        total = 0.30 * kw + 0.25 * ci + 0.15 * ve + 0.15 * re_ + 0.15 * sc
-        if total >= min_score:
-            p["_relevance_score"] = round(total, 3)
-            scored.append(p)
-
-    scored.sort(key=lambda x: x["_relevance_score"], reverse=True)
-    return scored
-
-
-def _source_count(paper: dict) -> float:
-    """Consensus bonus: papers found by multiple sources are more likely relevant."""
-    count = paper.get("_source_count", 1)
-    if count <= 1:
-        return 0.0
-    if count == 2:
-        return 0.5
-    return 1.0
-
-
-RRF_K = 60
-
-
-def rrf_score(paper: dict, k: int = RRF_K) -> float:
-    """Reciprocal Rank Fusion score: sum(1/(k + rank_i)) across sources.
-    Cormack et al. 2009. k=60 is the standard default.
-    Papers not returned by a source get no contribution from that source.
-    """
-    ranks = paper.get("_source_ranks") or {}
-    if not ranks:
-        return 0.0
-    return sum(1.0 / (k + r) for r in ranks.values())
-
-
-def consensus_rrf_score(paper: dict, k: int = RRF_K) -> float:
-    """Consensus-weighted RRF: vote_count * rrf_score.
-    Papers appearing in multiple sources get a multiplicative boost.
-    This implements the Condorcet-inspired ranking from our theory.
-    """
-    votes = paper.get("_source_count", 1)
-    return votes * rrf_score(paper, k)
-
-
-def rrf_fuse(papers: list[dict], method: str = "rrf",
-             k: int = RRF_K) -> list[dict]:
-    """Score and sort papers using RRF or consensus-RRF.
-
-    Args:
-        papers: deduplicated papers with _source_ranks populated
-        method: "rrf" for standard RRF, "consensus" for vote-weighted RRF
-        k: RRF smoothing constant (default 60)
-
-    Returns:
-        Papers sorted by fusion score descending, with _rrf_score attached.
-    """
-    score_fn = consensus_rrf_score if method == "consensus" else rrf_score
-    for p in papers:
-        p["_rrf_score"] = score_fn(p, k)
-    papers.sort(key=lambda x: x["_rrf_score"], reverse=True)
-    return papers
-
-
 _flashrank_ranker = None
+_rank_params = None
 
 
-def rerank(query: str, papers: list[dict], top_n: int = 10) -> list[dict]:
-    """Rerank papers using FlashRank if available. Falls back to input order."""
-    if not papers:
-        return papers
+def _load_rank_params() -> dict:
+    """Load learned ranking parameters from JSON file, or use defaults."""
+    global _rank_params
+    if _rank_params is not None:
+        return _rank_params
+    import json
+    try:
+        with open(config.RANK_PARAMS_PATH) as f:
+            _rank_params = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        _rank_params = {"gamma": 1.0, "alpha": 0.05, "beta": 0.10, "delta": 0.0}
+    return _rank_params
+
+
+def _rerank_dashscope(query: str, papers: list[dict], top_n: int) -> list[dict] | None:
+    """Rerank via DashScope qwen3-rerank API. Returns None on failure."""
+    api_key = config.DASHSCOPE_API_KEY
+    if not api_key:
+        return None
+
+    documents = []
+    for p in papers:
+        text = (p.get("title") or "") + ". " + (p.get("abstract") or "")
+        documents.append(text[:1500])
+
+    try:
+        import httpx
+        resp = httpx.post(
+            "https://dashscope.aliyuncs.com/compatible-api/v1/reranks",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "qwen3-rerank",
+                "query": query[:500],
+                "documents": documents[:200],
+                "top_n": min(top_n, len(documents)),
+                "instruct": "Given an academic literature search query, rank research papers by relevance. Consider semantic meaning, not just keyword overlap.",
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        reranked = []
+        for item in data.get("results", []):
+            idx = item["index"]
+            score = float(item["relevance_score"])
+            paper = papers[idx]
+            paper["_rerank_score"] = round(score, 4)
+            reranked.append(paper)
+        return reranked
+    except Exception:
+        return None
+
+
+def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
+    """Rerank via FlashRank MiniLM (ONNX). Fallback when DashScope unavailable."""
     try:
         from flashrank import Ranker, RerankRequest
     except ImportError:
+        for p in papers:
+            p["_rerank_score"] = 0.5
         return papers[:top_n]
 
     global _flashrank_ranker
     if _flashrank_ranker is None:
         _flashrank_ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", max_length=512)
 
-    passages = []
-    for i, p in enumerate(papers):
-        text = (p.get("title") or "") + ". " + (p.get("abstract") or "")
-        passages.append({"id": i, "text": text[:1000]})
-
+    passages = [{"id": i, "text": ((p.get("title") or "") + ". " + (p.get("abstract") or ""))[:1000]} for i, p in enumerate(papers)]
     request = RerankRequest(query=query, passages=passages)
     ranked = _flashrank_ranker.rerank(request)
 
     reranked = []
     for item in ranked[:top_n]:
-        orig_idx = item["id"]
-        paper = papers[orig_idx]
-        paper["_relevance_score"] = round(float(item["score"]), 3)
+        paper = papers[item["id"]]
+        paper["_rerank_score"] = round(float(item["score"]), 4)
         reranked.append(paper)
-
-    reranked.sort(key=lambda p: (
-        -p.get("_relevance_score", 0),
-        -(p.get("citation_count", 0) or 0),
-    ))
-
     return reranked
+
+
+def rerank(query: str, papers: list[dict], top_n: int = 50) -> list[dict]:
+    """Rerank papers. Tries DashScope qwen3-rerank first, falls back to FlashRank."""
+    if not papers:
+        return papers
+    result = _rerank_dashscope(query, papers, top_n)
+    if result is not None:
+        return result
+    return _rerank_flashrank(query, papers, top_n)
+
+
+def rank_final(papers: list[dict]) -> list[dict]:
+    """Apply learnable composite ranking formula and sort.
+
+    final = rerank_score^γ × (1 + α × log(citations+1)) × (1 + β × source_count/N) × (1 + δ × recency)
+    γ,α,β,δ loaded from rank_params.json (learned via scipy.optimize on LitSearch GT).
+    """
+    params = _load_rank_params()
+    gamma = params.get("gamma", 1.0)
+    alpha = params.get("alpha", 0.05)
+    beta = params.get("beta", 0.10)
+    delta = params.get("delta", 0.0)
+
+    current_year = datetime.now().year
+    n_sources = max(len(set(s for p in papers for s in (p.get("_source_ranks") or {}).keys())), 1)
+
+    for p in papers:
+        r = max(p.get("_rerank_score", 0.0), 1e-6)
+        cites = p.get("citation_count", 0) or 0
+        src_count = p.get("_source_count", 1)
+        year = p.get("year") or current_year
+        recency = max(0, 1.0 - (current_year - year) / 10.0)
+
+        score = (r ** gamma) * (1 + alpha * math.log(cites + 1)) * (1 + beta * src_count / n_sources) * (1 + delta * recency)
+        p["_final_score"] = round(score, 4)
+
+    papers.sort(key=lambda p: -p["_final_score"])
+    return papers
 
 
 DOMAIN_KEYWORDS = {

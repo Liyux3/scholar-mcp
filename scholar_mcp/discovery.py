@@ -5,8 +5,8 @@ to build a structured view of a research field.
 """
 
 import time
-from . import s2_client, openalex_client, relevance, graph
-from . import config, knowledge_base as kb
+from . import relevance, graph, sources
+from . import knowledge_base as kb
 
 
 def discover_field(
@@ -40,33 +40,16 @@ def discover_field(
                 added += 1
         return added
 
-    # Steps 1+2: Search surveys and recent papers in parallel
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
     survey_query = f"survey review {topic}"
     year_filter = f"{current_year - recent_years}-"
 
-    def _oa_survey():
-        return openalex_client.search_papers(survey_query, limit=5)
+    for sr in sources.parallel_search(survey_query, limit=10):
+        if sr.results:
+            _add_unique(sr.results)
 
-    def _oa_recent():
-        return openalex_client.search_papers(topic, limit=10, year=year_filter)
-
-    def _s2_survey():
-        return s2_client.search_papers(survey_query, limit=5) if config.get_s2_api_key() else []
-
-    def _s2_recent():
-        return s2_client.search_papers(topic, limit=10, year=year_filter) if config.get_s2_api_key() else []
-
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        futures = [pool.submit(fn) for fn in [_oa_survey, _oa_recent, _s2_survey, _s2_recent]]
-        for f in as_completed(futures):
-            try:
-                results = f.result()
-                if results:
-                    _add_unique(results)
-            except Exception:
-                pass
+    for sr in sources.parallel_search(topic, limit=15):
+        if sr.results:
+            _add_unique(sr.results)
 
     # Deduplicate and sort by citations
     deduped = relevance.deduplicate(all_papers)

@@ -1,14 +1,25 @@
 """Source registry for academic search APIs.
 
-Each source registers its capabilities (search, citations, references).
-The registry dispatches queries to appropriate sources based on availability
-and priority, making it easy to add new sources without touching server.py.
+Each source registers its capabilities (search, citations, references, paper lookup).
+The registry dispatches queries to all capable sources in parallel and returns
+structured results. Adding a new source = register() call, no other files change.
 """
 
+import time as _time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Callable
 
 from . import config
+
+
+@dataclass
+class SourceResult:
+    source: str
+    status: str
+    results: list[dict]
+    latency_ms: int
+    error: str | None = None
 
 
 @dataclass
@@ -58,10 +69,70 @@ def reference_sources() -> list[Source]:
     return [s for s in all_sources() if s.get_references and s.available()]
 
 
+def _timed_call(source_name: str, fn: Callable, *args, **kwargs) -> SourceResult:
+    t0 = _time.monotonic()
+    try:
+        results = fn(*args, **kwargs)
+        ms = int((_time.monotonic() - t0) * 1000)
+        if results:
+            return SourceResult(source_name, "ok", results, ms)
+        return SourceResult(source_name, "empty", [], ms)
+    except Exception as e:
+        ms = int((_time.monotonic() - t0) * 1000)
+        status = "timeout" if "timeout" in type(e).__name__.lower() else "error"
+        return SourceResult(source_name, status, [], ms, f"{type(e).__name__}: {e}")
+
+
+def parallel_search(query: str, limit: int = 100, **kwargs) -> list[SourceResult]:
+    sources = search_sources()
+    if not sources:
+        return []
+    results = []
+    with ThreadPoolExecutor(max_workers=min(len(sources), 12)) as pool:
+        futures = {
+            pool.submit(_timed_call, s.name, s.search, query, limit, **kwargs): s.name
+            for s in sources
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
+    return results
+
+
+def parallel_citations(paper_id: str, limit: int = 20) -> list[SourceResult]:
+    sources = citation_sources()
+    if not sources:
+        return []
+    results = []
+    with ThreadPoolExecutor(max_workers=min(len(sources), 6)) as pool:
+        futures = {
+            pool.submit(_timed_call, s.name, s.get_citations, paper_id, limit=limit): s.name
+            for s in sources
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
+    return results
+
+
+def parallel_references(paper_id: str, limit: int = 20) -> list[SourceResult]:
+    sources = reference_sources()
+    if not sources:
+        return []
+    results = []
+    with ThreadPoolExecutor(max_workers=min(len(sources), 6)) as pool:
+        futures = {
+            pool.submit(_timed_call, s.name, s.get_references, paper_id, limit=limit): s.name
+            for s in sources
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
+    return results
+
+
 def _register_defaults():
     from . import s2_client, arxiv_client, openalex_client, crossref_client
     from . import core_client, pubmed_client
     from . import europepmc_client, dblp_client, inspirehep_client
+    from . import scholar_client
 
     register(Source(
         name="semantic_scholar",
@@ -93,13 +164,6 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="crossref",
-        search=lambda q, limit, **kw: crossref_client.search_papers(q, limit=limit),
-        priority=30,
-        domains=["all"],
-    ))
-
-    register(Source(
         name="pubmed",
         search=lambda q, limit, **kw: pubmed_client.search_papers(q, max_results=limit),
         priority=40,
@@ -111,6 +175,13 @@ def _register_defaults():
         search=lambda q, limit, **kw: europepmc_client.search_papers(q, limit=limit),
         priority=35,
         domains=["medicine", "biology", "healthcare", "biochemistry"],
+    ))
+
+    register(Source(
+        name="crossref",
+        search=lambda q, limit, **kw: crossref_client.search_papers(q, limit=limit),
+        priority=30,
+        domains=["all"],
     ))
 
     register(Source(
@@ -134,6 +205,13 @@ def _register_defaults():
         domains=["all"],
         requires_key=True,
         key_available=lambda: bool(config.CORE_API_KEY),
+    ))
+
+    register(Source(
+        name="google_scholar",
+        search=lambda q, limit, **kw: scholar_client.search_papers(q, max_results=limit),
+        priority=5,
+        domains=["all"],
     ))
 
 

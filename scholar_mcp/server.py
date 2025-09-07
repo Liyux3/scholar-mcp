@@ -1,14 +1,10 @@
 import json
+import yaml
 from fastmcp import FastMCP
 from . import config
 from . import s2_client
-from . import arxiv_client
 from . import openalex_client
-from . import crossref_client
 from . import openreview_client
-from . import core_client
-from . import pubmed_client
-from . import scholar_client
 from . import pdf_utils
 from . import relevance
 from . import graph
@@ -18,113 +14,108 @@ from . import sources
 
 mcp = FastMCP("scholar-mcp")
 
-
-def _normalize_paper_id(paper_id: str) -> str:
-    """Convert arXiv DOI format to ArXiv: prefix that S2 understands."""
-    import re
-    m = re.match(r"10\.48550/arXiv\.(\d+\.\d+)", paper_id, re.IGNORECASE)
-    if m:
-        return f"ArXiv:{m.group(1)}"
-    return paper_id
-
-
-def _compact_papers(papers: list[dict]) -> list[dict]:
-    """Slim down paper list for citation/reference output."""
-    compact = []
-    for p in papers:
-        c = {
-            "paper_id": p.get("paper_id", ""),
-            "title": p.get("title", ""),
-            "authors": (p.get("authors") or [])[:3],
-            "year": p.get("year"),
-            "citation_count": p.get("citation_count", 0),
-        }
-        doi = (p.get("external_ids") or {}).get("DOI", "")
-        if doi:
-            c["doi"] = doi
-        compact.append(c)
-    return compact
-
-
 INTERNAL_FETCH_LIMIT = 100
 
 
-def _collect_primary(search_query, limit, year, venue, fos_list,
-                     min_citations, open_access_only):
-    """Query S2, arXiv, and OpenAlex in parallel via threads.
-    Each source fetches up to INTERNAL_FETCH_LIMIT results for a larger
-    candidate pool; the user's limit controls final output truncation only.
+def _pipeline(
+    dispatch: str,
+    query_or_id: str,
+    limit: int,
+    rerank_query: str = "",
+    **kwargs,
+) -> tuple[list[dict], list[dict]]:
+    """Shared pipeline: parallel fetch -> dedup -> rerank -> rank -> truncate.
+
+    Args:
+        dispatch: "search" | "citations" | "references"
+        query_or_id: search query or paper ID
+        limit: final output size
+        rerank_query: if set, run reranker with this query
+        **kwargs: passed to source search (year, fields_of_study, etc.)
+    Returns:
+        (ranked_papers, source_reports)
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
+    if dispatch == "search":
+        source_results = sources.parallel_search(query_or_id, limit=INTERNAL_FETCH_LIMIT, **kwargs)
+    elif dispatch == "citations":
+        source_results = sources.parallel_citations(query_or_id, limit=INTERNAL_FETCH_LIMIT)
+    elif dispatch == "references":
+        source_results = sources.parallel_references(query_or_id, limit=INTERNAL_FETCH_LIMIT)
+    else:
+        return [], []
 
-    fetch = INTERNAL_FETCH_LIMIT
     all_papers = []
-    sources_used = []
-    sources_failed = []
-
-    def _search_s2():
-        return "semantic_scholar", s2_client.search_papers(
-            search_query, limit=fetch,
-            year=year or None, venue=venue or None,
-            fields_of_study=fos_list,
-            min_citations=min_citations, open_access_only=open_access_only,
-        )
-
-    def _search_arxiv():
-        return "arxiv", arxiv_client.search_papers(search_query, max_results=fetch)
-
-    def _search_oa():
-        return "openalex", openalex_client.search_papers(
-            search_query, limit=fetch,
-            year=year or None, fields_of_study=fos_list,
-        )
-
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        futures = [pool.submit(fn) for fn in [_search_s2, _search_arxiv, _search_oa]]
-        for future in as_completed(futures):
-            try:
-                name, results = future.result()
-                if results:
-                    relevance.tag_source_ranks(results, name)
-                    all_papers.extend(results)
-                    sources_used.append(name)
-            except Exception as e:
-                sources_failed.append(f"{type(e).__name__}")
-
-    return all_papers, sources_used, sources_failed
-
-
-def _collect_fallback(query, limit, sources_failed):
-    """Try secondary sources as fallback. Returns (papers, sources_used)."""
-    all_papers = []
-    sources_used = []
-
-    secondary = [s for s in sources.search_sources()
-                 if s.name not in ("semantic_scholar", "openalex", "arxiv")]
-
-    for src in secondary:
-        try:
-            results = src.search(query, limit=limit)
-            if results:
-                relevance.tag_source_ranks(results, src.name)
-                all_papers.extend(results)
-                sources_used.append(src.name)
-                if len(all_papers) >= limit:
-                    break
-        except Exception as e:
-            sources_failed.append(f"{src.name}: {type(e).__name__}")
+    source_reports = []
+    for sr in source_results:
+        source_reports.append({
+            "source": sr.source,
+            "status": sr.status,
+            "count": len(sr.results),
+            "latency_ms": sr.latency_ms,
+            "error": sr.error,
+        })
+        if sr.results:
+            relevance.tag_source_ranks(sr.results, sr.source)
+            all_papers.extend(sr.results)
 
     if not all_papers:
-        try:
-            results = scholar_client.search_papers(query, max_results=limit)
-            if results:
-                relevance.tag_source_ranks(results, "google_scholar")
-                all_papers.extend(results)
-                sources_used.append("google_scholar")
-        except Exception as e:
-            sources_failed.append(f"google_scholar: {type(e).__name__}")
+        return [], source_reports
 
-    return all_papers, sources_used
+    all_papers = relevance.deduplicate(all_papers)
+
+    if rerank_query:
+        all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)))
+        all_papers = relevance.rank_final(all_papers)
+    else:
+        all_papers.sort(key=lambda p: -(p.get("citation_count", 0) or 0))
+
+    return all_papers[:limit], source_reports
+
+
+def _format_paper(p: dict) -> dict:
+    doi = (p.get("external_ids") or {}).get("DOI", "")
+    abstract = p.get("abstract") or ""
+    if len(abstract) > 300:
+        abstract = abstract[:300] + "..."
+    out = {
+        "title": p.get("title", ""),
+        "authors": (p.get("authors") or [])[:5],
+        "year": p.get("year"),
+        "venue": p.get("venue", ""),
+        "citations": p.get("citation_count", 0),
+        "abstract": abstract,
+    }
+    if doi:
+        out["doi"] = doi
+    if p.get("url"):
+        out["url"] = p["url"]
+    if p.get("tldr"):
+        out["tldr"] = p["tldr"]
+    if p.get("_final_score"):
+        out["score"] = p["_final_score"]
+    return out
+
+
+def _format_compact(p: dict) -> dict:
+    out = {
+        "title": p.get("title", ""),
+        "authors": (p.get("authors") or [])[:3],
+        "year": p.get("year"),
+        "citations": p.get("citation_count", 0),
+    }
+    doi = (p.get("external_ids") or {}).get("DOI", "")
+    if doi:
+        out["doi"] = doi
+    return out
+
+
+def _yaml(data: dict) -> str:
+    return yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+
+def _meta_block(source_reports: list[dict], **extra) -> dict:
+    used = [r["source"] for r in source_reports if r["status"] == "ok"]
+    return {"sources_used": used, "source_details": source_reports, **extra}
 
 
 @mcp.tool()
@@ -139,14 +130,8 @@ def search_papers(
     sort: str = "",
 ) -> str:
     """Search for academic papers across multiple sources (Semantic Scholar, arXiv, OpenAlex).
-    Results are fused using Reciprocal Rank Fusion for better ranking quality.
+    Results are ranked using LLM-based reranking for better relevance.
     Falls back to Crossref, CORE, PubMed if primary sources are unavailable.
-
-    Tips for best results:
-    - Use specific technical terms, method names, or paper titles as query
-    - Short focused queries (5-15 words) work better than long paragraphs
-    - Use year filter to narrow recent work (e.g., "2024-2025")
-    - Use fields_of_study for cross-domain queries to reduce noise
 
     Args:
         query: Search query (e.g., "attention is all you need", "CRISPR gene editing")
@@ -161,147 +146,71 @@ def search_papers(
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
     search_query = relevance.optimize_query(query)
 
-    all_papers, sources_used, sources_failed = _collect_primary(
-        search_query, limit, year, venue, fos_list,
-        min_citations, open_access_only,
-    )
-
-    if not all_papers:
-        fallback_papers, fb_sources = _collect_fallback(search_query, limit, sources_failed)
-        all_papers = fallback_papers
-        sources_used.extend(fb_sources)
-
-    total_before = len(all_papers)
-    all_papers = relevance.deduplicate(all_papers)
-
-    if len(sources_used) > 1:
-        all_papers = relevance.rrf_fuse(all_papers, method="consensus")
+    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query)
 
     if fos_list:
-        all_papers = relevance.filter_by_fields(all_papers, fos_list)
-
+        results = relevance.filter_by_fields(results, fos_list)
     if min_citations > 0:
-        all_papers = [p for p in all_papers if (p.get("citation_count") or 0) >= min_citations]
-
-    reranked = relevance.rerank(query, all_papers, top_n=limit * 2)
-    results = relevance.score_results(query, reranked, min_score=0.0)
+        results = [p for p in results if (p.get("citation_count") or 0) >= min_citations]
 
     if sort == "citations":
-        results.sort(key=lambda p: p.get("citation_count", 0) or 0, reverse=True)
+        results.sort(key=lambda p: -(p.get("citation_count", 0) or 0))
     elif sort == "date":
         results.sort(key=lambda p: p.get("publication_date") or p.get("year") or 0, reverse=True)
 
     results = results[:limit]
 
     if not results:
-        return json.dumps({
-            "error": "No relevant results found.",
-            "_meta": {"sources_used": sources_used, "sources_failed": sources_failed},
-        })
+        return _yaml({"error": "No relevant results found.", "_meta": _meta_block(reports)})
 
-    compact = []
-    for r in results:
-        doi = (r.get("external_ids") or {}).get("DOI", "")
-        abstract = r.get("abstract") or ""
-        if len(abstract) > 300:
-            abstract = abstract[:300] + "..."
-        p = {
-            "paper_id": r.get("paper_id", ""),
-            "title": r.get("title", ""),
-            "authors": (r.get("authors") or [])[:5],
-            "year": r.get("year"),
-            "venue": r.get("venue", ""),
-            "citation_count": r.get("citation_count", 0),
-            "abstract": abstract,
-            "url": r.get("url", ""),
-        }
-        if doi:
-            p["doi"] = doi
-        if r.get("tldr"):
-            p["tldr"] = r["tldr"]
-        if r.get("publication_date"):
-            p["publication_date"] = r["publication_date"]
-        src = r.get("source", "")
-        if "+" in src:
-            p["found_in"] = src.split("+")
-        compact.append(p)
-
-    return json.dumps({
-        "results": compact,
-        "_meta": {
-            "sources_used": sources_used,
-            "total": len(compact),
-        },
-    }, indent=2, default=str)
+    return _yaml({
+        "results": [_format_paper(p) for p in results],
+        "_meta": _meta_block(reports, total=len(results)),
+    })
 
 
 @mcp.tool()
-def get_paper(paper_id: str) -> str:
-    """Get detailed information about a specific paper.
-    Accepts: Semantic Scholar ID, DOI, ArXiv ID (prefix with "ArXiv:"),
-    PMID (prefix with "PMID:"), OpenAlex ID (W...), or a URL.
+def paper_info(
+    paper_id: str,
+    include: str = "detail",
+    limit: int = 20,
+) -> str:
+    """Get information about a specific paper. Can include detail, citations, and/or references.
 
     Args:
-        paper_id: Paper identifier (e.g., "649def34f8be52c8b66281af98ae884c09aef38b",
-                  "10.1038/nature12373", "ArXiv:2106.09685", "W2626778328")
+        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex W-ID, etc.)
+        include: Comma-separated: "detail", "citations", "references" (default: "detail")
+        limit: Max citations/references to return (default 20)
     """
-    paper_id = _normalize_paper_id(paper_id)
-    for src in sources.all_sources():
-        if not src.get_paper or not src.available():
-            continue
-        try:
-            result = src.get_paper(paper_id)
-            if result:
-                return json.dumps(result, indent=2, default=str)
-        except Exception:
-            continue
-    return json.dumps({"error": f"Could not find paper '{paper_id}'"})
+    parts = [p.strip() for p in include.split(",")]
+    output = {}
 
+    if "detail" in parts:
+        for src in sources.all_sources():
+            if not src.get_paper or not src.available():
+                continue
+            try:
+                result = src.get_paper(paper_id)
+                if result:
+                    output["paper"] = _format_paper(result)
+                    break
+            except Exception:
+                continue
 
-@mcp.tool()
-def get_citations(paper_id: str, limit: int = 20) -> str:
-    """Get papers that cite a given paper.
-    Uses S2 first (recent citations, sorted by impact), falls back to OpenAlex
-    (sorted by citation count, better for finding influential follow-up work).
+    if "citations" in parts:
+        cites, reports = _pipeline("citations", paper_id, limit)
+        output["citations"] = [_format_compact(p) for p in cites]
+        output["_citations_meta"] = _meta_block(reports, total=len(cites))
 
-    Args:
-        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
-        limit: Maximum number of citing papers (1-1000, default 20)
-    """
-    paper_id = _normalize_paper_id(paper_id)
-    for src in sources.citation_sources():
-        try:
-            results = src.get_citations(paper_id, limit=limit)
-            if results:
-                return json.dumps({
-                    "total": len(results),
-                    "citations": _compact_papers(results),
-                }, indent=2, default=str)
-        except Exception:
-            continue
-    return json.dumps({"error": f"Could not get citations for '{paper_id}'"})
+    if "references" in parts:
+        refs, reports = _pipeline("references", paper_id, limit)
+        output["references"] = [_format_compact(p) for p in refs]
+        output["_references_meta"] = _meta_block(reports, total=len(refs))
 
+    if not output:
+        return _yaml({"error": f"Could not find paper '{paper_id}'"})
 
-@mcp.tool()
-def get_references(paper_id: str, limit: int = 20) -> str:
-    """Get papers referenced by a given paper.
-
-    Args:
-        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
-        limit: Maximum number of referenced papers (1-1000, default 20)
-    """
-    paper_id = _normalize_paper_id(paper_id)
-    for src in sources.reference_sources():
-        try:
-            results = src.get_references(paper_id, limit=limit)
-            if results:
-                return json.dumps({
-                    "total": len(results),
-                    "references": _compact_papers(results),
-                }, indent=2, default=str)
-        except Exception:
-            continue
-    return json.dumps({"error": f"Could not get references for '{paper_id}'"})
+    return _yaml(output)
 
 
 @mcp.tool()
@@ -312,29 +221,25 @@ def recommend_papers(paper_id: str, limit: int = 10) -> str:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         limit: Maximum recommendations (1-500, default 10)
     """
-    paper_id = _normalize_paper_id(paper_id)
     ids_to_try = [paper_id]
-    if "arxiv" in paper_id.lower():
-        arxiv_id = paper_id.split("arxiv.")[-1] if "arxiv." in paper_id.lower() else ""
-        if arxiv_id:
-            ids_to_try.insert(0, f"ArXiv:{arxiv_id}")
     if paper_id.startswith("W"):
         oa_paper = openalex_client.get_paper_by_id(paper_id)
         if oa_paper:
             doi = (oa_paper.get("external_ids") or {}).get("DOI", "")
             if doi:
                 ids_to_try.insert(0, doi)
+
     for pid in ids_to_try:
         try:
             results = s2_client.get_recommendations(pid, limit=limit)
             if results:
-                return json.dumps({
+                return _yaml({
+                    "recommendations": [_format_compact(p) for p in results],
                     "total": len(results),
-                    "recommendations": _compact_papers(results),
-                }, indent=2, default=str)
+                })
         except Exception:
             continue
-    return json.dumps({"error": f"Could not get recommendations for '{paper_id}'"})
+    return _yaml({"error": f"Could not get recommendations for '{paper_id}'"})
 
 
 @mcp.tool()
@@ -347,84 +252,62 @@ def search_authors(query: str, limit: int = 5) -> str:
     """
     try:
         results = s2_client.search_authors(query, limit=limit)
-        return json.dumps(results, indent=2, default=str)
+        return _yaml(results)
     except Exception as e:
-        return json.dumps({"error": f"Author search failed: {e}"})
+        return _yaml({"error": f"Author search failed: {e}"})
 
 
 @mcp.tool()
-def download_paper(paper_id: str, save_dir: str = "") -> str:
-    """Download a paper's PDF. Tries: Semantic Scholar open access, arXiv, bioRxiv/medRxiv.
-
-    Args:
-        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
-        save_dir: Directory to save PDF (default: configured download directory)
-    """
-    save_path = save_dir or config.DOWNLOAD_DIR
-    try:
-        paper_info = s2_client.get_paper(paper_id)
-    except Exception as e:
-        return json.dumps({"error": f"Could not find paper '{paper_id}': {e}"})
-
-    paper_id = _normalize_paper_id(paper_id)
-    result = pdf_utils.download_paper(paper_info, save_path)
-    if result.get("success") and result.get("file_path"):
-        paper_info["pdf_path"] = result["file_path"]
-        kb.add_papers([paper_info], collection="downloads")
-    return json.dumps(result, indent=2)
-
-
-@mcp.tool()
-def read_paper(paper_id: str, save_dir: str = "", max_pages: int = 0) -> str:
-    """Download a paper's PDF and extract its text content.
+def read_paper(paper_id: str, save_dir: str = "", max_pages: int = 0, extract_text: bool = True) -> str:
+    """Download a paper's PDF and optionally extract its text content.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
         save_dir: Directory to save PDF (default: configured download directory)
         max_pages: Maximum pages to extract (0 = all pages)
+        extract_text: If True, extract and return text. If False, just download PDF.
     """
     save_path = save_dir or config.DOWNLOAD_DIR
     try:
-        paper_info = s2_client.get_paper(paper_id)
+        paper_info_data = s2_client.get_paper(paper_id)
     except Exception as e:
-        return json.dumps({"error": f"Could not find paper '{paper_id}': {e}"})
+        return _yaml({"error": f"Could not find paper '{paper_id}': {e}"})
 
-    dl_result = pdf_utils.download_paper(paper_info, save_path)
-    if not dl_result["success"]:
-        return json.dumps(dl_result, indent=2)
+    dl_result = pdf_utils.download_paper(paper_info_data, save_path)
+    if not dl_result.get("success"):
+        return _yaml(dl_result)
+
+    if dl_result.get("file_path"):
+        paper_info_data["pdf_path"] = dl_result["file_path"]
+        kb.add_papers([paper_info_data], collection="downloads")
+
+    if not extract_text:
+        return _yaml(dl_result)
 
     try:
         text = pdf_utils.extract_text(dl_result["file_path"], max_pages=max_pages)
         return text
     except Exception as e:
-        return json.dumps({"error": f"PDF downloaded but text extraction failed: {e}"})
+        return _yaml({"error": f"PDF downloaded but text extraction failed: {e}", "file_path": dl_result.get("file_path")})
 
 
 @mcp.tool()
-def search_openreview(
-    query: str,
-    venue: str = "",
-    limit: int = 10,
-) -> str:
+def search_openreview(query: str, venue: str = "", limit: int = 10) -> str:
     """Search OpenReview for conference papers (ICLR, NeurIPS, ICML, etc.).
     No API key required. Returns papers with PDFs and review links.
 
     Args:
         query: Search query (e.g., "vision language action robot")
-        venue: OpenReview venue ID filter (e.g., "ICLR.cc/2026/Conference",
-               "NeurIPS.cc/2025/Conference"). Leave empty to search all venues.
+        venue: OpenReview venue ID filter (e.g., "ICLR.cc/2026/Conference")
         limit: Maximum results (1-50, default 10)
     """
     try:
-        results = openreview_client.search_papers(
-            query, max_results=limit,
-            venue=venue or None,
-        )
+        results = openreview_client.search_papers(query, max_results=limit, venue=venue or None)
         if results:
-            return json.dumps(results, indent=2, default=str)
-        return json.dumps({"message": "No results found on OpenReview.", "query": query, "venue": venue})
+            return _yaml(results)
+        return _yaml({"message": "No results found on OpenReview.", "query": query, "venue": venue})
     except Exception as e:
-        return json.dumps({"error": f"OpenReview search failed: {e}"})
+        return _yaml({"error": f"OpenReview search failed: {e}"})
 
 
 @mcp.tool()
@@ -438,153 +321,98 @@ def build_paper_graph(
 ) -> str:
     """Build a citation graph starting from seed papers.
     Recursively expands citations and references to map the research landscape.
-    Uses OpenAlex for citation data (impact-ranked, comprehensive coverage).
-
-    Best for: understanding a research area's structure, finding related work,
-    discovering influential papers, and mapping method evolution.
 
     Args:
         paper_ids: Comma-separated paper identifiers (S2 IDs, DOIs, or paper titles to search)
         max_hops: How many citation/reference hops to expand (1-3, default 2)
         max_papers: Maximum total papers in the graph (10-200, default 50)
         direction: "citations" (who cites this), "references" (what it cites), or "both"
-        min_citations: Skip papers with fewer citations than this (helps focus on impactful work)
-        topic_filter: Space-separated keywords to keep graph focused on a topic (e.g., "attention transformer")
+        min_citations: Skip papers with fewer citations than this
+        topic_filter: Space-separated keywords to keep graph focused on a topic
     """
     max_hops = min(max(max_hops, 1), 3)
     max_papers = min(max(max_papers, 10), 200)
 
     seeds = [pid.strip() for pid in paper_ids.split(",") if pid.strip()]
     if not seeds:
-        return json.dumps({"error": "No paper IDs provided"})
+        return _yaml({"error": "No paper IDs provided"})
 
     seed_papers = []
     for seed in seeds:
-        seed = seed.strip()
         if len(seed) > 30 and " " not in seed:
             try:
-                p = s2_client.get_paper(_normalize_paper_id(seed))
+                p = s2_client.get_paper(seed)
                 if p:
                     seed_papers.append(p)
                     continue
             except Exception:
                 pass
-        candidates = []
-        try:
-            oa = openalex_client.search_papers(seed, limit=1)
-            if oa:
-                candidates.extend(oa)
-        except Exception:
-            pass
-        if config.get_s2_api_key():
-            try:
-                s2 = s2_client.search_papers(seed, limit=1)
-                if s2:
-                    candidates.extend(s2)
-            except Exception:
-                pass
-        if candidates:
-            best = max(candidates, key=lambda p: p.get("citation_count", 0) or 0)
-            seed_papers.append(best)
+        results, _ = _pipeline("search", seed, 1)
+        if results:
+            seed_papers.append(results[0])
 
     if not seed_papers:
-        return json.dumps({"error": "Could not find any of the specified papers"})
+        return _yaml({"error": "Could not find any of the specified papers"})
 
     result = graph.build_graph(
-        seed_papers,
-        max_hops=max_hops,
-        max_papers=max_papers,
-        direction=direction,
-        min_citations=min_citations,
-        topic_filter=topic_filter,
+        seed_papers, max_hops=max_hops, max_papers=max_papers,
+        direction=direction, min_citations=min_citations, topic_filter=topic_filter,
     )
 
-    output = (
-        result["summary"] + "\n\n"
-        "```mermaid\n" + result["mermaid"] + "\n```"
-    )
-    return output
+    return result["summary"] + "\n\n```mermaid\n" + result["mermaid"] + "\n```"
 
 
 @mcp.tool()
-def save_papers(
-    paper_titles: str,
-    collection: str = "default",
-    notes: str = "",
-) -> str:
-    """Save papers to a persistent knowledge base collection for later reference.
-    Papers persist across sessions. Use to build a reading list or track important papers.
-
-    Args:
-        paper_titles: Comma-separated paper titles or DOIs to save (searches and saves best match)
-        collection: Collection name to save to (e.g., "rlhf-survey", "my-thesis")
-        notes: Optional notes to attach to saved papers
-    """
-    titles = [t.strip() for t in paper_titles.split(",") if t.strip()]
-    if not titles:
-        return json.dumps({"error": "No paper titles provided"})
-
-    papers_to_save = []
-    for title in titles:
-        try:
-            results = openalex_client.search_papers(title, limit=1)
-            if results:
-                papers_to_save.append(results[0])
-        except Exception:
-            pass
-
-    if not papers_to_save:
-        return json.dumps({"error": "Could not find any of the specified papers"})
-
-    result = kb.add_papers(papers_to_save, collection=collection, notes=notes)
-    return json.dumps(result)
-
-
-@mcp.tool()
-def list_saved_papers(
+def knowledge_base(
+    action: str = "list",
+    paper_titles: str = "",
     collection: str = "default",
     query: str = "",
+    notes: str = "",
     limit: int = 20,
 ) -> str:
-    """List or search papers in a knowledge base collection.
+    """Manage saved papers in the knowledge base.
 
     Args:
-        collection: Collection name (default: "default"). Use "all" to list all collections.
-        query: Optional search query to filter papers by keywords in title/abstract
+        action: "save" to save papers, "list" to list papers, "search" to search, "collections" to list all collections
+        paper_titles: Comma-separated paper titles or DOIs (for action="save")
+        collection: Collection name (default: "default")
+        query: Search query (for action="search")
+        notes: Notes to attach to saved papers (for action="save")
         limit: Maximum papers to return
     """
-    if collection == "all":
-        collections = kb.list_collections()
-        return json.dumps({"collections": collections})
+    if action == "collections":
+        return _yaml({"collections": kb.list_collections()})
 
-    if query:
+    if action == "save":
+        titles = [t.strip() for t in paper_titles.split(",") if t.strip()]
+        if not titles:
+            return _yaml({"error": "No paper titles provided"})
+        papers_to_save = []
+        for title in titles:
+            results, _ = _pipeline("search", title, 1)
+            if results:
+                papers_to_save.append(results[0])
+        if not papers_to_save:
+            return _yaml({"error": "Could not find any of the specified papers"})
+        result = kb.add_papers(papers_to_save, collection=collection, notes=notes)
+        return _yaml(result)
+
+    if action == "search" and query:
         papers = kb.search_kb(query, collection=collection, limit=limit)
     else:
         papers = kb.list_papers(collection=collection, limit=limit)
 
-    compact = []
-    for p in papers:
-        compact.append({
-            "title": p.get("title", ""),
-            "year": p.get("year"),
-            "citations": p.get("citation_count", 0),
-            "notes": p.get("notes", ""),
-        })
-
-    return json.dumps({"collection": collection, "total": len(compact), "papers": compact}, indent=2)
+    return _yaml({
+        "collection": collection,
+        "total": len(papers),
+        "papers": [{"title": p.get("title", ""), "year": p.get("year"), "citations": p.get("citation_count", 0), "notes": p.get("notes", "")} for p in papers],
+    })
 
 
 @mcp.tool()
-def discover_field(
-    topic: str,
-    max_papers: int = 30,
-) -> str:
+def discover_field(topic: str, max_papers: int = 30) -> str:
     """Map a research field: find surveys, foundational papers, and recent advances.
-    Automatically searches for survey papers, expands references to find foundations,
-    traces citations to find recent trends, and builds a citation graph.
-
-    Best for: getting up to speed on a new field, understanding the landscape,
-    finding key papers you should read, identifying research trends.
 
     Args:
         topic: Research topic to explore (e.g., "RLHF language model alignment")
@@ -592,25 +420,25 @@ def discover_field(
     """
     max_papers = min(max(max_papers, 10), 50)
     result = discovery.discover_field(topic, max_papers=max_papers)
-
-    output = result["summary"] + "\n\n```mermaid\n" + result["mermaid"] + "\n```"
-    return output
+    return result["summary"] + "\n\n```mermaid\n" + result["mermaid"] + "\n```"
 
 
 @mcp.tool()
 def scholar_status() -> str:
     """Check scholar-mcp server version, available sources, and KB collections."""
-    from . import knowledge_base as kb_mod
     available = [s.name for s in sources.search_sources()]
-    colls = kb_mod.list_collections()
-    return json.dumps({
-        "version": "0.6.0",
-        "tools": 14,
+    cite_sources = [s.name for s in sources.citation_sources()]
+    colls = kb.list_collections()
+    return _yaml({
+        "version": "0.7.0",
+        "tools": 10,
         "search_sources": available,
+        "citation_sources": cite_sources,
         "kb_collections": [{"name": c["name"], "papers": c["papers"]} for c in colls],
         "s2_key": bool(config.get_s2_api_key()),
+        "dashscope_key": bool(config.DASHSCOPE_API_KEY),
         "cache_enabled": True,
-    }, indent=2)
+    })
 
 
 def main():

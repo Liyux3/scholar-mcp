@@ -6,10 +6,8 @@ Primarily uses OpenAlex for citation data (impact-ranked, generous rate limits).
 
 import heapq
 import time
-from . import config
-from . import openalex_client
-from . import s2_client
 from . import relevance
+from . import sources
 
 
 def _expansion_priority(paper: dict) -> float:
@@ -57,37 +55,38 @@ def _paper_to_node(paper: dict, depth: int) -> dict:
     }
 
 
+def _get_any_id(paper: dict) -> str:
+    """Pick the best ID for cross-source lookup."""
+    ext = paper.get("external_ids") or {}
+    for key in ("DOI", "OpenAlex", "ArXiv"):
+        val = ext.get(key, "")
+        if val:
+            return val
+    return paper.get("paper_id", "")
+
+
 def _fetch_related(paper: dict, relation: str, limit: int, delay: float) -> list[dict]:
-    """Fetch citations or references, trying OpenAlex first then S2."""
-    oa_id = _get_openalex_id(paper)
-    results = []
-    if oa_id:
-        try:
-            fn = openalex_client.get_citations if relation == "citations" else openalex_client.get_references
-            results = fn(oa_id, limit=limit)
-            time.sleep(delay)
-        except Exception:
-            pass
-    if len(results) < limit // 2 and config.get_s2_api_key():
-        ext = paper.get("external_ids") or {}
-        s2_id = ext.get("DOI", "") or ext.get("ArXiv", "")
-        pid = paper.get("paper_id", "")
-        if pid and not pid.startswith("W"):
-            s2_id = s2_id or pid
-        if s2_id:
-            try:
-                fn = s2_client.get_citations if relation == "citations" else s2_client.get_references
-                s2_results = fn(s2_id, limit=limit)
-                time.sleep(delay)
-                existing_titles = {relevance._normalize_title(r.get("title", "")) for r in results}
-                for r in s2_results:
-                    nt = relevance._normalize_title(r.get("title", ""))
-                    if nt and nt not in existing_titles:
-                        results.append(r)
-                        existing_titles.add(nt)
-            except Exception:
-                pass
-    return results
+    """Fetch citations or references from all capable sources in parallel."""
+    paper_id = _get_any_id(paper)
+    if not paper_id:
+        return []
+
+    if relation == "citations":
+        source_results = sources.parallel_citations(paper_id, limit=limit)
+    else:
+        source_results = sources.parallel_references(paper_id, limit=limit)
+
+    all_results = []
+    seen_titles = set()
+    for sr in source_results:
+        for r in sr.results:
+            nt = relevance._normalize_title(r.get("title", ""))
+            if nt and nt not in seen_titles:
+                seen_titles.add(nt)
+                all_results.append(r)
+
+    time.sleep(delay)
+    return all_results[:limit]
 
 
 def _matches_topic(paper: dict, topic_keywords: list[str]) -> bool:

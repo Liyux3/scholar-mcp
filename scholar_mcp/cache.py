@@ -23,13 +23,23 @@ def cached(ttl: int = DEFAULT_TTL):
                 if now < expires:
                     return value
             result = fn(*args, **kwargs)
-            if result is not None and result != [] and result != {}:
+            if _is_cacheable(result):
                 _cache[key] = (now + ttl, result)
             if len(_cache) > 500:
                 _evict()
             return result
         return wrapper
     return decorator
+
+
+def _is_cacheable(result) -> bool:
+    if result is None:
+        return False
+    if isinstance(result, list):
+        return len(result) > 0
+    if isinstance(result, dict):
+        return bool(result) and "error" not in result
+    return True
 
 
 def _evict():

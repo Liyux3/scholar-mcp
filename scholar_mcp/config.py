@@ -8,9 +8,11 @@ OPENALEX_API_KEY: str | None = os.environ.get("OPENALEX_API_KEY") or None
 OPENALEX_EMAIL: str | None = os.environ.get("OPENALEX_EMAIL") or None
 OPENREVIEW_USERNAME: str | None = os.environ.get("OPENREVIEW_USERNAME") or None
 OPENREVIEW_PASSWORD: str | None = os.environ.get("OPENREVIEW_PASSWORD") or None
+DASHSCOPE_API_KEY: str | None = os.environ.get("DASHSCOPE_API_KEY") or None
 DOWNLOAD_DIR: str = os.environ.get("SCHOLAR_DOWNLOAD_DIR", "./downloads")
 S2_TIMEOUT: int = int(os.environ.get("S2_TIMEOUT", "30"))
 SCIHUB_ENABLED: bool = os.environ.get("SCIHUB_ENABLED", "").lower() in ("1", "true", "yes")
+RANK_PARAMS_PATH: str = os.path.expanduser("~/.scholar-mcp/rank_params.json")
 
 
 def get_s2_api_key() -> str | None:
