@@ -227,9 +227,9 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int) -> list[dict] 
             json={
                 "model": "qwen3-rerank",
                 "query": query[:500],
-                "documents": documents[:200],
+                "documents": documents[:500],
                 "top_n": min(top_n, len(documents)),
-                "instruct": "Given an academic literature search query, rank research papers by relevance. Consider semantic meaning, not just keyword overlap.",
+                "instruct": "Given a scientific literature search query, retrieve relevant research papers that answer the query. Prioritize papers whose methods, findings, or contributions directly address the query topic.",
             },
             timeout=15,
         )
