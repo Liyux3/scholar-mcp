@@ -230,8 +230,9 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = 
         venue = p.get("venue") or ""
         year = p.get("year") or ""
         parts = [f"Title: {title}"]
-        if venue or year:
-            parts.append(f"Venue: {venue}, Year: {year}".strip(", "))
+        pub_date = p.get("publication_date") or str(year) if year else ""
+        if venue or pub_date:
+            parts.append(f"Venue: {venue}, Published: {pub_date}".strip(", "))
         if abstract:
             parts.append(f"Abstract: {abstract}")
         documents.append("\n".join(parts)[:2000])
