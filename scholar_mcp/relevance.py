@@ -329,6 +329,13 @@ def rank_final(papers: list[dict]) -> list[dict]:
         p["_final_score"] = round(score, 4)
 
     papers.sort(key=lambda p: -p["_final_score"])
+
+    if papers:
+        max_s = papers[0]["_final_score"]
+        if max_s > 0:
+            for p in papers:
+                p["_final_score"] = round(p["_final_score"] / max_s, 4)
+
     return papers
 
 
