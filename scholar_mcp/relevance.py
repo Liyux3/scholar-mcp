@@ -229,12 +229,12 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = 
         abstract = p.get("abstract") or ""
         venue = p.get("venue") or ""
         year = p.get("year") or ""
-        parts = [title]
+        parts = [f"Title: {title}"]
         if venue or year:
-            parts.append(f"({venue} {year})".strip())
+            parts.append(f"Venue: {venue}, Year: {year}".strip(", "))
         if abstract:
-            parts.append(abstract)
-        documents.append(". ".join(parts)[:2000])
+            parts.append(f"Abstract: {abstract}")
+        documents.append("\n".join(parts)[:2000])
 
     instruct = INTENT_INSTRUCTS.get(intent, INTENT_INSTRUCTS[""])
 
