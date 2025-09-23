@@ -209,11 +209,11 @@ def _load_rank_params() -> dict:
 
 
 INTENT_INSTRUCTS = {
-    "foundational": "Given a scientific literature search query, retrieve seminal and highly-cited research papers that established this field or method.",
-    "recent": "Given a scientific literature search query, retrieve the most recent papers with novel contributions. Prioritize papers from the last 2 years.",
-    "survey": "Given a scientific literature search query, retrieve survey and review papers that provide comprehensive overviews of this topic.",
-    "method": "Given a scientific literature search query, retrieve papers that propose specific methods or techniques directly addressing the query.",
-    "": "Given a scientific literature search query, retrieve relevant research papers that answer the query. Prioritize papers whose methods, findings, or contributions directly address the query topic.",
+    "foundational": "Given a scientific literature search query, retrieve the most relevant research papers. Among equally relevant papers, prefer seminal and highly-cited works that established this field or method.",
+    "recent": "Given a scientific literature search query, retrieve the most relevant research papers. Among equally relevant papers, prefer more recent publications with novel contributions.",
+    "survey": "Given a scientific literature search query, retrieve the most relevant research papers. Prefer survey, review, and tutorial papers that provide comprehensive overviews.",
+    "method": "Given a scientific literature search query, retrieve the most relevant research papers. Prefer papers that propose specific methods or techniques directly addressing the query.",
+    "": "Given a scientific literature search query, retrieve the most relevant research papers whose methods, findings, or contributions directly address the query topic.",
 }
 
 
