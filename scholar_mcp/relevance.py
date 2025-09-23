@@ -204,7 +204,7 @@ def _load_rank_params() -> dict:
         with open(config.RANK_PARAMS_PATH) as f:
             _rank_params = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        _rank_params = {"gamma": 1.0, "alpha": 0.05, "beta": 0.02, "delta": 0.0}
+        _rank_params = {"gamma": 1.0, "alpha": 0.05, "beta": 0.02, "delta": 0.10}
     return _rank_params
 
 
