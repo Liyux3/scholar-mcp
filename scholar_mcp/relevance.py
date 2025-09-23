@@ -261,7 +261,7 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = 
             idx = item["index"]
             score = float(item["relevance_score"])
             paper = papers[idx]
-            paper["_rerank_score"] = round(score, 4)
+            paper["_rerank_score"] = score
             reranked.append(paper)
         return reranked
     except Exception:
@@ -288,7 +288,7 @@ def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
     reranked = []
     for item in ranked[:top_n]:
         paper = papers[item["id"]]
-        paper["_rerank_score"] = round(float(item["score"]), 4)
+        paper["_rerank_score"] = float(item["score"])
         reranked.append(paper)
     return reranked
 
@@ -326,7 +326,7 @@ def rank_final(papers: list[dict]) -> list[dict]:
         recency = max(0, 1.0 - (current_year - year) / 10.0)
 
         score = (r ** gamma) * (1 + alpha * math.log(cites + 1)) * (1 + beta * src_count / n_sources) * (1 + delta * recency)
-        p["_final_score"] = round(score, 4)
+        p["_final_score"] = score
 
     papers.sort(key=lambda p: -p["_final_score"])
 
@@ -334,7 +334,7 @@ def rank_final(papers: list[dict]) -> list[dict]:
         max_s = papers[0]["_final_score"]
         if max_s > 0:
             for p in papers:
-                p["_final_score"] = round(p["_final_score"] / max_s, 4)
+                p["_final_score"] = p["_final_score"] / max_s
 
     return papers
 

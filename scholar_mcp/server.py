@@ -93,7 +93,7 @@ def _format_paper(p: dict) -> dict:
     if p.get("tldr"):
         out["tldr"] = p["tldr"]
     if p.get("_final_score"):
-        out["score"] = p["_final_score"]
+        out["score"] = round(p["_final_score"], 2)
     return out
 
 
