@@ -6,6 +6,7 @@ S2_API_KEYS: list[str] = [k.strip() for k in (os.environ.get("S2_API_KEYS") or "
 CORE_API_KEY: str | None = os.environ.get("CORE_API_KEY") or None
 OPENALEX_API_KEY: str | None = os.environ.get("OPENALEX_API_KEY") or None
 OPENALEX_EMAIL: str | None = os.environ.get("OPENALEX_EMAIL") or None
+OPENALEX_EMAILS: list[str] = [e.strip() for e in (os.environ.get("OPENALEX_EMAILS") or "").split(",") if e.strip()]
 OPENREVIEW_USERNAME: str | None = os.environ.get("OPENREVIEW_USERNAME") or None
 OPENREVIEW_PASSWORD: str | None = os.environ.get("OPENREVIEW_PASSWORD") or None
 DASHSCOPE_API_KEY: str | None = os.environ.get("DASHSCOPE_API_KEY") or None
@@ -16,7 +17,12 @@ RANK_PARAMS_PATH: str = os.path.expanduser("~/.scholar-mcp/rank_params.json")
 
 
 def get_s2_api_key() -> str | None:
-    """Get an S2 API key, rotating through pool if multiple are configured."""
     if S2_API_KEYS:
         return random.choice(S2_API_KEYS)
     return S2_API_KEY
+
+
+def get_openalex_email() -> str | None:
+    if OPENALEX_EMAILS:
+        return random.choice(OPENALEX_EMAILS)
+    return OPENALEX_EMAIL

@@ -16,7 +16,7 @@ OA_SELECT_FIELDS = ",".join([
 def _params_base() -> dict:
     """Base params shared across requests."""
     p = {}
-    email = config.OPENALEX_EMAIL
+    email = config.get_openalex_email()
     if email:
         p["mailto"] = email
     api_key = config.OPENALEX_API_KEY
