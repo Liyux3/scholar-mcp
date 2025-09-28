@@ -87,10 +87,11 @@ def _pipeline(
 
         if expand_citations and len(all_papers) >= expand_top_n:
             from concurrent.futures import ThreadPoolExecutor, as_completed
+            from collections import Counter
             top_papers = all_papers[:expand_top_n]
             expansion = []
 
-            def _expand_one(paper):
+            def _expand_refs_cites(paper):
                 pid = _get_best_id(paper)
                 if not pid:
                     return []
@@ -101,8 +102,28 @@ def _pipeline(
                     papers.extend(sr.results)
                 return papers
 
-            with ThreadPoolExecutor(max_workers=5) as pool:
-                futures = [pool.submit(_expand_one, p) for p in top_papers]
+            def _expand_keyword_research():
+                terms = Counter()
+                for p in top_papers:
+                    for word in relevance.extract_keywords(
+                        (p.get("title", "") + " " + p.get("abstract", "")), max_keywords=5
+                    ):
+                        terms[word] += 1
+                top_terms = [w for w, _ in terms.most_common(8)]
+                if not top_terms:
+                    return []
+                new_query = " ".join(top_terms)
+                papers = []
+                for sr in sources.parallel_search(new_query, limit=50):
+                    papers.extend(sr.results)
+                return papers
+
+            with ThreadPoolExecutor(max_workers=6) as pool:
+                futures = []
+                for p in top_papers[:5]:
+                    futures.append(pool.submit(_expand_refs_cites, p))
+                futures.append(pool.submit(_expand_keyword_research))
+
                 for f in as_completed(futures):
                     try:
                         expansion.extend(f.result())
