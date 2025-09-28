@@ -17,21 +17,38 @@ mcp = FastMCP("scholar-mcp")
 INTERNAL_FETCH_LIMIT = 100
 
 
+def _get_best_id(paper: dict) -> str:
+    ext = paper.get("external_ids") or {}
+    for key in ("DOI", "OpenAlex", "ArXiv"):
+        if ext.get(key):
+            return ext[key]
+    pid = paper.get("paper_id", "")
+    if pid and not pid.startswith("W"):
+        return pid
+    return ""
+
+
 def _pipeline(
     dispatch: str,
     query_or_id: str,
     limit: int,
     rerank_query: str = "",
     intent: str = "",
+    expand_citations: bool = False,
+    expand_top_n: int = 10,
+    expand_limit: int = 20,
     **kwargs,
 ) -> tuple[list[dict], list[dict]]:
-    """Shared pipeline: parallel fetch -> dedup -> rerank -> rank -> truncate.
+    """Shared pipeline: parallel fetch -> dedup -> rerank -> (expand) -> rank -> truncate.
 
     Args:
         dispatch: "search" | "citations" | "references"
         query_or_id: search query or paper ID
         limit: final output size
         rerank_query: if set, run reranker with this query
+        expand_citations: if True, expand pool via refs/cites of top results (2nd rerank pass)
+        expand_top_n: how many top papers to expand from
+        expand_limit: refs/cites to fetch per paper
         **kwargs: passed to source search (year, fields_of_study, etc.)
     Returns:
         (ranked_papers, source_reports)
@@ -67,6 +84,38 @@ def _pipeline(
     if rerank_query:
         all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
         all_papers = relevance.rank_final(all_papers)
+
+        if expand_citations and len(all_papers) >= expand_top_n:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            top_papers = all_papers[:expand_top_n]
+            expansion = []
+
+            def _expand_one(paper):
+                pid = _get_best_id(paper)
+                if not pid:
+                    return []
+                papers = []
+                for sr in sources.parallel_references(pid, limit=expand_limit):
+                    papers.extend(sr.results)
+                for sr in sources.parallel_citations(pid, limit=expand_limit):
+                    papers.extend(sr.results)
+                return papers
+
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                futures = [pool.submit(_expand_one, p) for p in top_papers]
+                for f in as_completed(futures):
+                    try:
+                        expansion.extend(f.result())
+                    except Exception:
+                        pass
+
+            if expansion:
+                for p in expansion:
+                    relevance.tag_source_ranks([p], "expansion")
+                all_papers.extend(expansion)
+                all_papers = relevance.deduplicate(all_papers)
+                all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
+                all_papers = relevance.rank_final(all_papers)
     else:
         all_papers.sort(key=lambda p: -(p.get("citation_count", 0) or 0))
 
@@ -130,6 +179,7 @@ def search_papers(
     open_access_only: bool = False,
     sort: str = "",
     intent: str = "",
+    expand: bool = False,
 ) -> str:
     """Search for academic papers across multiple sources (Semantic Scholar, arXiv, OpenAlex).
     Results are ranked using LLM-based reranking for better relevance.
@@ -144,11 +194,12 @@ def search_papers(
         open_access_only: Only return papers with free PDF access
         sort: Sort results by "citations" (most cited first) or "date" (newest first). Default: relevance.
         intent: Ranking preference. "foundational" for seminal papers, "recent" for latest work, "survey" for reviews, "method" for specific techniques. Default: balanced relevance.
+        expand: If True, expand candidate pool via citation/reference chasing of top results. Slower (~20s) but higher recall.
     """
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
     search_query = relevance.optimize_query(query)
 
-    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query, intent=intent)
+    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query, intent=intent, expand_citations=expand)
 
     if fos_list:
         results = relevance.filter_by_fields(results, fos_list)

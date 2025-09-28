@@ -135,6 +135,26 @@ def search_papers(query: str, limit: int = 10, year: str = None,
     return results[:limit]
 
 
+@cached(ttl=300)
+def search_papers_semantic(query: str, limit: int = 50) -> list[dict]:
+    """Semantic search via OA embeddings. Matches by concept, not keywords."""
+    params = _params_base()
+    params["search.semantic"] = query
+    params["per_page"] = min(limit, 50)
+    params["select"] = OA_SELECT_FIELDS
+
+    r = httpx.get(BASE_URL, params=params, timeout=30)
+    r.raise_for_status()
+
+    results = []
+    for work in r.json().get("results") or []:
+        paper = format_paper(work)
+        if paper:
+            paper["source"] = "openalex_semantic"
+            results.append(paper)
+    return results[:limit]
+
+
 def _resolve_oa_id(paper_id: str) -> str:
     """Convert various ID formats to OpenAlex API URL."""
     if paper_id.startswith("https://openalex.org/"):

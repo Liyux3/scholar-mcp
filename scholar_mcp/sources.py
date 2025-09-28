@@ -157,6 +157,13 @@ def _register_defaults():
     ))
 
     register(Source(
+        name="openalex_semantic",
+        search=lambda q, limit, **kw: openalex_client.search_papers_semantic(q, limit=min(limit, 50)),
+        priority=75,
+        domains=["all"],
+    ))
+
+    register(Source(
         name="arxiv",
         search=lambda q, limit, **kw: arxiv_client.search_papers(q, max_results=limit),
         priority=70,
