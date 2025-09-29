@@ -112,11 +112,27 @@ def _pipeline(
                         papers.extend(sr.results)
                 return papers
 
-            with ThreadPoolExecutor(max_workers=6) as pool:
+            def _expand_keyword_search():
+                from collections import Counter
+                terms = Counter()
+                for p in top_papers:
+                    text = (p.get("title", "") + " " + p.get("abstract", ""))
+                    for w in relevance.extract_keywords(text, max_keywords=5):
+                        terms[w] += 1
+                top_terms = [w for w, _ in terms.most_common(8)]
+                if not top_terms:
+                    return []
+                papers = []
+                for sr in sources.parallel_search(" ".join(top_terms), limit=50):
+                    papers.extend(sr.results)
+                return papers
+
+            with ThreadPoolExecutor(max_workers=7) as pool:
                 futures = []
                 for p in top_papers[:5]:
                     futures.append(pool.submit(_expand_refs_cites, p))
                 futures.append(pool.submit(_expand_title_search))
+                futures.append(pool.submit(_expand_keyword_search))
 
                 for f in as_completed(futures):
                     try:
