@@ -102,27 +102,21 @@ def _pipeline(
                     papers.extend(sr.results)
                 return papers
 
-            def _expand_keyword_research():
-                terms = Counter()
-                for p in top_papers:
-                    for word in relevance.extract_keywords(
-                        (p.get("title", "") + " " + p.get("abstract", "")), max_keywords=5
-                    ):
-                        terms[word] += 1
-                top_terms = [w for w, _ in terms.most_common(8)]
-                if not top_terms:
-                    return []
-                new_query = " ".join(top_terms)
+            def _expand_title_search():
                 papers = []
-                for sr in sources.parallel_search(new_query, limit=50):
-                    papers.extend(sr.results)
+                for p in top_papers[:3]:
+                    title = p.get("title", "")
+                    if not title:
+                        continue
+                    for sr in sources.parallel_search(title, limit=20):
+                        papers.extend(sr.results)
                 return papers
 
             with ThreadPoolExecutor(max_workers=6) as pool:
                 futures = []
                 for p in top_papers[:5]:
                     futures.append(pool.submit(_expand_refs_cites, p))
-                futures.append(pool.submit(_expand_keyword_research))
+                futures.append(pool.submit(_expand_title_search))
 
                 for f in as_completed(futures):
                     try:
@@ -135,6 +129,7 @@ def _pipeline(
                     relevance.tag_source_ranks([p], "expansion")
                 all_papers.extend(expansion)
                 all_papers = relevance.deduplicate(all_papers)
+                all_papers = all_papers[:500]
                 all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
                 all_papers = relevance.rank_final(all_papers)
     else:
