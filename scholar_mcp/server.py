@@ -145,7 +145,13 @@ def _pipeline(
                     relevance.tag_source_ranks([p], "expansion")
                 all_papers.extend(expansion)
                 all_papers = relevance.deduplicate(all_papers)
-                all_papers = all_papers[:500]
+                if len(all_papers) > 500:
+                    all_papers.sort(key=lambda p: (
+                        -(p.get("_rerank_score", 0) or 0),
+                        -(p.get("citation_count", 0) or 0),
+                        -(p.get("_source_count", 0) or 0),
+                    ))
+                    all_papers = all_papers[:500]
                 all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
                 all_papers = relevance.rank_final(all_papers)
     else:
