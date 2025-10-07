@@ -146,12 +146,13 @@ def _pipeline(
                 all_papers.extend(expansion)
                 all_papers = relevance.deduplicate(all_papers)
                 if len(all_papers) > 500:
-                    all_papers.sort(key=lambda p: (
-                        -(p.get("_rerank_score", 0) or 0),
-                        -(p.get("citation_count", 0) or 0),
-                        -(p.get("_source_count", 0) or 0),
-                    ))
-                    all_papers = all_papers[:500]
+                    old = [p for p in all_papers if p.get("_rerank_score")]
+                    new = [p for p in all_papers if not p.get("_rerank_score")]
+                    old_keep = 150
+                    new_keep = 500 - old_keep
+                    old.sort(key=lambda p: -p.get("_rerank_score", 0))
+                    new.sort(key=lambda p: -(p.get("citation_count", 0) or 0))
+                    all_papers = old[:old_keep] + new[:new_keep]
                 all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
                 all_papers = relevance.rank_final(all_papers)
     else:
