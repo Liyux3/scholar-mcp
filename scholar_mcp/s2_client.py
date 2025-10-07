@@ -136,7 +136,7 @@ def format_paper_detail(data: dict) -> dict:
 @cached(ttl=300)
 def search_papers(query, limit=10, year=None, venue=None,
                   fields_of_study=None, min_citations=0,
-                  open_access_only=False):
+                  open_access_only=False, sort=""):
     params = {
         "query": query,
         "limit": min(limit, 100),
@@ -154,8 +154,25 @@ def search_papers(query, limit=10, year=None, venue=None,
     if open_access_only:
         params["openAccessPdf"] = ""
 
+    if sort == "citations":
+        params["sort"] = "citationCount:desc"
+    elif sort == "date":
+        params["sort"] = "publicationDate:desc"
+
     data = _get(f"{BASE_URL}/paper/search", params=params)
     return [format_paper(p) for p in data.get("data", [])]
+
+
+@cached(ttl=300)
+def search_match(query: str) -> dict | None:
+    """Find the single best title match for a query."""
+    try:
+        data = _get(f"{BASE_URL}/paper/search/match",
+                    params={"query": query, "fields": SEARCH_FIELDS})
+        papers = data.get("data", [])
+        return format_paper(papers[0]) if papers else None
+    except Exception:
+        return None
 
 
 @cached(ttl=300)
@@ -169,15 +186,21 @@ def get_paper(paper_id: str) -> dict:
 def get_citations(paper_id: str, limit: int = 20):
     paper_id = _normalize_s2_id(paper_id)
     fetch_limit = min(max(limit * 3, 100), 1000)
-    params = {"fields": CITATION_FIELDS, "limit": fetch_limit}
+    params = {"fields": CITATION_FIELDS + ",isInfluential", "limit": fetch_limit}
     data = _get(f"{BASE_URL}/paper/{paper_id}/citations", params=params)
-    results = []
+    influential = []
+    others = []
     for item in data.get("data", []):
         citing = item.get("citingPaper", {})
         if citing and citing.get("paperId"):
-            results.append(format_paper(citing))
-    results.sort(key=lambda p: p.get("citation_count", 0), reverse=True)
-    return results[:limit]
+            paper = format_paper(citing)
+            if item.get("isInfluential"):
+                influential.append(paper)
+            else:
+                others.append(paper)
+    influential.sort(key=lambda p: p.get("citation_count", 0), reverse=True)
+    others.sort(key=lambda p: p.get("citation_count", 0), reverse=True)
+    return (influential + others)[:limit]
 
 
 @cached(ttl=300)
