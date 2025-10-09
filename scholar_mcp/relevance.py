@@ -76,46 +76,43 @@ def extract_keywords(query: str, max_keywords: int = 8) -> list[str]:
     return (ranked + remaining)[:max_keywords]
 
 
+_keybert_model = None
+
+
 def optimize_query(query: str) -> str:
-    """Shorten long queries to core keywords for better API results.
-    Uses LLM (DashScope qwen-turbo) if available, falls back to keyword extraction.
+    """Shorten long queries to core keyphrases for better API results.
+    Uses KeyBERT (embedding-based) if available, falls back to keyword extraction.
     """
     words = re.findall(r"[a-zA-Z0-9][\w\-]*", query)
     if len(words) <= 12:
         return query
 
-    llm_result = _llm_shorten_query(query)
-    if llm_result:
-        return llm_result
+    result = _keybert_extract(query)
+    if result:
+        return result
 
     keywords = extract_keywords(query, max_keywords=10)
     return " ".join(keywords)
 
 
-def _llm_shorten_query(query: str) -> str | None:
-    """Use DashScope qwen-turbo to extract search keywords from a long query."""
-    api_key = config.DASHSCOPE_API_KEY
-    if not api_key:
-        return None
+def _keybert_extract(query: str) -> str | None:
+    global _keybert_model
     try:
-        import httpx
-        resp = httpx.post(
-            "https://dashscope.aliyuncs.com/compatible-api/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": "qwen-turbo",
-                "messages": [{"role": "user", "content": f"Extract 5-8 key academic search terms from this query. Return ONLY the search terms separated by spaces, nothing else.\n\nQuery: {query}"}],
-                "max_tokens": 50,
-            },
-            timeout=5,
+        from keybert import KeyBERT
+        from model2vec import StaticModel
+        if _keybert_model is None:
+            model = StaticModel.from_pretrained("minishlab/potion-base-8M")
+            _keybert_model = KeyBERT(model)
+        kws = _keybert_model.extract_keywords(
+            query, keyphrase_ngram_range=(1, 2), stop_words="english",
+            top_n=6, use_mmr=True, diversity=0.7,
         )
-        resp.raise_for_status()
-        text = resp.json()["choices"][0]["message"]["content"].strip()
-        if 3 <= len(text.split()) <= 15:
-            return text
+        if kws:
+            return " ".join(kw for kw, _ in kws)
     except Exception:
         pass
     return None
+
 
 
 def _normalize_title(title: str) -> str:
