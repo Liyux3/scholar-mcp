@@ -218,7 +218,6 @@ def search_papers(
     open_access_only: bool = False,
     sort: str = "",
     intent: str = "",
-    expand: bool = False,
 ) -> str:
     """Search for academic papers across multiple sources (Semantic Scholar, arXiv, OpenAlex).
     Results are ranked using LLM-based reranking for better relevance.
@@ -233,12 +232,11 @@ def search_papers(
         open_access_only: Only return papers with free PDF access
         sort: Sort results by "citations" (most cited first) or "date" (newest first). Default: relevance.
         intent: Ranking preference. "foundational" for seminal papers, "recent" for latest work, "survey" for reviews, "method" for specific techniques. Default: balanced relevance.
-        expand: If True, expand candidate pool via citation/reference chasing of top results. Slower (~20s) but higher recall.
     """
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
     search_query = relevance.optimize_query(query)
 
-    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query, intent=intent, expand_citations=expand)
+    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query, intent=intent, expand_citations=True)
 
     if fos_list:
         results = relevance.filter_by_fields(results, fos_list)
