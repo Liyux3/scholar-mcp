@@ -154,14 +154,12 @@ def search_papers(query, limit=10, year=None, venue=None,
     if open_access_only:
         params["openAccessPdf"] = ""
 
-    if sort:
-        if sort == "citations":
-            params["sort"] = "citationCount:desc"
-        elif sort == "date":
-            params["sort"] = "publicationDate:desc"
-        data = _get(f"{BASE_URL}/paper/search/bulk", params=params)
-    else:
-        data = _get(f"{BASE_URL}/paper/search", params=params)
+    if sort == "citations":
+        params["sort"] = "citationCount:desc"
+    elif sort == "date":
+        params["sort"] = "publicationDate:desc"
+
+    data = _get(f"{BASE_URL}/paper/search/bulk", params=params)
     return [format_paper(p) for p in data.get("data", [])]
 
 

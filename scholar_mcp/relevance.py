@@ -77,15 +77,45 @@ def extract_keywords(query: str, max_keywords: int = 8) -> list[str]:
 
 
 def optimize_query(query: str) -> str:
-    """Shorten very long queries to core keywords for better API results.
-    Preserves queries up to 20 words (typical agent-generated queries).
-    Only truncates user-pasted paragraphs or research questions.
+    """Shorten long queries to core keywords for better API results.
+    Uses LLM (DashScope qwen-turbo) if available, falls back to keyword extraction.
     """
     words = re.findall(r"[a-zA-Z0-9][\w\-]*", query)
-    if len(words) <= 20:
+    if len(words) <= 12:
         return query
-    keywords = extract_keywords(query, max_keywords=12)
+
+    llm_result = _llm_shorten_query(query)
+    if llm_result:
+        return llm_result
+
+    keywords = extract_keywords(query, max_keywords=10)
     return " ".join(keywords)
+
+
+def _llm_shorten_query(query: str) -> str | None:
+    """Use DashScope qwen-turbo to extract search keywords from a long query."""
+    api_key = config.DASHSCOPE_API_KEY
+    if not api_key:
+        return None
+    try:
+        import httpx
+        resp = httpx.post(
+            "https://dashscope.aliyuncs.com/compatible-api/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "qwen-turbo",
+                "messages": [{"role": "user", "content": f"Extract 5-8 key academic search terms from this query. Return ONLY the search terms separated by spaces, nothing else.\n\nQuery: {query}"}],
+                "max_tokens": 50,
+            },
+            timeout=5,
+        )
+        resp.raise_for_status()
+        text = resp.json()["choices"][0]["message"]["content"].strip()
+        if 3 <= len(text.split()) <= 15:
+            return text
+    except Exception:
+        pass
+    return None
 
 
 def _normalize_title(title: str) -> str:
