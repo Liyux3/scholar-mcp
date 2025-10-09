@@ -104,8 +104,8 @@ def _keybert_extract(query: str) -> str | None:
             model = StaticModel.from_pretrained("minishlab/potion-base-8M")
             _keybert_model = KeyBERT(model)
         kws = _keybert_model.extract_keywords(
-            query, keyphrase_ngram_range=(1, 2), stop_words="english",
-            top_n=6, use_mmr=True, diversity=0.7,
+            query, keyphrase_ngram_range=(1, 3), stop_words="english",
+            top_n=5, use_mmr=True, diversity=0.7,
         )
         if kws:
             return " ".join(kw for kw, _ in kws)
