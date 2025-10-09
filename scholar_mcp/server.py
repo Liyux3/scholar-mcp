@@ -34,7 +34,7 @@ def _pipeline(
     limit: int,
     rerank_query: str = "",
     intent: str = "",
-    expand_citations: bool = False,
+    expand_citations: bool = True,
     expand_top_n: int = 10,
     expand_limit: int = 20,
     **kwargs,
