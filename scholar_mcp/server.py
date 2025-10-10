@@ -217,6 +217,7 @@ def search_papers(
     year: str = "",
     venue: str = "",
     fields_of_study: str = "",
+    paper_types: str = "",
     min_citations: int = 0,
     open_access_only: bool = False,
     sort: str = "",
@@ -231,6 +232,7 @@ def search_papers(
         year: Filter by year or range (e.g., "2023", "2020-2024")
         venue: Filter by venue (e.g., "NeurIPS", "Nature")
         fields_of_study: Comma-separated fields (e.g., "Computer Science,Mathematics")
+        paper_types: Comma-separated types (e.g., "JournalArticle,Conference,Review,Book,Dataset"). Default: all types.
         min_citations: Minimum citation count filter (default 0)
         open_access_only: Only return papers with free PDF access
         sort: Sort results by "citations" (most cited first) or "date" (newest first). Default: relevance.
