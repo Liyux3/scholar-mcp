@@ -98,9 +98,10 @@ def _pipeline(
                 papers = []
                 for sr in sources.parallel_references(pid, limit=expand_limit):
                     papers.extend(sr.results)
+                min_cite = {"foundational": 10, "survey": 5, "method": 3}.get(intent, 1)
                 for sr in sources.parallel_citations(pid, limit=expand_limit):
                     for p in sr.results:
-                        if (p.get("citation_count") or 0) >= 1:
+                        if (p.get("citation_count") or 0) >= min_cite:
                             papers.append(p)
                 return papers
 
