@@ -99,7 +99,9 @@ def _pipeline(
                 for sr in sources.parallel_references(pid, limit=expand_limit):
                     papers.extend(sr.results)
                 for sr in sources.parallel_citations(pid, limit=expand_limit):
-                    papers.extend(sr.results)
+                    for p in sr.results:
+                        if (p.get("citation_count") or 0) >= 1:
+                            papers.append(p)
                 return papers
 
             def _expand_title_search():
