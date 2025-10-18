@@ -331,27 +331,29 @@ def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
     return reranked
 
 
+DASHSCOPE_CAP = 500
 FLASHRANK_CAP = 150
 
-def _coarse_sort_key(p: dict) -> tuple:
-    """Sort by source_count desc, then citation_count desc for pre-rerank cap."""
-    return (-(p.get("_source_count", 1) or 1), -(p.get("citation_count", 0) or 0))
+def _pre_rank_cap(papers: list[dict], cap: int) -> list[dict]:
+    """Cap papers using rank_final metadata formula (rerank_score ignored)."""
+    if len(papers) <= cap:
+        return papers
+    ranked = rank_final(papers)
+    return ranked[:cap]
 
 def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") -> list[dict]:
-    """Rerank papers. DashScope handles up to 500 docs natively.
-    FlashRank fallback caps at FLASHRANK_CAP (coarse-sorted by source_count + citations)."""
+    """Rerank papers. Pre-ranks with metadata formula if pool too large.
+    DashScope up to 500 docs, FlashRank fallback caps at 150."""
     if not papers:
         return papers
+    if len(papers) > DASHSCOPE_CAP:
+        papers = _pre_rank_cap(papers, DASHSCOPE_CAP)
     result = _rerank_dashscope(query, papers, top_n, intent=intent)
     if result is not None:
         return result
     if len(papers) > FLASHRANK_CAP:
-        papers.sort(key=_coarse_sort_key)
-        overflow = papers[FLASHRANK_CAP:]
         papers = papers[:FLASHRANK_CAP]
-    else:
-        overflow = []
-    return _rerank_flashrank(query, papers, top_n) + overflow
+    return _rerank_flashrank(query, papers, top_n)
 
 
 def rank_final(papers: list[dict]) -> list[dict]:

@@ -143,6 +143,7 @@ def _register_defaults():
     from . import core_client, pubmed_client
     from . import europepmc_client, dblp_client, inspirehep_client
     from . import scholar_client
+    from . import exa_client, scopus_client, arxivgg_client, doaj_client
 
     register(Source(
         name="semantic_scholar",
@@ -230,6 +231,40 @@ def _register_defaults():
         name="google_scholar",
         search=lambda q, limit, **kw: scholar_client.search_papers(q, max_results=limit),
         priority=5,
+        domains=["all"],
+    ))
+
+    register(Source(
+        name="exa",
+        search=lambda q, limit, **kw: exa_client.search_papers(q, limit=limit),
+        priority=85,
+        domains=["all"],
+        semantic=True,
+        requires_key=True,
+        key_available=lambda: bool(config.EXA_API_KEY),
+    ))
+
+    register(Source(
+        name="scopus",
+        search=lambda q, limit, **kw: scopus_client.search_papers(q, limit=limit),
+        priority=75,
+        domains=["all"],
+        requires_key=True,
+        key_available=lambda: bool(config.SCOPUS_API_KEY),
+    ))
+
+    register(Source(
+        name="arxivgg_semantic",
+        search=lambda q, limit, **kw: arxivgg_client.search_papers(q, limit=limit),
+        priority=65,
+        domains=["computer science", "physics", "mathematics", "statistics"],
+        semantic=True,
+    ))
+
+    register(Source(
+        name="doaj",
+        search=lambda q, limit, **kw: doaj_client.search_papers(q, limit=limit),
+        priority=20,
         domains=["all"],
     ))
 
