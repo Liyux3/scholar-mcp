@@ -140,7 +140,8 @@ def load_existing_cache(cache_file: Path) -> set[int]:
 
 def cache_one_query(query_text: str, delay: float = 2.0):
     search_query = relevance.optimize_query(query_text)
-    source_results = sources.parallel_search(search_query, limit=100)
+    short_query = relevance.optimize_query_short(query_text)
+    source_results = sources.parallel_search(search_query, limit=100, raw_query=query_text, short_query=short_query)
 
     all_papers = []
     source_reports = []

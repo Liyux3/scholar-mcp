@@ -33,6 +33,8 @@ class Source:
     domains: list[str] = field(default_factory=lambda: ["all"])
     requires_key: bool = False
     key_available: Callable | None = None
+    semantic: bool = False
+    short_query: bool = False
 
     def available(self) -> bool:
         if not self.requires_key:
@@ -83,14 +85,22 @@ def _timed_call(source_name: str, fn: Callable, *args, **kwargs) -> SourceResult
         return SourceResult(source_name, status, [], ms, f"{type(e).__name__}: {e}")
 
 
-def parallel_search(query: str, limit: int = 100, **kwargs) -> list[SourceResult]:
+def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_query: str = "", **kwargs) -> list[SourceResult]:
     sources = search_sources()
     if not sources:
         return []
+
+    def _pick_query(s):
+        if s.semantic:
+            return raw_query or query
+        if s.short_query and short_query:
+            return short_query
+        return query
+
     results = []
     with ThreadPoolExecutor(max_workers=min(len(sources), 12)) as pool:
         futures = {
-            pool.submit(_timed_call, s.name, s.search, query, limit, **kwargs): s.name
+            pool.submit(_timed_call, s.name, s.search, _pick_query(s), limit, **kwargs): s.name
             for s in sources
         }
         for future in as_completed(futures):
@@ -144,6 +154,7 @@ def _register_defaults():
         domains=["all"],
         requires_key=False,
         key_available=lambda: bool(config.get_s2_api_key()),
+        short_query=True,
     ))
 
     register(Source(
@@ -161,6 +172,7 @@ def _register_defaults():
         search=lambda q, limit, **kw: openalex_client.search_papers_semantic(q, limit=min(limit, 50)),
         priority=75,
         domains=["all"],
+        semantic=True,
     ))
 
     register(Source(

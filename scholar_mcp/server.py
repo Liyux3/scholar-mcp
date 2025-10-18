@@ -33,6 +33,7 @@ def _pipeline(
     query_or_id: str,
     limit: int,
     rerank_query: str = "",
+    raw_query: str = "",
     intent: str = "",
     expand_citations: bool = True,
     expand_top_n: int = 10,
@@ -43,9 +44,10 @@ def _pipeline(
 
     Args:
         dispatch: "search" | "citations" | "references"
-        query_or_id: search query or paper ID
+        query_or_id: search query (optimized) or paper ID
         limit: final output size
         rerank_query: if set, run reranker with this query
+        raw_query: original unoptimized query, sent to semantic sources
         expand_citations: if True, expand pool via refs/cites of top results (2nd rerank pass)
         expand_top_n: how many top papers to expand from
         expand_limit: refs/cites to fetch per paper
@@ -54,7 +56,8 @@ def _pipeline(
         (ranked_papers, source_reports)
     """
     if dispatch == "search":
-        source_results = sources.parallel_search(query_or_id, limit=INTERNAL_FETCH_LIMIT, **kwargs)
+        short_q = relevance.optimize_query_short(raw_query or query_or_id)
+        source_results = sources.parallel_search(query_or_id, limit=INTERNAL_FETCH_LIMIT, raw_query=raw_query, short_query=short_q, **kwargs)
     elif dispatch == "citations":
         source_results = sources.parallel_citations(query_or_id, limit=INTERNAL_FETCH_LIMIT)
     elif dispatch == "references":
@@ -91,13 +94,20 @@ def _pipeline(
             top_papers = all_papers[:expand_top_n]
             expansion = []
 
-            def _expand_refs_cites(paper):
+            def _expand_refs(paper):
                 pid = _get_best_id(paper)
                 if not pid:
                     return []
                 papers = []
                 for sr in sources.parallel_references(pid, limit=expand_limit):
                     papers.extend(sr.results)
+                return papers
+
+            def _expand_cites(paper):
+                pid = _get_best_id(paper)
+                if not pid:
+                    return []
+                papers = []
                 min_cite = {"foundational": 10, "survey": 5, "method": 3}.get(intent, 1)
                 for sr in sources.parallel_citations(pid, limit=expand_limit):
                     for p in sr.results:
@@ -105,15 +115,23 @@ def _pipeline(
                             papers.append(p)
                 return papers
 
-            def _expand_title_search():
+            def _expand_title_search(paper):
+                title = paper.get("title", "")
+                if not title:
+                    return []
                 papers = []
-                for p in top_papers[:3]:
-                    title = p.get("title", "")
-                    if not title:
-                        continue
-                    for sr in sources.parallel_search(title, limit=20):
-                        papers.extend(sr.results)
+                for sr in sources.parallel_search(title, limit=20):
+                    papers.extend(sr.results)
                 return papers
+
+            def _expand_recommend(paper):
+                pid = _get_best_id(paper)
+                if not pid:
+                    return []
+                try:
+                    return s2_client.get_recommendations(pid, limit=20)
+                except Exception:
+                    return []
 
             def _expand_keyword_search():
                 from collections import Counter
@@ -130,11 +148,13 @@ def _pipeline(
                     papers.extend(sr.results)
                 return papers
 
-            with ThreadPoolExecutor(max_workers=7) as pool:
+            with ThreadPoolExecutor(max_workers=15) as pool:
                 futures = []
-                for p in top_papers[:5]:
-                    futures.append(pool.submit(_expand_refs_cites, p))
-                futures.append(pool.submit(_expand_title_search))
+                for p in top_papers[:3]:
+                    futures.append(pool.submit(_expand_refs, p))
+                    futures.append(pool.submit(_expand_cites, p))
+                    futures.append(pool.submit(_expand_title_search, p))
+                    futures.append(pool.submit(_expand_recommend, p))
                 futures.append(pool.submit(_expand_keyword_search))
 
                 for f in as_completed(futures):
@@ -254,7 +274,7 @@ def search_papers(
     if open_access_only:
         search_kwargs["open_access_only"] = True
 
-    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query, intent=intent, expand_citations=True, **search_kwargs)
+    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query, raw_query=query, intent=intent, expand_citations=True, **search_kwargs)
 
     if fos_list:
         results = relevance.filter_by_fields(results, fos_list)

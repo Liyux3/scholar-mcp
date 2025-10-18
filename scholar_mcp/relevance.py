@@ -53,6 +53,9 @@ WEAK_WORDS = frozenset({
     "fully", "enough", "already", "particularly", "especially", "primarily",
     "point", "making", "fundamentally", "inherent", "inherently",
     "ceiling", "incremental", "ever", "baked",
+    "there", "papers", "uses", "used", "using", "based", "like",
+    "find", "found", "show", "shown", "given", "take", "know",
+    "called", "related", "available", "also", "well", "still",
 })
 
 
@@ -80,7 +83,7 @@ _keybert_model = None
 
 
 def optimize_query(query: str) -> str:
-    """Shorten long queries to core keyphrases for better API results.
+    """Shorten long queries to core keyphrases for keyword-based API search.
     Uses KeyBERT (embedding-based) if available, falls back to keyword extraction.
     """
     words = re.findall(r"[a-zA-Z0-9][\w\-]*", query)
@@ -93,6 +96,14 @@ def optimize_query(query: str) -> str:
 
     keywords = extract_keywords(query, max_keywords=10)
     return " ".join(keywords)
+
+
+def optimize_query_short(query: str, max_words: int = 8) -> str:
+    """Ultra-short keyword query for APIs with tight length limits (e.g. S2 ~10 words)."""
+    words = re.findall(r"[a-zA-Z0-9][\w\-]*", query)
+    if len(words) <= max_words:
+        return query
+    return " ".join(extract_keywords(query, max_keywords=max_words))
 
 
 def _keybert_extract(query: str) -> str | None:
@@ -320,14 +331,27 @@ def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
     return reranked
 
 
+FLASHRANK_CAP = 150
+
+def _coarse_sort_key(p: dict) -> tuple:
+    """Sort by source_count desc, then citation_count desc for pre-rerank cap."""
+    return (-(p.get("_source_count", 1) or 1), -(p.get("citation_count", 0) or 0))
+
 def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") -> list[dict]:
-    """Rerank papers. Tries DashScope qwen3-rerank first, falls back to FlashRank."""
+    """Rerank papers. DashScope handles up to 500 docs natively.
+    FlashRank fallback caps at FLASHRANK_CAP (coarse-sorted by source_count + citations)."""
     if not papers:
         return papers
     result = _rerank_dashscope(query, papers, top_n, intent=intent)
     if result is not None:
         return result
-    return _rerank_flashrank(query, papers, top_n)
+    if len(papers) > FLASHRANK_CAP:
+        papers.sort(key=_coarse_sort_key)
+        overflow = papers[FLASHRANK_CAP:]
+        papers = papers[:FLASHRANK_CAP]
+    else:
+        overflow = []
+    return _rerank_flashrank(query, papers, top_n) + overflow
 
 
 def rank_final(papers: list[dict]) -> list[dict]:

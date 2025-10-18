@@ -10,3 +10,4 @@ downloads/
 uv.lock
 .flashrank_cache/
 eval/data/
+eval/cache/
