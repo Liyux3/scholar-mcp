@@ -100,7 +100,8 @@ def format_paper(work: dict) -> dict | None:
 
 @cached(ttl=300)
 def search_papers(query: str, limit: int = 10, year: str = None,
-                  fields_of_study: list[str] = None) -> list[dict]:
+                  fields_of_study: list[str] = None, publication_types: list[str] = None,
+                  min_citations: int = 0, open_access_only: bool = False, **kwargs) -> list[dict]:
     """Search OpenAlex works."""
     params = _params_base()
     params["search"] = query
@@ -118,6 +119,17 @@ def search_papers(query: str, limit: int = 10, year: str = None,
     if fields_of_study:
         fos_filter = "|".join(fields_of_study)
         filters.append(f"topics.display_name.search:{fos_filter}")
+
+    if publication_types:
+        oa_type_map = {"JournalArticle": "article", "Conference": "article", "Review": "review", "Book": "book", "Dataset": "dataset"}
+        oa_types = [oa_type_map.get(t, t.lower()) for t in publication_types]
+        filters.append(f"type:{'|'.join(oa_types)}")
+
+    if min_citations > 0:
+        filters.append(f"cited_by_count:>{min_citations}")
+
+    if open_access_only:
+        filters.append("open_access.is_oa:true")
 
     if filters:
         params["filter"] = ",".join(filters)

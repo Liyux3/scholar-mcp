@@ -135,8 +135,8 @@ def format_paper_detail(data: dict) -> dict:
 
 @cached(ttl=300)
 def search_papers(query, limit=10, year=None, venue=None,
-                  fields_of_study=None, min_citations=0,
-                  open_access_only=False, sort=""):
+                  fields_of_study=None, publication_types=None,
+                  min_citations=0, open_access_only=False, sort="", **kwargs):
     params = {
         "query": query,
         "limit": min(limit, 100),
@@ -151,6 +151,9 @@ def search_papers(query, limit=10, year=None, venue=None,
         params["fieldsOfStudy"] = ",".join(fos)
     if min_citations > 0:
         params["minCitationCount"] = min_citations
+    if publication_types:
+        pts = publication_types if isinstance(publication_types, list) else [publication_types]
+        params["publicationTypes"] = ",".join(pts)
     if open_access_only:
         params["openAccessPdf"] = ""
 

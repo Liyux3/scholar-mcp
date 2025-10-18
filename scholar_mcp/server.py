@@ -239,9 +239,22 @@ def search_papers(
         intent: Ranking preference. "foundational" for seminal papers, "recent" for latest work, "survey" for reviews, "method" for specific techniques. Default: balanced relevance.
     """
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
+    type_list = [t.strip() for t in paper_types.split(",") if t.strip()] if paper_types else None
     search_query = relevance.optimize_query(query)
 
-    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query, intent=intent, expand_citations=True)
+    search_kwargs = {}
+    if year:
+        search_kwargs["year"] = year
+    if fos_list:
+        search_kwargs["fields_of_study"] = fos_list
+    if type_list:
+        search_kwargs["publication_types"] = type_list
+    if min_citations > 0:
+        search_kwargs["min_citations"] = min_citations
+    if open_access_only:
+        search_kwargs["open_access_only"] = True
+
+    results, reports = _pipeline("search", search_query, limit * 3, rerank_query=query, intent=intent, expand_citations=True, **search_kwargs)
 
     if fos_list:
         results = relevance.filter_by_fields(results, fos_list)
