@@ -228,10 +228,11 @@ REC_FIELDS = ",".join([
 ])
 
 
-def get_recommendations(paper_id: str, limit: int = 10, pool_from: str = "all-cs"):
+def get_recommendations(paper_id: str, limit: int = 10, pool_from: str = ""):
+    pool = pool_from or config.S2_RECOMMEND_POOL
     data = _get(
         f"{REC_URL}/papers/forpaper/{paper_id}",
-        params={"fields": REC_FIELDS, "limit": min(limit, 500), "from": pool_from},
+        params={"fields": REC_FIELDS, "limit": min(limit, 500), "from": pool},
     )
     return [format_paper(p) for p in data.get("recommendedPapers", [])]
 
