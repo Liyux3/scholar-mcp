@@ -88,6 +88,9 @@ def _pipeline(
         all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
         all_papers = relevance.rank_final(all_papers)
 
+        for p in all_papers:
+            p["_iter1_score"] = p.get("_rerank_score", 0.0)
+
         if expand_citations and len(all_papers) >= expand_top_n:
             from concurrent.futures import ThreadPoolExecutor, as_completed
             from collections import Counter
@@ -177,6 +180,11 @@ def _pipeline(
                     new_keep = new_ranked[:500 - len(old_keep)]
                     all_papers = old_keep + new_keep
                 all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
+                ema_alpha = 0.2
+                for p in all_papers:
+                    i1 = p.get("_iter1_score", 0.0)
+                    i2 = p.get("_rerank_score", 0.0)
+                    p["_rerank_score"] = ema_alpha * i1 + (1 - ema_alpha) * i2
                 all_papers = relevance.rank_final(all_papers)
     else:
         all_papers.sort(key=lambda p: -(p.get("citation_count", 0) or 0))

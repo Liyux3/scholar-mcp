@@ -1,9 +1,19 @@
 """Scopus search client. Requires SCOPUS_API_KEY (Elsevier developer key)."""
 
+import re
 import httpx
 from . import config
+from .relevance import extract_keywords
 
 SCOPUS_SEARCH_URL = "https://api.elsevier.com/content/search/scopus"
+SCOPUS_MAX_TERMS = 5
+
+
+def _shorten_query(query: str) -> str:
+    words = re.findall(r"[a-zA-Z0-9][\w\-]*", query)
+    if len(words) <= SCOPUS_MAX_TERMS:
+        return query
+    return " ".join(extract_keywords(query, max_keywords=SCOPUS_MAX_TERMS))
 
 
 def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
@@ -11,7 +21,8 @@ def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
     if not api_key:
         return []
 
-    scopus_query = f"TITLE-ABS-KEY({query})"
+    short = _shorten_query(query)
+    scopus_query = f"TITLE-ABS-KEY({short})"
     papers = []
     per_page = min(limit, 200)
 
