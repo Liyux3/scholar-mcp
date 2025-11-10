@@ -19,7 +19,7 @@ def _params_base() -> dict:
     email = config.get_openalex_email()
     if email:
         p["mailto"] = email
-    api_key = config.OPENALEX_API_KEY
+    api_key = config.get_openalex_api_key()
     if api_key:
         p["api_key"] = api_key
     return p

@@ -5,6 +5,7 @@ S2_API_KEY: str | None = os.environ.get("S2_API_KEY") or None
 S2_API_KEYS: list[str] = [k.strip() for k in (os.environ.get("S2_API_KEYS") or "").split(",") if k.strip()]
 CORE_API_KEY: str | None = os.environ.get("CORE_API_KEY") or None
 OPENALEX_API_KEY: str | None = os.environ.get("OPENALEX_API_KEY") or None
+OPENALEX_API_KEYS: list[str] = [k.strip() for k in (os.environ.get("OPENALEX_API_KEYS") or "").split(",") if k.strip()]
 OPENALEX_EMAIL: str | None = os.environ.get("OPENALEX_EMAIL") or None
 OPENALEX_EMAILS: list[str] = [e.strip() for e in (os.environ.get("OPENALEX_EMAILS") or "").split(",") if e.strip()]
 OPENREVIEW_USERNAME: str | None = os.environ.get("OPENREVIEW_USERNAME") or None
@@ -29,3 +30,9 @@ def get_openalex_email() -> str | None:
     if OPENALEX_EMAILS:
         return random.choice(OPENALEX_EMAILS)
     return OPENALEX_EMAIL
+
+
+def get_openalex_api_key() -> str | None:
+    if OPENALEX_API_KEYS:
+        return random.choice(OPENALEX_API_KEYS)
+    return OPENALEX_API_KEY
