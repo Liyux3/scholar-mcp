@@ -17,7 +17,7 @@ DOWNLOAD_DIR: str = os.environ.get("SCHOLAR_DOWNLOAD_DIR", "./downloads")
 S2_TIMEOUT: int = int(os.environ.get("S2_TIMEOUT", "30"))
 SCIHUB_ENABLED: bool = os.environ.get("SCIHUB_ENABLED", "").lower() in ("1", "true", "yes")
 RANK_PARAMS_PATH: str = os.path.expanduser("~/.scholar-mcp/rank_params.json")
-S2_RECOMMEND_POOL: str = os.environ.get("S2_RECOMMEND_POOL", "all-cs")
+S2_RECOMMEND_POOL: str = os.environ.get("S2_RECOMMEND_POOL", "recent")
 
 
 def get_s2_api_key() -> str | None:
