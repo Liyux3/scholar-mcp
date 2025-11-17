@@ -102,35 +102,30 @@ def _pipeline(
                 pid = _get_best_id(paper)
                 if not pid:
                     return []
-                try:
-                    return s2_client.get_references(pid, limit=expand_limit)
-                except Exception:
-                    return []
+                papers = []
+                for sr in sources.parallel_references(pid, limit=expand_limit):
+                    papers.extend(sr.results)
+                return papers
 
             def _expand_cites(paper):
                 pid = _get_best_id(paper)
                 if not pid:
                     return []
+                papers = []
                 min_cite = {"foundational": 10, "survey": 5, "method": 3}.get(intent, 1)
-                try:
-                    return [p for p in s2_client.get_citations(pid, limit=expand_limit)
-                            if (p.get("citation_count") or 0) >= min_cite]
-                except Exception:
-                    return []
+                for sr in sources.parallel_citations(pid, limit=expand_limit):
+                    for p in sr.results:
+                        if (p.get("citation_count") or 0) >= min_cite:
+                            papers.append(p)
+                return papers
 
             def _expand_title_search(paper):
                 title = paper.get("title", "")
                 if not title:
                     return []
                 papers = []
-                try:
-                    papers.extend(openalex_client.search_papers_semantic(title, limit=20))
-                except Exception:
-                    pass
-                try:
-                    papers.extend(crossref_client.search_papers(title, limit=20))
-                except Exception:
-                    pass
+                for sr in sources.parallel_search(title, limit=20):
+                    papers.extend(sr.results)
                 return papers
 
             def _expand_recommend(paper):
@@ -152,11 +147,10 @@ def _pipeline(
                 top_terms = [w for w, _ in terms.most_common(8)]
                 if not top_terms:
                     return []
-                kw_query = " ".join(top_terms)
-                try:
-                    return openalex_client.search_papers_semantic(kw_query, limit=50)
-                except Exception:
-                    return []
+                papers = []
+                for sr in sources.parallel_search(" ".join(top_terms), limit=50):
+                    papers.extend(sr.results)
+                return papers
 
             with ThreadPoolExecutor(max_workers=15) as pool:
                 futures = []
