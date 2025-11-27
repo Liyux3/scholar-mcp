@@ -4,7 +4,6 @@ from fastmcp import FastMCP
 from . import config
 from . import s2_client
 from . import openalex_client
-from . import crossref_client
 from . import openreview_client
 from . import pdf_utils
 from . import relevance
