@@ -67,17 +67,43 @@ Created proper marketplace entry for scholar with all required files. Restarted 
 
 ---
 
+## Session 3 (2026-03-16): Open Source + CORE Integration (v0.1.0 → v0.2.0)
+
+### Open Source & PyPI (v0.1.0)
+- Polished README with badges, Quick Start one-liner, tools table
+- Added GitHub Actions: CI (tests on Python 3.10-3.13) and auto-publish (tag-triggered PyPI)
+- Published to PyPI as `scholar-mcp`, installable via `uvx scholar-mcp`
+- Fixed arXiv URL (HTTP→HTTPS redirect), test assertions for new arXiv PDF URL format
+- Created 22 tests across 4 test files
+
+### Coverage Analysis
+- Evaluated additional sources: CORE, Sci-Hub, ResearchGate, CrossRef, OpenAlex, PubMed, DOAJ
+- S2 already covers ~95%+ of peer-reviewed papers for discovery
+- Main gap: PDF access for paywalled papers (~50% success rate)
+- CORE identified as best addition: 250M+ open access from 10K+ institutional repos, free API, legal
+- Estimated PDF success rate improvement: ~50% → ~70-80%
+
+### CORE API v3 Integration (v0.2.0)
+- New `core_client.py`: search papers, find PDFs by DOI/title, quality-based result sorting
+- Updated search fallback: S2 → arXiv → CORE → Google Scholar
+- Updated PDF download chain: S2 → arXiv → CORE → bioRxiv/medRxiv → fail
+- Bug found and fixed in `pdf_utils.py`: `doi` variable used before definition in CORE step (silently caught by try/except, CORE would never trigger)
+- Fixed S2 DOI test (arXiv DOI not indexed, switched to BERT's NAACL DOI)
+- All 6 CORE tests pass, 21/22 total (1 S2 rate-limit flaky)
+
+---
+
 ## Status
 
 ### Working
 - All 8 tools functional via Claude Code
 - S2 API (free tier, 100 req/5min)
-- Fallback chain (S2 → arXiv → Google Scholar)
-- PDF download + text extraction
+- Fallback chain (S2 → arXiv → CORE → Google Scholar)
+- PDF download chain (S2 → arXiv → CORE → bioRxiv/medRxiv)
+- PDF text extraction
+- Published to PyPI (`uvx scholar-mcp`)
+- GitHub CI + auto-publish on tag
 
 ### TODO
-- [ ] Clean README for GitHub open source
 - [ ] Request S2 API key for higher rate limits (1 req/sec → 100 req/sec)
-- [ ] Add unit tests (currently empty tests/ directory)
-- [ ] Consider publishing to PyPI for easier installation
 - [ ] Remove paper-search-mcp from .mcp.json (superseded)

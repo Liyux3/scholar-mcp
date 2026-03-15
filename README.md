@@ -44,21 +44,21 @@ claude mcp add scholar -e S2_API_KEY=your_key -- uvx scholar-mcp
 - **Citation graph** traversal (who cites this paper, what does it reference)
 - **Recommendations** for similar/related papers
 - **Author search** with h-index, affiliations, paper counts
-- **PDF download** with smart fallback chain (Semantic Scholar -> arXiv -> bioRxiv/medRxiv)
+- **PDF download** with smart fallback chain (Semantic Scholar -> arXiv -> CORE -> bioRxiv/medRxiv)
 - **Full-text extraction** from downloaded PDFs
-- **Fallback search** via arXiv and Google Scholar when Semantic Scholar is unavailable
+- **Fallback search** via arXiv, [CORE](https://core.ac.uk/) (250M+ open access papers), and Google Scholar
 
 ## Tools
 
 | Tool | Description |
 |------|-------------|
-| `search_papers` | Search 214M+ papers with year, venue, field, citation filters. Falls back to arXiv, then Google Scholar |
+| `search_papers` | Search 214M+ papers with year, venue, field, citation filters. Falls back to arXiv, CORE, then Google Scholar |
 | `get_paper` | Paper details by Semantic Scholar ID, DOI, ArXiv ID (`ArXiv:xxxx`), or PMID (`PMID:xxxx`) |
 | `get_citations` | Papers that cite a given paper (up to 1000) |
 | `get_references` | Papers referenced by a given paper (up to 1000) |
 | `recommend_papers` | Similar/related papers via S2 recommendation engine (up to 500) |
 | `search_authors` | Find researchers with h-index, affiliations, paper/citation counts |
-| `download_paper` | Download PDF: tries S2 open access, arXiv, bioRxiv/medRxiv |
+| `download_paper` | Download PDF: tries S2 open access, arXiv, CORE, bioRxiv/medRxiv |
 | `read_paper` | Download + extract full text from PDF (with optional page limit) |
 
 ## Configuration
@@ -68,6 +68,7 @@ All configuration is via environment variables (all optional):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `S2_API_KEY` | — | [Semantic Scholar API key](https://www.semanticscholar.org/product/api#api-key-form) for higher rate limits |
+| `CORE_API_KEY` | — | [CORE API key](https://core.ac.uk/services/api) for institutional repository search (free) |
 | `SCHOLAR_DOWNLOAD_DIR` | `./downloads` | Directory for downloaded PDFs |
 | `S2_TIMEOUT` | `30` | API request timeout in seconds |
 
@@ -112,16 +113,9 @@ uv run pytest tests/
 ## How It Works
 
 ```
-Query -> Semantic Scholar API (214M papers)
-            |  fails?
-            v
-         arXiv API (2.5M preprints)
-            |  fails?
-            v
-         Google Scholar (scraping, last resort)
+Search:     S2 (214M) -> arXiv (preprints) -> CORE (institutional) -> Google Scholar (scraping)
+Download:   S2 open access -> arXiv direct -> CORE (by DOI/title) -> bioRxiv/medRxiv -> fail
 ```
-
-PDF downloads try multiple sources: Semantic Scholar open access URL, then arXiv direct, then bioRxiv/medRxiv for biology preprints.
 
 ## License
 
