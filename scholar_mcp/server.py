@@ -4,6 +4,7 @@ from . import config
 from . import s2_client
 from . import arxiv_client
 from . import core_client
+from . import pubmed_client
 from . import scholar_client
 from . import pdf_utils
 
@@ -21,7 +22,7 @@ def search_papers(
     open_access_only: bool = False,
 ) -> str:
     """Search for academic papers across 214M+ papers in Semantic Scholar.
-    Falls back to arXiv, then Google Scholar if Semantic Scholar is unavailable.
+    Falls back to arXiv, CORE, PubMed, then Google Scholar if Semantic Scholar is unavailable.
 
     Args:
         query: Search query (e.g., "attention is all you need", "CRISPR gene editing")
@@ -65,7 +66,15 @@ def search_papers(
     except Exception:
         pass
 
-    # Fallback 3: Google Scholar
+    # Fallback 3: PubMed
+    try:
+        results = pubmed_client.search_papers(query, max_results=limit)
+        if results:
+            return json.dumps(results, indent=2, default=str)
+    except Exception:
+        pass
+
+    # Fallback 4: Google Scholar
     try:
         results = scholar_client.search_papers(query, max_results=limit)
         if results:
