@@ -15,6 +15,9 @@ Roughly covers ~97% of existing literature/papers via:
 4. PubMed
 5. bioRxiv/medRxiv
 6. Google Scholar
+7. [Sci-Hub] (optional)
+
+Unified tool calling interface with clear definitions.
 
 ## Quick Start
 
