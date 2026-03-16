@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io)
 
-The most comprehensive MCP server for academic paper search. Covers **~95% of all peer-reviewed literature** via [Semantic Scholar](https://www.semanticscholar.org/) (214M+ papers) + 5 secondary sources (arXiv, CORE, PubMed, bioRxiv/medRxiv, Google Scholar), with **~70-80% PDF download success rate**. Search, cite, download, and read papers directly from Claude Code or any MCP client.
+The most comprehensive MCP server for academic paper search. Covers **~95% of all peer-reviewed literature** via [Semantic Scholar](https://www.semanticscholar.org/) + 5 secondary sources (arXiv, CORE, PubMed, bioRxiv/medRxiv, Google Scholar). Search, cite, download, and read papers directly from Claude Code or any MCP client.
 
 ## Quick Start
 
@@ -71,6 +71,7 @@ All configuration is via environment variables (all optional):
 | `CORE_API_KEY` | — | [CORE API key](https://core.ac.uk/services/api) for institutional repository search (free) |
 | `SCHOLAR_DOWNLOAD_DIR` | `./downloads` | Directory for downloaded PDFs |
 | `S2_TIMEOUT` | `30` | API request timeout in seconds |
+| `SCIHUB_ENABLED` | `false` | Enable Sci-Hub as last-resort PDF source (opt-in) |
 
 **Rate limits:** Free tier allows 100 requests per 5 minutes. With an API key: ~100 requests per second.
 
@@ -113,9 +114,11 @@ uv run pytest tests/
 ## How It Works
 
 ```
-Search:     S2 (214M) -> arXiv (preprints) -> CORE (institutional) -> PubMed (biomedical) -> Google Scholar (scraping)
-Download:   S2 open access -> arXiv direct -> CORE (by DOI/title) -> bioRxiv/medRxiv -> fail
+Search:     S2 -> arXiv (preprints) -> CORE (institutional) -> PubMed (biomedical) -> Google Scholar (scraping)
+Download:   S2 open access -> arXiv -> CORE (by DOI/title) -> bioRxiv/medRxiv -> [Sci-Hub] -> fail
 ```
+
+`[Sci-Hub]` only active when `SCIHUB_ENABLED=1`.
 
 ## License
 
