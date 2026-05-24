@@ -16,7 +16,7 @@ from matching import normalize_title, titles_match, find_gt_rank, compute_metric
 DATA_DIR = Path(__file__).parent / "data"
 CACHE_DIR = Path(__file__).parent / "cache"
 
-EXA_API_KEY = "f05e6c56-3086-4cd7-a34d-96e86d27c90b"
+EXA_API_KEY = os.environ.get("EXA_API_KEY", "")
 
 
 def clean_exa_title(title: str) -> str:
