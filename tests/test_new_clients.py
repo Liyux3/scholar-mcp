@@ -1,3 +1,7 @@
+import pytest
+
+pytestmark = pytest.mark.skip(reason="requires live API access")
+
 """Tests for new source clients: Europe PMC, DBLP, INSPIRE-HEP."""
 
 import pytest

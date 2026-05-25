@@ -1,3 +1,7 @@
+import pytest
+
+pytestmark = pytest.mark.skip(reason="requires live API access")
+
 """Tests for arXiv fallback client."""
 
 from scholar_mcp import arxiv_client
