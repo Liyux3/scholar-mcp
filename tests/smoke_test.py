@@ -1,3 +1,7 @@
+import pytest
+
+pytestmark = pytest.mark.skip(reason="requires running MCP server")
+
 """Quick smoke test for scholar-mcp server.
 
 Run after installing or updating to verify all tools work.

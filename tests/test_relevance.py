@@ -52,38 +52,58 @@ def test_deduplicate_by_title():
     assert len(result) == 2
 
 
-def test_score_results_ranks_relevant_higher():
+def test_deduplicate_tracks_source_count():
     papers = [
-        {
-            "title": "Cyber Law and Espionage",
-            "abstract": "Legal framework for espionage operations.",
-            "citation_count": 5, "venue": "", "year": 2018,
-            "fields_of_study": [],
-        },
-        {
-            "title": "Hybrid Mamba-Transformer for Long Context",
-            "abstract": "We combine sliding window attention with Mamba for efficient long context retrieval.",
-            "citation_count": 50, "venue": "NeurIPS", "year": 2025,
-            "fields_of_study": ["Computer Science"],
-        },
+        {"title": "Same Paper Title Here", "abstract": "Test", "source": "s2",
+         "external_ids": {"DOI": "10.1234/test"}, "citation_count": 100},
+        {"title": "Same Paper Title Here", "abstract": "Test abstract longer",
+         "source": "openalex", "external_ids": {"DOI": "10.1234/test"}, "citation_count": 50},
+        {"title": "Different Paper", "abstract": "Other", "source": "arxiv",
+         "external_ids": {}},
     ]
-    scored = relevance.score_results("hybrid attention transformer long context retrieval", papers)
-    assert len(scored) >= 1
-    assert "mamba" in scored[0]["title"].lower() or "hybrid" in scored[0]["title"].lower()
-    assert scored[0]["_relevance_score"] > 0.3
+    deduped = relevance.deduplicate(papers)
+    merged = [p for p in deduped if "same" in p["title"].lower()]
+    assert len(merged) == 1
+    assert merged[0].get("_source_count", 1) == 2
 
 
-def test_score_results_filters_irrelevant():
+def test_tag_source_ranks():
+    papers = [{"title": "A"}, {"title": "B"}, {"title": "C"}]
+    relevance.tag_source_ranks(papers, "s2")
+    assert papers[0]["_source_ranks"] == {"s2": 0}
+    assert papers[1]["_source_ranks"] == {"s2": 1}
+    assert papers[2]["_source_ranks"] == {"s2": 2}
+    assert papers[0]["source"] == "s2"
+
+
+def test_rank_final_sorts_by_composite_score():
     papers = [
-        {
-            "title": "Tinnitus and Hearing Loss",
-            "abstract": "Study of hearing disorders in elderly populations.",
-            "citation_count": 0, "venue": "", "year": 2019,
-            "fields_of_study": ["Medicine"],
-        },
+        {"title": "Low cite", "_rerank_score": 0.5, "citation_count": 1,
+         "_source_count": 1, "year": 2020, "_source_ranks": {"s2": 0}},
+        {"title": "High cite", "_rerank_score": 0.5, "citation_count": 10000,
+         "_source_count": 3, "year": 2024, "_source_ranks": {"s2": 0, "arxiv": 1, "openalex": 2}},
     ]
-    scored = relevance.score_results("hybrid attention transformer", papers, min_score=0.1)
-    assert len(scored) == 0
+    ranked = relevance.rank_final(papers)
+    assert ranked[0]["title"] == "High cite"
+    assert "_final_score" in ranked[0]
+    assert ranked[0]["_final_score"] >= ranked[1]["_final_score"]
+
+
+def test_rank_final_normalizes_scores():
+    papers = [
+        {"title": "A", "_rerank_score": 0.8, "citation_count": 50,
+         "_source_count": 2, "year": 2024, "_source_ranks": {"s2": 0, "arxiv": 1}},
+    ]
+    ranked = relevance.rank_final(papers)
+    assert ranked[0]["_final_score"] == 1.0
+
+
+def test_rank_final_multi_source_boost():
+    base = {"_rerank_score": 0.5, "citation_count": 10, "year": 2024}
+    single = {**base, "title": "Single", "_source_count": 1, "_source_ranks": {"s2": 0}}
+    multi = {**base, "title": "Multi", "_source_count": 3, "_source_ranks": {"s2": 0, "arxiv": 1, "openalex": 2}}
+    ranked = relevance.rank_final([single, multi])
+    assert ranked[0]["title"] == "Multi"
 
 
 def test_filter_by_fields_keeps_matching():
@@ -107,7 +127,6 @@ def test_filter_by_fields_uses_keywords_when_no_field():
 
 
 def test_filter_by_fields_arxiv_categories():
-    """arXiv category tags like cs.CL should map to Computer Science."""
     papers = [
         {"title": "Language Model Paper", "abstract": "NLP research", "fields_of_study": ["cs.CL", "cs.AI"]},
         {"title": "Pure Math Paper", "abstract": "Topology", "fields_of_study": ["math.AT"]},
@@ -149,147 +168,7 @@ def test_filter_by_fields_with_metadata_match():
     assert filtered[0]["title"] == "Paper A"
 
 
-def test_score_title_match_boost():
-    """Paper with query terms in title should score higher than abstract-only match."""
-    papers = [
-        {
-            "title": "Attention Is All You Need",
-            "abstract": "We propose transformers.",
-            "citation_count": 100000, "venue": "NeurIPS", "year": 2017,
-            "fields_of_study": ["Computer Science"],
-        },
-        {
-            "title": "Tensor Product Networks for Images",
-            "abstract": "We use attention mechanisms. All you need is tensors.",
-            "citation_count": 50, "venue": "arXiv", "year": 2024,
-            "fields_of_study": ["Computer Science"],
-        },
-    ]
-    scored = relevance.score_results("attention is all you need", papers)
-    assert scored[0]["title"] == "Attention Is All You Need"
-
-
-def test_score_includes_relevance_key():
-    papers = [
-        {"title": "Attention Mechanism", "abstract": "Attention in transformers",
-         "citation_count": 10, "venue": "ICML", "year": 2024, "fields_of_study": []},
-    ]
-    scored = relevance.score_results("attention transformer", papers)
-    assert len(scored) == 1
-    assert "_relevance_score" in scored[0]
-    assert 0.0 <= scored[0]["_relevance_score"] <= 1.0
-
-
-def test_consensus_score_multi_source():
-    """Papers from multiple sources should score higher."""
-    papers = [
-        {
-            "title": "Multi-Source Paper on Transformers",
-            "abstract": "Attention mechanism in transformer models",
-            "citation_count": 10, "venue": "", "year": 2025,
-            "fields_of_study": [], "_source_count": 3, "source": "s2+arxiv+openalex",
-        },
-        {
-            "title": "Single-Source Paper on Transformers",
-            "abstract": "Attention mechanism in transformer architecture",
-            "citation_count": 10, "venue": "", "year": 2025,
-            "fields_of_study": [], "_source_count": 1, "source": "arxiv",
-        },
-    ]
-    scored = relevance.score_results("transformer attention", papers)
-    assert len(scored) >= 2
-    assert scored[0]["title"] == "Multi-Source Paper on Transformers"
-    assert scored[0]["_relevance_score"] > scored[1]["_relevance_score"]
-
-
-def test_deduplicate_tracks_source_count():
-    """Deduplication should track how many sources found each paper."""
-    papers = [
-        {"title": "Same Paper Title Here", "abstract": "Test", "source": "s2",
-         "external_ids": {"DOI": "10.1234/test"}, "citation_count": 100},
-        {"title": "Same Paper Title Here", "abstract": "Test abstract longer",
-         "source": "openalex", "external_ids": {"DOI": "10.1234/test"}, "citation_count": 50},
-        {"title": "Different Paper", "abstract": "Other", "source": "arxiv",
-         "external_ids": {}},
-    ]
-    deduped = relevance.deduplicate(papers)
-    merged = [p for p in deduped if "same" in p["title"].lower()]
-    assert len(merged) == 1
-    assert merged[0].get("_source_count", 1) == 2
-
-
-def test_tag_source_ranks():
-    """tag_source_ranks should annotate each paper with its position."""
-    papers = [{"title": "A"}, {"title": "B"}, {"title": "C"}]
-    relevance.tag_source_ranks(papers, "s2")
-    assert papers[0]["_source_ranks"] == {"s2": 0}
-    assert papers[1]["_source_ranks"] == {"s2": 1}
-    assert papers[2]["_source_ranks"] == {"s2": 2}
-    assert papers[0]["source"] == "s2"
-
-
-def test_rrf_score_single_source():
-    """RRF with single source should give 1/(k+rank)."""
-    paper = {"_source_ranks": {"s2": 0}, "_source_count": 1}
-    score = relevance.rrf_score(paper, k=60)
-    assert abs(score - 1.0 / 60) < 1e-9
-
-    paper2 = {"_source_ranks": {"s2": 5}, "_source_count": 1}
-    score2 = relevance.rrf_score(paper2, k=60)
-    assert abs(score2 - 1.0 / 65) < 1e-9
-
-
-def test_rrf_score_multi_source():
-    """RRF with multiple sources should sum contributions."""
-    paper = {"_source_ranks": {"s2": 0, "arxiv": 2, "openalex": 1}, "_source_count": 3}
-    score = relevance.rrf_score(paper, k=60)
-    expected = 1.0/60 + 1.0/62 + 1.0/61
-    assert abs(score - expected) < 1e-9
-
-
-def test_rrf_score_empty_ranks():
-    """Paper with no rank info should score 0."""
-    assert relevance.rrf_score({}) == 0.0
-    assert relevance.rrf_score({"_source_ranks": {}}) == 0.0
-
-
-def test_consensus_rrf_score():
-    """Consensus RRF should multiply by vote count."""
-    paper = {"_source_ranks": {"s2": 0, "arxiv": 0}, "_source_count": 2}
-    rrf = relevance.rrf_score(paper, k=60)
-    consensus = relevance.consensus_rrf_score(paper, k=60)
-    assert abs(consensus - 2 * rrf) < 1e-9
-
-
-def test_rrf_fuse_ordering():
-    """rrf_fuse should rank multi-source papers above single-source."""
-    papers = [
-        {"title": "Single Source", "_source_ranks": {"arxiv": 0}, "_source_count": 1,
-         "external_ids": {}},
-        {"title": "Multi Source", "_source_ranks": {"s2": 1, "arxiv": 0, "openalex": 2},
-         "_source_count": 3, "external_ids": {}},
-        {"title": "Two Sources", "_source_ranks": {"s2": 0, "openalex": 0},
-         "_source_count": 2, "external_ids": {}},
-    ]
-    fused = relevance.rrf_fuse(papers, method="consensus")
-    assert fused[0]["title"] == "Two Sources" or fused[0]["title"] == "Multi Source"
-    assert all("_rrf_score" in p for p in fused)
-    assert fused[0]["_rrf_score"] >= fused[1]["_rrf_score"] >= fused[2]["_rrf_score"]
-
-
-def test_rrf_fuse_standard_vs_consensus():
-    """Standard RRF should not multiply by vote count."""
-    papers = [
-        {"title": "A", "_source_ranks": {"s2": 0}, "_source_count": 1},
-        {"title": "B", "_source_ranks": {"s2": 5, "arxiv": 5}, "_source_count": 2},
-    ]
-    std = relevance.rrf_fuse([dict(p) for p in papers], method="rrf")
-    con = relevance.rrf_fuse([dict(p) for p in papers], method="consensus")
-    assert std[0]["_rrf_score"] != con[0]["_rrf_score"] or std[1]["_rrf_score"] != con[1]["_rrf_score"]
-
-
 def test_merge_preserves_source_ranks():
-    """Deduplication should merge _source_ranks from both copies."""
     papers = [
         {"title": "Same Paper Title Here", "abstract": "Test", "source": "s2",
          "external_ids": {"DOI": "10.1234/test"}, "citation_count": 100,
