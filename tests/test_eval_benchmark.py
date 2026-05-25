@@ -1,3 +1,7 @@
+import pytest
+
+pytestmark = pytest.mark.skip(reason="requires live API access")
+
 """
 Benchmark evaluation for search quality.
 Tests real API calls, measures precision and known-item retrieval.
