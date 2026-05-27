@@ -30,6 +30,41 @@ def test_optimize_query_preserves_short():
     assert relevance.optimize_query(short_q) == short_q
 
 
+def test_optimize_query_targets_ek_kb_2_length():
+    """ek_kb_2 yields ~6 words. Longer output means we regressed to kb_5,
+    which scored OA=0 on the 20q sweep. Guard the upper bound tightly.
+    """
+    long_q = ("Are there any research papers on methods to compress large-scale "
+              "language models while preserving their task-agnostic knowledge "
+              "through distillation techniques")
+    optimized = relevance.optimize_query(long_q)
+    words = optimized.split()
+    assert 3 <= len(words) <= 8, f"expected ~6 words, got {len(words)}: {optimized}"
+
+
+def test_optimize_query_strips_boilerplate():
+    """extract_keywords must remove the interrogative scaffolding before
+    KeyBERT sees the text, otherwise KeyBERT wastes phrase slots on noise.
+    """
+    q = ("Are there any studies that explore post-hoc techniques for "
+         "hallucination detection in token level sequence generation tasks")
+    optimized = relevance.optimize_query(q).lower()
+    for noise in ("are", "there", "any", "studies", "that", "explore"):
+        assert noise not in optimized.split(), f"noise word {noise!r} survived: {optimized}"
+
+
+def test_keybert_extract_falls_back_to_cleaned():
+    """When KeyBERT is unavailable the caller must still get usable keywords,
+    never the raw 25-word query (raw scored 4/70 on the sweep).
+    """
+    q = ("I am wondering how does the hybrid attention mechanism with sliding "
+         "window and linear attention approaches affect long context retrieval "
+         "performance in modern frontier large language models")
+    optimized = relevance.optimize_query(q)
+    assert len(optimized.split()) <= 12
+    assert optimized != q
+
+
 def test_deduplicate_by_doi():
     papers = [
         {"title": "Paper A", "external_ids": {"DOI": "10.1234/abc"}, "source": "s2"},

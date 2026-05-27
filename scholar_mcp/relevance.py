@@ -84,7 +84,17 @@ _keybert_model = None
 
 def optimize_query(query: str) -> str:
     """Shorten long queries to core keyphrases for keyword-based API search.
-    Uses KeyBERT (embedding-based) if available, falls back to keyword extraction.
+
+    Strategy (ek_kb_2, best of 14 configs on 20q LitSearch sweep, 2026-05-11):
+    extract_keywords strips noise words first, then KeyBERT picks the 2 most
+    salient phrases from the cleaned text. Yields ~6 words.
+
+    Sweep results (total GT hits across OA/arXiv/Crossref/Scopus/DOAJ):
+      ek_kb_2 = 14 (OA 7, arXiv 6)   <- chosen, only 6 words
+      kb_3    = 14 (OA 5, arXiv 5)   but 8.7 words
+      ek_5    = 11 (OA 7, arXiv 3)
+      kb_5    =  6 (OA 0, arXiv 3)   <- was the previous default, OA total miss
+      raw     =  4 (OA 0, arXiv 1)   25 words, too long for keyword APIs
     """
     words = re.findall(r"[a-zA-Z0-9][\w\-]*", query)
     if len(words) <= 12:
@@ -106,7 +116,15 @@ def optimize_query_short(query: str, max_words: int = 8) -> str:
     return " ".join(extract_keywords(query, max_keywords=max_words))
 
 
-def _keybert_extract(query: str) -> str | None:
+EK_PRE_MAX = 15
+KB_TOP_N = 2
+KB_DIVERSITY = 0.5
+
+
+def _keybert_extract(query: str, top_n: int = KB_TOP_N) -> str | None:
+    """Two-stage compression: extract_keywords strips noise, KeyBERT ranks by
+    embedding salience. Params match eval/keyword_sensitivity.py compress_ek_kb.
+    """
     global _keybert_model
     try:
         from keybert import KeyBERT
@@ -114,12 +132,16 @@ def _keybert_extract(query: str) -> str | None:
         if _keybert_model is None:
             model = StaticModel.from_pretrained("minishlab/potion-base-8M")
             _keybert_model = KeyBERT(model)
+        cleaned = " ".join(extract_keywords(query, max_keywords=EK_PRE_MAX))
+        if not cleaned:
+            return None
         kws = _keybert_model.extract_keywords(
-            query, keyphrase_ngram_range=(1, 3), stop_words="english",
-            top_n=5, use_mmr=True, diversity=0.7,
+            cleaned, keyphrase_ngram_range=(1, 3), stop_words="english",
+            top_n=top_n, use_mmr=True, diversity=KB_DIVERSITY,
         )
         if kws:
             return " ".join(kw for kw, _ in kws)
+        return cleaned
     except Exception:
         pass
     return None
