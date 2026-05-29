@@ -4,13 +4,17 @@ import httpx
 
 BASE_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 
+# Europe PMC accepts pageSize up to 1000; 100 matches the pipeline's fetch
+# limit and keeps response payloads reasonable.
+EUROPEPMC_MAX_PAGE_SIZE = 100
 
-def search_papers(query: str, limit: int = 10) -> list[dict]:
+
+def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
     """Search Europe PMC. Good for biomedical + European institutional papers."""
     params = {
         "query": query,
         "resultType": "core",
-        "pageSize": min(limit, 25),
+        "pageSize": min(limit, EUROPEPMC_MAX_PAGE_SIZE),
         "format": "json",
         "sort": "CITED desc",
     }

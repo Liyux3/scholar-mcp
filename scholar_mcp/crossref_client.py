@@ -5,6 +5,11 @@ from . import config
 
 BASE_URL = "https://api.crossref.org/works"
 
+# Crossref serves up to 1000 rows per request. Fetch a margin above the caller's
+# limit because format_paper drops entries with no title (datasets, errata).
+CROSSREF_MAX_ROWS = 1000
+OVERFETCH_FACTOR = 2
+
 
 def _headers() -> dict:
     email = config.OPENALEX_EMAIL or "scholar-mcp@example.com"
@@ -74,11 +79,11 @@ def format_paper(item: dict) -> dict | None:
     }
 
 
-def search_papers(query: str, limit: int = 10) -> list[dict]:
+def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
     """Search Crossref works."""
     params = {
         "query": query,
-        "rows": min(limit * 2, 50),
+        "rows": min(limit * OVERFETCH_FACTOR, CROSSREF_MAX_ROWS),
         "sort": "relevance",
         "order": "desc",
     }

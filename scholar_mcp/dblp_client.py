@@ -4,12 +4,21 @@ import httpx
 
 BASE_URL = "https://dblp.org/search/publ/api"
 
+# DBLP silently truncates to 100 hits regardless of a larger `h`.
+DBLP_MAX_HITS = 100
 
-def search_papers(query: str, limit: int = 10) -> list[dict]:
-    """Search DBLP for computer science papers."""
+
+def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
+    """Search DBLP for computer science papers.
+
+    DBLP returns intermittent 500s under load. Those are tolerated with an
+    empty result because the source is a low-priority supplement, but the
+    response is still checked so a persistent outage is not mistaken for
+    a well-formed empty answer.
+    """
     params = {
         "q": query,
-        "h": min(limit, 30),
+        "h": min(limit, DBLP_MAX_HITS),
         "format": "json",
     }
     try:
