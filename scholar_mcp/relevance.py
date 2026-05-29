@@ -81,70 +81,85 @@ def extract_keywords(query: str, max_keywords: int = 8) -> list[str]:
 
 _keybert_model = None
 
+# Queries at or below this length already read like keyword queries; compressing
+# them further only discards signal.
+COMPRESS_THRESHOLD_WORDS = 12
+
+# Two-stage compression parameters, tuned by the 2026-05-11 sensitivity sweep.
+# See docs/QUERY_COMPRESSION.md for the full config comparison.
+EK_PRE_MAX = 15      # keyword budget for the noise-stripping stage
+KB_TOP_N = 2         # keyphrases KeyBERT selects from the cleaned text
+KB_DIVERSITY = 0.5   # MMR diversity; higher values drift off-topic
+KB_NGRAM_RANGE = (1, 3)
+
+# Used only when KeyBERT is unavailable. Wider than the two-stage output
+# because plain keyword extraction has no salience ranking to lean on.
+FALLBACK_MAX_KEYWORDS = 10
+
+
+def _word_count(text: str) -> int:
+    return len(re.findall(r"[a-zA-Z0-9][\w\-]*", text))
+
 
 def optimize_query(query: str) -> str:
-    """Shorten long queries to core keyphrases for keyword-based API search.
+    """Compress a long natural-language query into a keyword query.
 
-    Strategy (ek_kb_2, best of 14 configs on 20q LitSearch sweep, 2026-05-11):
-    extract_keywords strips noise words first, then KeyBERT picks the 2 most
-    salient phrases from the cleaned text. Yields ~6 words.
-
-    Sweep results (total GT hits across OA/arXiv/Crossref/Scopus/DOAJ):
-      ek_kb_2 = 14 (OA 7, arXiv 6)   <- chosen, only 6 words
-      kb_3    = 14 (OA 5, arXiv 5)   but 8.7 words
-      ek_5    = 11 (OA 7, arXiv 3)
-      kb_5    =  6 (OA 0, arXiv 3)   <- was the previous default, OA total miss
-      raw     =  4 (OA 0, arXiv 1)   25 words, too long for keyword APIs
+    Keyword-based APIs (OpenAlex, arXiv, Crossref) lose recall sharply as the
+    query grows: an unshortened 25-word query scores near zero on all of them.
+    Semantic sources bypass this via the raw-query route in sources._pick_query.
     """
-    words = re.findall(r"[a-zA-Z0-9][\w\-]*", query)
-    if len(words) <= 12:
+    if _word_count(query) <= COMPRESS_THRESHOLD_WORDS:
         return query
 
-    result = _keybert_extract(query)
-    if result:
-        return result
+    compressed = _keybert_extract(query)
+    if compressed:
+        return compressed
 
-    keywords = extract_keywords(query, max_keywords=10)
-    return " ".join(keywords)
+    return " ".join(extract_keywords(query, max_keywords=FALLBACK_MAX_KEYWORDS))
 
 
 def optimize_query_short(query: str, max_words: int = 8) -> str:
     """Ultra-short keyword query for APIs with tight length limits (e.g. S2 ~10 words)."""
-    words = re.findall(r"[a-zA-Z0-9][\w\-]*", query)
-    if len(words) <= max_words:
+    if _word_count(query) <= max_words:
         return query
     return " ".join(extract_keywords(query, max_keywords=max_words))
 
 
-EK_PRE_MAX = 15
-KB_TOP_N = 2
-KB_DIVERSITY = 0.5
+def _load_keybert():
+    """Import and cache the KeyBERT model. Returns None if the optional
+    dependency is missing, so callers can fall back to keyword extraction.
+    """
+    global _keybert_model
+    if _keybert_model is None:
+        try:
+            from keybert import KeyBERT
+            from model2vec import StaticModel
+        except ImportError:
+            return None
+        _keybert_model = KeyBERT(StaticModel.from_pretrained("minishlab/potion-base-8M"))
+    return _keybert_model
 
 
 def _keybert_extract(query: str, top_n: int = KB_TOP_N) -> str | None:
-    """Two-stage compression: extract_keywords strips noise, KeyBERT ranks by
-    embedding salience. Params match eval/keyword_sensitivity.py compress_ek_kb.
+    """Strip noise words, then rank the survivors by embedding salience.
+
+    Stripping first matters: it keeps KeyBERT from spending its few phrase
+    slots on scaffolding like "are there any papers that".
     """
-    global _keybert_model
-    try:
-        from keybert import KeyBERT
-        from model2vec import StaticModel
-        if _keybert_model is None:
-            model = StaticModel.from_pretrained("minishlab/potion-base-8M")
-            _keybert_model = KeyBERT(model)
-        cleaned = " ".join(extract_keywords(query, max_keywords=EK_PRE_MAX))
-        if not cleaned:
-            return None
-        kws = _keybert_model.extract_keywords(
-            cleaned, keyphrase_ngram_range=(1, 3), stop_words="english",
-            top_n=top_n, use_mmr=True, diversity=KB_DIVERSITY,
-        )
-        if kws:
-            return " ".join(kw for kw, _ in kws)
-        return cleaned
-    except Exception:
-        pass
-    return None
+    model = _load_keybert()
+    if model is None:
+        return None
+
+    cleaned = " ".join(extract_keywords(query, max_keywords=EK_PRE_MAX))
+    if not cleaned:
+        return None
+
+    keyphrases = model.extract_keywords(
+        cleaned, keyphrase_ngram_range=KB_NGRAM_RANGE, stop_words="english",
+        top_n=top_n, use_mmr=True, diversity=KB_DIVERSITY,
+    )
+    # Cleaned text is still a valid keyword query, just unranked.
+    return " ".join(kw for kw, _ in keyphrases) if keyphrases else cleaned
 
 
 
