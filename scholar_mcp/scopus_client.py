@@ -8,6 +8,11 @@ from .relevance import extract_keywords
 SCOPUS_SEARCH_URL = "https://api.elsevier.com/content/search/scopus"
 SCOPUS_MAX_TERMS = 5
 
+# Elsevier caps `count` per service level. Free developer keys allow 25; asking
+# for more returns HTTP 400 INVALID_INPUT rather than clamping, so exceeding it
+# fails the whole request. Larger result sets require paging via `start`.
+SCOPUS_MAX_COUNT = 25
+
 
 def _shorten_query(query: str) -> str:
     words = re.findall(r"[a-zA-Z0-9][\w\-]*", query)
@@ -16,29 +21,38 @@ def _shorten_query(query: str) -> str:
     return " ".join(extract_keywords(query, max_keywords=SCOPUS_MAX_TERMS))
 
 
+def _fetch_page(scopus_query: str, api_key: str, start: int, count: int) -> list[dict]:
+    resp = httpx.get(
+        SCOPUS_SEARCH_URL,
+        params={"query": scopus_query, "count": count, "start": start, "sort": "citedby-count"},
+        headers={"Accept": "application/json", "X-ELS-APIKey": api_key},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    return resp.json().get("search-results", {}).get("entry", [])
+
+
 def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
+    """Search Scopus, paging until `limit` results are collected.
+
+    Raises on HTTP errors so sources._timed_call can record the failure;
+    returning [] here would make an outage indistinguishable from no matches.
+    """
     api_key = config.SCOPUS_API_KEY
     if not api_key:
         return []
 
-    short = _shorten_query(query)
-    scopus_query = f"TITLE-ABS-KEY({short})"
+    scopus_query = f"TITLE-ABS-KEY({_shorten_query(query)})"
+
+    entries = []
+    while len(entries) < limit:
+        page = _fetch_page(scopus_query, api_key, start=len(entries),
+                           count=min(limit - len(entries), SCOPUS_MAX_COUNT))
+        if not page:
+            break
+        entries.extend(page)
+
     papers = []
-    per_page = min(limit, 200)
-
-    try:
-        resp = httpx.get(
-            SCOPUS_SEARCH_URL,
-            params={"query": scopus_query, "count": per_page, "start": 0, "sort": "citedby-count"},
-            headers={"Accept": "application/json", "X-ELS-APIKey": api_key},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        entries = data.get("search-results", {}).get("entry", [])
-    except Exception:
-        return []
-
     for e in entries:
         if e.get("error"):
             continue

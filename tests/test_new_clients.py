@@ -52,3 +52,70 @@ class TestDBLP:
         from scholar_mcp import dblp_client
         results = dblp_client.search_papers("nonexistent_query_xyz_12345", limit=1)
         assert isinstance(results, list)
+
+
+class TestScopusPaging:
+    """Free Elsevier keys cap `count` at 25 and reject larger values with
+    HTTP 400 instead of clamping. Requesting limit=100 in one shot therefore
+    returned zero results for every query; these tests pin the paging fix.
+    """
+
+    def _fake_entry(self, i):
+        return {
+            "dc:title": f"Paper {i}",
+            "prism:doi": f"10.1000/{i}",
+            "eid": f"2-s2.0-{i}",
+            "citedby-count": str(100 - i),
+            "prism:coverDate": "2023-01-01",
+            "prism:publicationName": "Journal of Testing",
+        }
+
+    def test_pages_until_limit(self, monkeypatch):
+        from scholar_mcp import config, scopus_client
+        monkeypatch.setattr(config, "SCOPUS_API_KEY", "test-key")
+
+        calls = []
+
+        def fake_fetch(query, key, start, count):
+            calls.append({"start": start, "count": count})
+            return [self._fake_entry(start + i) for i in range(count)]
+
+        monkeypatch.setattr(scopus_client, "_fetch_page", fake_fetch)
+        papers = scopus_client.search_papers("knowledge distillation", limit=60)
+
+        assert len(papers) == 60
+        assert all(c["count"] <= scopus_client.SCOPUS_MAX_COUNT for c in calls), \
+            f"a page exceeded the service cap: {calls}"
+        assert [c["start"] for c in calls] == [0, 25, 50]
+        assert calls[-1]["count"] == 10, "final page should request only the remainder"
+
+    def test_stops_on_empty_page(self, monkeypatch):
+        """Exhausted result sets must terminate the loop, not spin forever."""
+        from scholar_mcp import config, scopus_client
+        monkeypatch.setattr(config, "SCOPUS_API_KEY", "test-key")
+
+        def fake_fetch(query, key, start, count):
+            return [self._fake_entry(i) for i in range(5)] if start == 0 else []
+
+        monkeypatch.setattr(scopus_client, "_fetch_page", fake_fetch)
+        assert len(scopus_client.search_papers("rare topic", limit=100)) == 5
+
+    def test_propagates_http_errors(self, monkeypatch):
+        """Silent [] on failure is what hid this bug for two months. The
+        registry layer records exceptions, so clients must let them through.
+        """
+        import httpx
+        from scholar_mcp import config, scopus_client
+        monkeypatch.setattr(config, "SCOPUS_API_KEY", "test-key")
+
+        def fake_fetch(query, key, start, count):
+            raise httpx.HTTPStatusError("400", request=None, response=None)
+
+        monkeypatch.setattr(scopus_client, "_fetch_page", fake_fetch)
+        with pytest.raises(httpx.HTTPStatusError):
+            scopus_client.search_papers("anything", limit=10)
+
+    def test_no_key_returns_empty(self, monkeypatch):
+        from scholar_mcp import config, scopus_client
+        monkeypatch.setattr(config, "SCOPUS_API_KEY", "")
+        assert scopus_client.search_papers("anything", limit=10) == []
