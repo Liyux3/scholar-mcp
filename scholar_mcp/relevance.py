@@ -269,17 +269,23 @@ _flashrank_ranker = None
 _rank_params = None
 
 
+# Ranking weights for rank_final. A fitted rank_params.json overrides any
+# subset of these; unspecified keys keep the default.
+DEFAULT_RANK_PARAMS = {"gamma": 1.0, "alpha": 0.05, "beta": 0.02, "delta": 0.10}
+
+
 def _load_rank_params() -> dict:
-    """Load learned ranking parameters from JSON file, or use defaults."""
+    """Load learned ranking parameters from JSON file, backfilled with defaults."""
     global _rank_params
     if _rank_params is not None:
         return _rank_params
     import json
     try:
         with open(config.RANK_PARAMS_PATH) as f:
-            _rank_params = json.load(f)
+            loaded = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        _rank_params = {"gamma": 1.0, "alpha": 0.05, "beta": 0.02, "delta": 0.10}
+        loaded = {}
+    _rank_params = {**DEFAULT_RANK_PARAMS, **loaded}
     return _rank_params
 
 
@@ -400,10 +406,9 @@ def rank_final(papers: list[dict]) -> list[dict]:
     γ,α,β,δ loaded from rank_params.json (learned via scipy.optimize on LitSearch GT).
     """
     params = _load_rank_params()
-    gamma = params.get("gamma", 1.0)
-    alpha = params.get("alpha", 0.05)
-    beta = params.get("beta", 0.10)
-    delta = params.get("delta", 0.0)
+    gamma, alpha, beta, delta = (
+        params["gamma"], params["alpha"], params["beta"], params["delta"]
+    )
 
     current_year = datetime.now().year
     n_sources = max(len(set(s for p in papers for s in (p.get("_source_ranks") or {}).keys())), 1)

@@ -1,103 +1,149 @@
 # scholar-mcp Architecture
 
-## Overview
+MCP server for academic literature search. Queries 13 sources in parallel,
+fuses and reranks the union, and optionally expands the pool by walking the
+citation graph of the top results.
 
-MCP server for academic paper search, built on Semantic Scholar's Academic Graph API (214M+ papers). Exposes 8 tools via FastMCP stdio transport, with arXiv, CORE, and Google Scholar as fallbacks.
-
-## Module Map
+## Module map
 
 ```
 scholar_mcp/
-  config.py        — env var config (S2_API_KEY, CORE_API_KEY, DOWNLOAD_DIR, S2_TIMEOUT)
-  s2_client.py     — core Semantic Scholar API client (direct httpx, not the PyPI wrapper)
-  arxiv_client.py  — arXiv search fallback via Atom feed + feedparser
-  core_client.py   — CORE API v3 client (250M+ open access, search + PDF discovery)
-  pubmed_client.py — PubMed E-utilities client (36M+ biomedical papers)
-  scholar_client.py — Google Scholar HTML scraping fallback (last resort)
-  pdf_utils.py     — PDF download chain + text extraction (pypdf)
-  server.py        — FastMCP server, 8 tool definitions, fallback orchestration
+  server.py       — FastMCP server, 10 tools, the shared _pipeline
+  sources.py      — source registry, parallel dispatch, per-source query routing
+  relevance.py    — query compression, dedup, rerank, final ranking
+  graph.py        — citation graph construction, PageRank, pivot detection
+  discovery.py    — field-landscape assembly for discover_field
+  knowledge_base.py — JSONL persistence at ~/.scholar-mcp/kb/
+  cache.py        — response cache, 5 min TTL
+  pdf_utils.py    — download chain across preprint servers, pypdf extraction
+  config.py       — env var configuration
+  *_client.py     — one module per API, all returning the same paper dict
 ```
 
-## Data Flow
+Adding a source means writing a `*_client.py` with a `search_papers` function
+and calling `sources.register()`. Nothing else changes.
+
+## Search pipeline
+
+`server._pipeline` runs every search-shaped tool:
 
 ```
-User query → server.py (tool dispatch)
-                ↓
-        s2_client.py (Semantic Scholar API)
-                ↓ fails?
-        arxiv_client.py (arXiv Atom feed)
-                ↓ fails?
-        core_client.py (CORE API v3, institutional repos)
-                ↓ fails?
-        pubmed_client.py (PubMed E-utilities, biomedical)
-                ↓ fails?
-        scholar_client.py (Google Scholar scrape)
-                ↓ fails?
-        error response
+query
+  ├─ optimize_query        -> ~6 keyword query   (keyword sources)
+  ├─ optimize_query_short  -> ~8 keyword query   (Semantic Scholar)
+  └─ raw query                                   (semantic sources)
+        ↓
+  sources.parallel_search  — 12 threads, one per available source
+        ↓
+  deduplicate              — DOI, then normalized title; merges metadata
+        ↓
+  rerank                   — DashScope qwen3-rerank, FlashRank fallback
+        ↓
+  rank_final               — rerank score adjusted by citations, source
+                             agreement, recency
+        ↓
+  citation expansion       — refs + cites + recommendations of top 10,
+                             then a second rerank pass with EMA smoothing
+        ↓
+  truncate to limit
 ```
 
-PDF download chain (pdf_utils.py):
+Sources are queried in parallel rather than as a fallback chain. An
+individual source failing degrades recall slightly; it does not fail the
+request. `SourceResult` records status, latency, and error per source, and
+those reports are returned alongside results.
+
+### Query routing
+
+The three query forms exist because keyword APIs and semantic APIs want
+opposite things. See `docs/QUERY_COMPRESSION.md` for the measurements behind
+the ~6 word target and the per-source optima.
+
+| Route | Sources |
+|-------|---------|
+| raw | openalex_semantic, arxivgg_semantic, exa |
+| short (~8 words) | semantic_scholar |
+| compressed (~6 words) | openalex, arxiv, crossref, scopus, doaj, pubmed, europepmc, dblp, inspirehep, core, google_scholar |
+
+### Ranking
+
+`rank_final` multiplies the reranker score by three metadata factors:
+
 ```
-S2 open_access_url → arXiv direct → CORE (by DOI/title) → bioRxiv/medRxiv (DOI 10.1101/*) → fail with links
+score = rerank^γ × (1 + α·log(citations+1)) × (1 + β·source_count/N) × (1 + δ·recency)
 ```
 
-## Tools (8 total)
+Defaults γ=1.0, α=0.05, β=0.02, δ=0.10, overridable via
+`~/.scholar-mcp/rank_params.json`. The citation term is deliberately weak:
+at α=0.05 a 100-citation paper gains roughly 23%, which is enough to break
+ties but was measured as enough to displace low-citation ground truth when
+set higher.
 
-| Tool | Source | Fallback |
-|------|--------|----------|
-| search_papers | S2 → arXiv → CORE → PubMed → Google Scholar | full chain |
-| get_paper | S2 only | — |
-| get_citations | S2 only | — |
-| get_references | S2 only | — |
-| recommend_papers | S2 Recommendations API | — |
-| search_authors | S2 only | — |
-| download_paper | S2 open access → arXiv → CORE → bioRxiv | multi-source |
-| read_paper | download_paper + pypdf extract | — |
+## Sources
 
-## Key Design Decisions
+Priority determines ordering in `all_sources()`, not fallback sequence.
 
-1. **Direct httpx over `semanticscholar` PyPI package**: The wrapper hangs on `search_paper()` due to internal async/nest_asyncio issues. Direct API calls with httpx work reliably.
+| Source | Priority | Route | Notes |
+|--------|----------|-------|-------|
+| semantic_scholar | 90 | short | 1 req/s with key; value is citations and recommendations more than search |
+| exa | 85 | raw | needs EXA_API_KEY, disabled by default |
+| openalex | 80 | compressed | primary coverage source |
+| openalex_semantic | 75 | raw | carries a large share of ground-truth hits |
+| scopus | 75 | compressed | needs SCOPUS_API_KEY; free tier caps pages at 25 |
+| arxiv | 70 | compressed | 3s between calls, official limit |
+| arxivgg_semantic | 65 | raw | 644K arXiv papers with embeddings, no auth |
+| pubmed | 40 | compressed | biomedical |
+| europepmc | 35 | compressed | biomedical, European repositories |
+| crossref | 30 | compressed | metadata matching, strong on exact titles |
+| dblp | 25 | compressed | CS bibliography, intermittent 500s |
+| doaj | 20 | compressed | open-access journals only |
+| inspirehep | 15 | compressed | physics |
+| core | 10 | compressed | needs CORE_API_KEY |
+| google_scholar | 5 | compressed | HTML scraping, last resort |
 
-2. **Unified output format**: All sources (S2, arXiv, Google Scholar) return the same dict schema via `format_paper()`. Keys: paper_id, title, authors, abstract, year, venue, citation_count, etc.
+## Tools
 
-3. **Retry with backoff for S2 rate limits**: `_get()` retries up to 4 times with exponential backoff (2s, 4s, 8s, max 30s) on HTTP 429. Free tier: 100 req/5min.
+| Tool | Purpose |
+|------|---------|
+| search_papers | Multi-source search with expansion, the main entry point |
+| paper_info | Paper detail, citations, references; `include` selects which |
+| recommend_papers | S2 SPECTER2 similarity |
+| search_authors | Author lookup with h-index |
+| build_paper_graph | Citation graph with PageRank and pivot detection |
+| discover_field | Surveys, foundations, and recent work for a topic |
+| knowledge_base | Save, list, and search the persistent JSONL store |
+| read_paper | Download PDF and extract text |
+| search_openreview | Conference submissions and reviews |
+| scholar_status | Version, active sources, KB collections |
 
-4. **`show_banner=False` on FastMCP**: Required for stdio transport. The rich-formatted startup banner corrupts JSON-RPC protocol on stdout.
+## Error handling
 
-5. **Google Scholar as last resort only**: HTML scraping, no official API, risk of CAPTCHA/IP blocking. Random delays (1.5-3s) between requests.
+Clients raise on HTTP errors. `sources._timed_call` catches them and records
+status and message on the `SourceResult`, so a broken source shows up in the
+per-source report instead of silently returning nothing.
 
-6. **CORE for institutional PDF access** (v0.2.0): 250M+ open access papers from 10,000+ university repositories. Main value is PDF discovery for papers where S2 has no open access link but a preprint/postprint exists in an institutional repo. Quality sorting: results with downloadUrl and higher citations ranked first.
+Two clients deliberately swallow errors, DBLP and Google Scholar, because
+both fail intermittently by nature and both are low-priority supplements.
+Everywhere else, catching and returning `[]` is a bug: it makes an outage
+indistinguishable from a genuine empty result, which is how a completely
+broken Scopus client went unnoticed for two months.
 
-## CORE API Endpoints Used
+## Rate limits
 
-- `GET /v3/search/works/?q=...&limit=...` — search works, supports DOI and title queries
-- Auth: Optional Bearer token via `CORE_API_KEY` env var (free at core.ac.uk)
-- Key fields: `downloadUrl`, `sourceFulltextUrls`, `citationCount`, `doi`
+| API | Limit |
+|-----|-------|
+| arXiv | 3s between requests |
+| Semantic Scholar | 1 req/s with key |
+| OpenAlex | $1/day per key, rotates across `OPENALEX_API_KEYS` |
+| Scopus | 6 req/s, 20K/week, 25 results per page |
+| Exa | 10 QPS, 1000 free/month |
+| DOAJ | 2 req/s |
 
-## S2 API Endpoints Used
+## Integration
 
-- `GET /graph/v1/paper/search` — search with filters (year, venue, fields, citations, open access)
-- `GET /graph/v1/paper/{id}` — full paper details with BibTeX, TLDR, venue metadata
-- `GET /graph/v1/paper/{id}/citations` — papers that cite this one
-- `GET /graph/v1/paper/{id}/references` — papers this one references
-- `GET /recommendations/v1/papers/forpaper/{id}` — similar papers
-- `GET /graph/v1/author/search` — author lookup with h-index, affiliations
+Entry point `scholar_mcp.server:main`, installed as the `scholar-mcp`
+console script. Registration needs an entry in `~/.claude/.mcp.json` and a
+marketplace entry under `~/.claude/plugins/marketplaces/custom-mcps/scholar/`.
 
-## Dependencies
-
-- fastmcp (>=2.0.0): MCP server framework
-- httpx (>=0.27.0): HTTP client (replaces both requests and semanticscholar package)
-- feedparser (>=6.0.0): arXiv Atom feed parsing
-- pypdf (>=4.0.0): PDF text extraction
-- beautifulsoup4 + lxml: Google Scholar HTML parsing
-
-## Claude Code Integration
-
-Entry point: `scholar_mcp.server:main` → installed as `scholar-mcp` console script.
-
-Registration requires both:
-1. `~/.claude/.mcp.json` entry with command path
-2. Marketplace entry at `~/.claude/plugins/marketplaces/custom-mcps/scholar/`
-   - `.mcp.json` (command config)
-   - `.claude-plugin/plugin.json` (name, description, author)
-   - Listed in parent `marketplace.json` and `plugin.json`
+Code changes require restarting the MCP server; a stale process will keep
+serving the old module.
