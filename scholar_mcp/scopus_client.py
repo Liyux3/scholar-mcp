@@ -1,7 +1,10 @@
 """Scopus search client. Requires SCOPUS_API_KEY (Elsevier developer key)."""
 
 import re
+from concurrent.futures import ThreadPoolExecutor
+
 import httpx
+
 from . import config
 from .relevance import extract_keywords
 
@@ -12,6 +15,11 @@ SCOPUS_MAX_TERMS = 5
 # for more returns HTTP 400 INVALID_INPUT rather than clamping, so exceeding it
 # fails the whole request. Larger result sets require paging via `start`.
 SCOPUS_MAX_COUNT = 25
+
+# Scopus allows 6 req/s. Pages are fetched concurrently because sequential
+# paging made this the slowest source in the parallel fan-out by ~4x: four
+# round trips at ~1.7s each against ~2s total for every other source.
+SCOPUS_PAGE_WORKERS = 4
 
 
 def _shorten_query(query: str) -> str:
@@ -44,13 +52,17 @@ def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
 
     scopus_query = f"TITLE-ABS-KEY({_shorten_query(query)})"
 
-    entries = []
-    while len(entries) < limit:
-        page = _fetch_page(scopus_query, api_key, start=len(entries),
-                           count=min(limit - len(entries), SCOPUS_MAX_COUNT))
-        if not page:
-            break
-        entries.extend(page)
+    # Page offsets are known from `limit`, so all pages can be requested at
+    # once. Results are reassembled in offset order to preserve the
+    # citedby-count sort the API applied.
+    offsets = list(range(0, limit, SCOPUS_MAX_COUNT))
+    with ThreadPoolExecutor(max_workers=SCOPUS_PAGE_WORKERS) as pool:
+        pages = pool.map(
+            lambda start: _fetch_page(scopus_query, api_key, start,
+                                      min(limit - start, SCOPUS_MAX_COUNT)),
+            offsets,
+        )
+        entries = [entry for page in pages for entry in page]
 
     papers = []
     for e in entries:

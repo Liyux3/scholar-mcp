@@ -86,8 +86,27 @@ class TestScopusPaging:
         assert len(papers) == 60
         assert all(c["count"] <= scopus_client.SCOPUS_MAX_COUNT for c in calls), \
             f"a page exceeded the service cap: {calls}"
-        assert [c["start"] for c in calls] == [0, 25, 50]
-        assert calls[-1]["count"] == 10, "final page should request only the remainder"
+        # Pages are fetched concurrently, so call order is not deterministic;
+        # what matters is that the offsets tile the range exactly once.
+        assert sorted(c["start"] for c in calls) == [0, 25, 50]
+        by_start = {c["start"]: c["count"] for c in calls}
+        assert by_start[50] == 10, "final page should request only the remainder"
+
+    def test_preserves_api_sort_order(self, monkeypatch):
+        """Scopus sorts by citation count server-side. Concurrent pages must be
+        reassembled by offset, otherwise whichever page returns first wins.
+        """
+        from scholar_mcp import config, scopus_client
+        monkeypatch.setattr(config, "SCOPUS_API_KEY", "test-key")
+
+        def fake_fetch(query, key, start, count):
+            return [self._fake_entry(start + i) for i in range(count)]
+
+        monkeypatch.setattr(scopus_client, "_fetch_page", fake_fetch)
+        papers = scopus_client.search_papers("knowledge distillation", limit=75)
+
+        titles = [p["title"] for p in papers]
+        assert titles == [f"Paper {i}" for i in range(75)]
 
     def test_stops_on_empty_page(self, monkeypatch):
         """Exhausted result sets must terminate the loop, not spin forever."""
