@@ -87,60 +87,6 @@ def test_deduplicate_by_title():
     assert len(result) == 2
 
 
-def test_deduplicate_tracks_source_count():
-    papers = [
-        {"title": "Same Paper Title Here", "abstract": "Test", "source": "s2",
-         "external_ids": {"DOI": "10.1234/test"}, "citation_count": 100},
-        {"title": "Same Paper Title Here", "abstract": "Test abstract longer",
-         "source": "openalex", "external_ids": {"DOI": "10.1234/test"}, "citation_count": 50},
-        {"title": "Different Paper", "abstract": "Other", "source": "arxiv",
-         "external_ids": {}},
-    ]
-    deduped = relevance.deduplicate(papers)
-    merged = [p for p in deduped if "same" in p["title"].lower()]
-    assert len(merged) == 1
-    assert merged[0].get("_source_count", 1) == 2
-
-
-def test_tag_source_ranks():
-    papers = [{"title": "A"}, {"title": "B"}, {"title": "C"}]
-    relevance.tag_source_ranks(papers, "s2")
-    assert papers[0]["_source_ranks"] == {"s2": 0}
-    assert papers[1]["_source_ranks"] == {"s2": 1}
-    assert papers[2]["_source_ranks"] == {"s2": 2}
-    assert papers[0]["source"] == "s2"
-
-
-def test_rank_final_sorts_by_composite_score():
-    papers = [
-        {"title": "Low cite", "_rerank_score": 0.5, "citation_count": 1,
-         "_source_count": 1, "year": 2020, "_source_ranks": {"s2": 0}},
-        {"title": "High cite", "_rerank_score": 0.5, "citation_count": 10000,
-         "_source_count": 3, "year": 2024, "_source_ranks": {"s2": 0, "arxiv": 1, "openalex": 2}},
-    ]
-    ranked = relevance.rank_final(papers)
-    assert ranked[0]["title"] == "High cite"
-    assert "_final_score" in ranked[0]
-    assert ranked[0]["_final_score"] >= ranked[1]["_final_score"]
-
-
-def test_rank_final_normalizes_scores():
-    papers = [
-        {"title": "A", "_rerank_score": 0.8, "citation_count": 50,
-         "_source_count": 2, "year": 2024, "_source_ranks": {"s2": 0, "arxiv": 1}},
-    ]
-    ranked = relevance.rank_final(papers)
-    assert ranked[0]["_final_score"] == 1.0
-
-
-def test_rank_final_multi_source_boost():
-    base = {"_rerank_score": 0.5, "citation_count": 10, "year": 2024}
-    single = {**base, "title": "Single", "_source_count": 1, "_source_ranks": {"s2": 0}}
-    multi = {**base, "title": "Multi", "_source_count": 3, "_source_ranks": {"s2": 0, "arxiv": 1, "openalex": 2}}
-    ranked = relevance.rank_final([single, multi])
-    assert ranked[0]["title"] == "Multi"
-
-
 def test_filter_by_fields_keeps_matching():
     papers = [
         {"title": "Neural Networks", "abstract": "Deep learning model", "fields_of_study": ["Computer Science"]},
@@ -162,6 +108,7 @@ def test_filter_by_fields_uses_keywords_when_no_field():
 
 
 def test_filter_by_fields_arxiv_categories():
+    """arXiv category tags like cs.CL should map to Computer Science."""
     papers = [
         {"title": "Language Model Paper", "abstract": "NLP research", "fields_of_study": ["cs.CL", "cs.AI"]},
         {"title": "Pure Math Paper", "abstract": "Topology", "fields_of_study": ["math.AT"]},
@@ -203,7 +150,166 @@ def test_filter_by_fields_with_metadata_match():
     assert filtered[0]["title"] == "Paper A"
 
 
+def test_deduplicate_tracks_source_count():
+    """Deduplication should track how many sources found each paper."""
+    papers = [
+        {"title": "Same Paper Title Here", "abstract": "Test", "source": "s2",
+         "external_ids": {"DOI": "10.1234/test"}, "citation_count": 100},
+        {"title": "Same Paper Title Here", "abstract": "Test abstract longer",
+         "source": "openalex", "external_ids": {"DOI": "10.1234/test"}, "citation_count": 50},
+        {"title": "Different Paper", "abstract": "Other", "source": "arxiv",
+         "external_ids": {}},
+    ]
+    deduped = relevance.deduplicate(papers)
+    merged = [p for p in deduped if "same" in p["title"].lower()]
+    assert len(merged) == 1
+    assert merged[0].get("_source_count", 1) == 2
+
+
+def test_tag_source_ranks():
+    """tag_source_ranks should annotate each paper with its position."""
+    papers = [{"title": "A"}, {"title": "B"}, {"title": "C"}]
+    relevance.tag_source_ranks(papers, "s2")
+    assert papers[0]["_source_ranks"] == {"s2": 0}
+    assert papers[1]["_source_ranks"] == {"s2": 1}
+    assert papers[2]["_source_ranks"] == {"s2": 2}
+    assert papers[0]["source"] == "s2"
+
+
+def _paper(title, rerank=0.5, cites=0, year=2020, sources=("openalex",)):
+    """Build a paper as it looks leaving deduplicate(), which sets both
+    _source_ranks and _source_count. rank_final reads the latter.
+    """
+    return {
+        "title": title,
+        "_rerank_score": rerank,
+        "citation_count": cites,
+        "year": year,
+        "_source_ranks": {s: i for i, s in enumerate(sources)},
+        "_source_count": len(sources),
+    }
+
+
+class TestRankFinal:
+    """rank_final applies metadata adjustments on top of the reranker score:
+
+        score = rerank^γ × (1 + α·log(cites+1)) × (1 + β·sources/N) × (1 + δ·recency)
+
+    Each factor is tested in isolation by holding the others constant.
+    """
+
+    def setup_method(self):
+        relevance._rank_params = None
+
+    def teardown_method(self):
+        relevance._rank_params = None
+
+    def test_rerank_score_dominates(self):
+        ranked = relevance.rank_final([
+            _paper("weak", rerank=0.2),
+            _paper("strong", rerank=0.9),
+        ])
+        assert [p["title"] for p in ranked] == ["strong", "weak"]
+
+    def test_citations_break_ties(self):
+        ranked = relevance.rank_final([
+            _paper("uncited", rerank=0.5, cites=0),
+            _paper("cited", rerank=0.5, cites=1000),
+        ])
+        assert ranked[0]["title"] == "cited"
+
+    def test_moderate_citations_do_not_overturn_rerank(self):
+        """At typical citation counts the boost stays subordinate to relevance.
+        A 100-cite paper gains roughly 23%, enough to break near-ties only.
+        """
+        ranked = relevance.rank_final([
+            _paper("relevant but uncited", rerank=0.9, cites=0),
+            _paper("cited but less relevant", rerank=0.6, cites=100),
+        ])
+        assert ranked[0]["title"] == "relevant but uncited"
+
+    def test_extreme_citations_do_overturn_rerank(self):
+        """Documents a known weakness rather than asserting desired behaviour.
+
+        The boost is logarithmic but unbounded: at 100k citations alpha=0.05
+        yields +58%, which flips a 0.9-vs-0.6 rerank gap. This is the
+        mechanism behind the ITER1-ONLY rank collapse seen in the v4
+        expansion analysis, where highly cited expansion papers displaced
+        low-citation ground truth. Capping the factor is open work.
+        """
+        ranked = relevance.rank_final([
+            _paper("relevant but uncited", rerank=0.9, cites=0),
+            _paper("famous but off-topic", rerank=0.6, cites=100_000),
+        ])
+        assert ranked[0]["title"] == "famous but off-topic"
+
+    def test_source_agreement_breaks_ties(self):
+        ranked = relevance.rank_final([
+            _paper("one source", rerank=0.5, sources=("openalex",)),
+            _paper("three sources", rerank=0.5, sources=("openalex", "arxiv", "s2")),
+        ])
+        assert ranked[0]["title"] == "three sources"
+
+    def test_recency_breaks_ties(self):
+        from datetime import datetime
+        now = datetime.now().year
+        ranked = relevance.rank_final([
+            _paper("old", rerank=0.5, year=now - 30),
+            _paper("new", rerank=0.5, year=now),
+        ])
+        assert ranked[0]["title"] == "new"
+
+    def test_writes_final_score(self):
+        ranked = relevance.rank_final([_paper("a"), _paper("b")])
+        assert all("_final_score" in p for p in ranked)
+        assert ranked[0]["_final_score"] >= ranked[1]["_final_score"]
+
+    def test_handles_missing_metadata(self):
+        """Papers arrive from 13 heterogeneous sources; year, citations and
+        rank info are all routinely absent. Missing fields must not raise.
+        """
+        ranked = relevance.rank_final([{"title": "bare"}, {"title": "also bare"}])
+        assert len(ranked) == 2
+        assert all("_final_score" in p for p in ranked)
+
+    def test_empty_input(self):
+        assert relevance.rank_final([]) == []
+
+
+class TestRankParams:
+    def setup_method(self):
+        relevance._rank_params = None
+
+    def teardown_method(self):
+        relevance._rank_params = None
+
+    def test_defaults_when_no_file(self, monkeypatch):
+        monkeypatch.setattr(relevance.config, "RANK_PARAMS_PATH", "/nonexistent/path.json")
+        assert relevance._load_rank_params() == relevance.DEFAULT_RANK_PARAMS
+
+    def test_partial_file_backfills_defaults(self, tmp_path, monkeypatch):
+        """A hand-written config specifying only some keys must inherit the
+        rest, not fall through to a second, different set of defaults.
+        """
+        cfg = tmp_path / "rank_params.json"
+        cfg.write_text('{"gamma": 1.5}')
+        monkeypatch.setattr(relevance.config, "RANK_PARAMS_PATH", str(cfg))
+
+        params = relevance._load_rank_params()
+        assert params["gamma"] == 1.5
+        assert params["alpha"] == relevance.DEFAULT_RANK_PARAMS["alpha"]
+        assert params["beta"] == relevance.DEFAULT_RANK_PARAMS["beta"]
+        assert params["delta"] == relevance.DEFAULT_RANK_PARAMS["delta"]
+
+    def test_malformed_file_falls_back(self, tmp_path, monkeypatch):
+        cfg = tmp_path / "rank_params.json"
+        cfg.write_text("{not json")
+        monkeypatch.setattr(relevance.config, "RANK_PARAMS_PATH", str(cfg))
+        assert relevance._load_rank_params() == relevance.DEFAULT_RANK_PARAMS
+
+
 def test_merge_preserves_source_ranks():
+    """Deduplication should merge _source_ranks from both copies."""
     papers = [
         {"title": "Same Paper Title Here", "abstract": "Test", "source": "s2",
          "external_ids": {"DOI": "10.1234/test"}, "citation_count": 100,
