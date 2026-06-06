@@ -22,6 +22,14 @@ class SourceResult:
     error: str | None = None
 
 
+# How a source wants its query phrased. Keyword APIs match terms and lose
+# recall as the query grows; semantic APIs embed the whole sentence and lose
+# meaning when it is stripped to keywords. See docs/QUERY_COMPRESSION.md.
+QUERY_RAW = "raw"          # full natural-language query
+QUERY_COMPRESSED = "compressed"  # ~6 keywords, the shared default
+QUERY_SHORT = "short"      # ~8 keywords, for APIs with hard length limits
+
+
 @dataclass
 class Source:
     name: str
@@ -33,8 +41,11 @@ class Source:
     domains: list[str] = field(default_factory=lambda: ["all"])
     requires_key: bool = False
     key_available: Callable | None = None
-    semantic: bool = False
-    short_query: bool = False
+    query_style: str = QUERY_COMPRESSED
+
+    @property
+    def semantic(self) -> bool:
+        return self.query_style == QUERY_RAW
 
     def available(self) -> bool:
         if not self.requires_key:
@@ -91,9 +102,9 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
         return []
 
     def _pick_query(s):
-        if s.semantic:
+        if s.query_style == QUERY_RAW:
             return raw_query or query
-        if s.short_query and short_query:
+        if s.query_style == QUERY_SHORT and short_query:
             return short_query
         return query
 
@@ -155,7 +166,7 @@ def _register_defaults():
         domains=["all"],
         requires_key=False,
         key_available=lambda: bool(config.get_s2_api_key()),
-        short_query=True,
+        query_style=QUERY_SHORT,
     ))
 
     register(Source(
@@ -173,7 +184,7 @@ def _register_defaults():
         search=lambda q, limit, **kw: openalex_client.search_papers_semantic(q, limit=min(limit, 50)),
         priority=75,
         domains=["all"],
-        semantic=True,
+        query_style=QUERY_RAW,
     ))
 
     register(Source(
@@ -239,7 +250,7 @@ def _register_defaults():
         search=lambda q, limit, **kw: exa_client.search_papers(q, limit=limit),
         priority=85,
         domains=["all"],
-        semantic=True,
+        query_style=QUERY_RAW,
         requires_key=True,
         key_available=lambda: bool(config.EXA_API_KEY),
     ))
@@ -258,7 +269,7 @@ def _register_defaults():
         search=lambda q, limit, **kw: arxivgg_client.search_papers(q, limit=limit),
         priority=65,
         domains=["computer science", "physics", "mathematics", "statistics"],
-        semantic=True,
+        query_style=QUERY_RAW,
     ))
 
     register(Source(
