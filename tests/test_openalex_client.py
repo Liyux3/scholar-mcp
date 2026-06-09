@@ -95,3 +95,35 @@ def test_output_format_matches_s2():
         "tldr", "external_ids", "url", "source",
     }
     assert expected_keys == set(result.keys())
+
+
+class TestSearchOperatorStripping:
+    """OpenAlex parses ? and * in `search` as wildcards and returns HTTP 400
+    rather than treating them literally. A trailing question mark is the
+    natural shape of a user's query, so short questions routed to the keyword
+    endpoint failed outright while semantic search handled them fine.
+    """
+
+    def test_strips_question_mark(self):
+        assert openalex_client._strip_search_operators(
+            "how does knowledge distillation work?"
+        ) == "how does knowledge distillation work"
+
+    def test_strips_asterisk(self):
+        assert openalex_client._strip_search_operators(
+            "distillation * compression"
+        ) == "distillation compression"
+
+    def test_collapses_resulting_whitespace(self):
+        assert openalex_client._strip_search_operators("a ? ? b") == "a b"
+
+    def test_preserves_other_punctuation(self):
+        """Only ? and * break the API; colons, commas, hyphens and parentheses
+        are all accepted and can carry meaning in a title query.
+        """
+        q = "TinyBERT: distilling BERT, task-agnostic (compressed)"
+        assert openalex_client._strip_search_operators(q) == q
+
+    def test_leaves_clean_queries_untouched(self):
+        q = "knowledge distillation language model"
+        assert openalex_client._strip_search_operators(q) == q

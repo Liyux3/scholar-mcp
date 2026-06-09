@@ -98,13 +98,24 @@ def format_paper(work: dict) -> dict | None:
     }
 
 
+# OpenAlex reads ? and * in `search` as wildcard operators and rejects the
+# request with HTTP 400 rather than treating them as literals. A trailing
+# question mark is the normal shape of a natural-language query, so any short
+# question routed to the keyword endpoint failed outright.
+_OA_SEARCH_OPERATORS = str.maketrans({"?": " ", "*": " "})
+
+
+def _strip_search_operators(query: str) -> str:
+    return " ".join(query.translate(_OA_SEARCH_OPERATORS).split())
+
+
 @cached(ttl=300)
 def search_papers(query: str, limit: int = 10, year: str = None,
                   fields_of_study: list[str] = None, publication_types: list[str] = None,
                   min_citations: int = 0, open_access_only: bool = False, **kwargs) -> list[dict]:
     """Search OpenAlex works."""
     params = _params_base()
-    params["search"] = query
+    params["search"] = _strip_search_operators(query)
     params["per_page"] = min(limit, 100)
     params["select"] = OA_SELECT_FIELDS
 
