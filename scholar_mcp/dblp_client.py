@@ -11,23 +11,19 @@ DBLP_MAX_HITS = 100
 def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
     """Search DBLP for computer science papers.
 
-    DBLP returns intermittent 500s under load. Those are tolerated with an
-    empty result because the source is a low-priority supplement, but the
-    response is still checked so a persistent outage is not mistaken for
-    a well-formed empty answer.
+    DBLP rate-limits aggressively, returning 429 or 503 rather than throttling.
+    Those are raised so sources._timed_call records them: an empty return would
+    be indistinguishable from a query with no CS matches, which is exactly how
+    a throttled source looks like a sparse one.
     """
     params = {
         "q": query,
         "h": min(limit, DBLP_MAX_HITS),
         "format": "json",
     }
-    try:
-        r = httpx.get(BASE_URL, params=params, timeout=10)
-        if r.status_code != 200:
-            return []
-        data = r.json()
-    except Exception:
-        return []
+    r = httpx.get(BASE_URL, params=params, timeout=10)
+    r.raise_for_status()
+    data = r.json()
 
     papers = []
     hits = data.get("result", {}).get("hits", {}).get("hit", [])

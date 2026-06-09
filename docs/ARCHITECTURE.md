@@ -122,11 +122,12 @@ Clients raise on HTTP errors. `sources._timed_call` catches them and records
 status and message on the `SourceResult`, so a broken source shows up in the
 per-source report instead of silently returning nothing.
 
-Two clients deliberately swallow errors, DBLP and Google Scholar, because
-both fail intermittently by nature and both are low-priority supplements.
-Everywhere else, catching and returning `[]` is a bug: it makes an outage
-indistinguishable from a genuine empty result, which is how a completely
-broken Scopus client went unnoticed for two months.
+Catching an exception and returning `[]` inside a client is a bug. It makes
+an outage indistinguishable from a genuine empty result, which is how a
+completely broken Scopus client went unnoticed for two months, and how DBLP
+throttling read as sparse CS coverage. Sources that fail intermittently are
+not an exception to this: intermittent failure is precisely what needs to be
+visible in the report.
 
 ## Rate limits
 

@@ -17,6 +17,10 @@ USER_AGENTS = [
 ]
 
 
+class BlockedError(RuntimeError):
+    """Google served its anti-scraping interstitial instead of results."""
+
+
 def _extract_year(text: str) -> Optional[int]:
     for word in text.split():
         if word.isdigit() and 1900 <= int(word) <= datetime.now().year:
@@ -87,12 +91,21 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
         time.sleep(random.uniform(1.5, 3.0))
 
         params = {"q": query, "start": start, "hl": "en", "as_sdt": "0,5"}
-        try:
-            response = httpx.get(SCHOLAR_URL, params=params, headers=headers, timeout=15)
-            if response.status_code != 200:
-                break
-        except httpx.HTTPError:
-            break
+        response = httpx.get(SCHOLAR_URL, params=params, headers=headers, timeout=15)
+
+        # Google redirects scraped requests to a /sorry interstitial rather
+        # than returning an error, so a bare status check reads it as a normal
+        # empty page. Surface it: being blocked is not the same as no matches.
+        if response.status_code in (301, 302) or "/sorry/" in str(response.url):
+            raise BlockedError(
+                "Google Scholar is blocking this client (redirected to the "
+                "anti-scraping interstitial)"
+            )
+        if response.status_code != 200:
+            raise httpx.HTTPStatusError(
+                f"Google Scholar returned {response.status_code}",
+                request=response.request, response=response,
+            )
 
         soup = BeautifulSoup(response.text, "html.parser")
         results = soup.find_all("div", class_="gs_ri")

@@ -1,7 +1,3 @@
-import pytest
-
-pytestmark = pytest.mark.skip(reason="requires live API access")
-
 """Tests for new source clients: Europe PMC, DBLP, INSPIRE-HEP."""
 
 import pytest
@@ -48,10 +44,51 @@ class TestINSPIRE:
 
 
 class TestDBLP:
-    def test_graceful_on_error(self):
+    def test_returns_list_for_query_with_no_matches(self):
+        """A query with genuinely no CS matches returns an empty list. HTTP
+        failures are a separate case and must raise, see test_propagates_errors.
+        """
         from scholar_mcp import dblp_client
         results = dblp_client.search_papers("nonexistent_query_xyz_12345", limit=1)
         assert isinstance(results, list)
+
+    def test_propagates_errors(self, monkeypatch):
+        """DBLP throttles with 429/503 rather than slowing down. Returning []
+        would make throttling look like sparse CS coverage.
+        """
+        import httpx
+        from scholar_mcp import dblp_client
+
+        class FakeResponse:
+            status_code = 503
+
+            def raise_for_status(self):
+                raise httpx.HTTPStatusError("503", request=None, response=None)
+
+        monkeypatch.setattr(dblp_client.httpx, "get", lambda *a, **kw: FakeResponse())
+        with pytest.raises(httpx.HTTPStatusError):
+            dblp_client.search_papers("anything", limit=10)
+
+
+class TestGoogleScholarBlocking:
+    def test_redirect_to_sorry_page_raises(self, monkeypatch):
+        """Google answers scraped requests with a 302 to /sorry/ rather than an
+        error status, so a bare status check reads it as an ordinary empty
+        page and the source silently reports 'no results' while blocked.
+        """
+        from scholar_mcp import scholar_client
+
+        class FakeResponse:
+            status_code = 302
+            url = "https://www.google.com/sorry/index?continue=..."
+            text = ""
+            request = None
+
+        monkeypatch.setattr(scholar_client.httpx, "get", lambda *a, **kw: FakeResponse())
+        monkeypatch.setattr(scholar_client.time, "sleep", lambda *_: None)
+
+        with pytest.raises(scholar_client.BlockedError):
+            scholar_client.search_papers("anything", max_results=5)
 
 
 class TestScopusPaging:
