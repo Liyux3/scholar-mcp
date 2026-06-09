@@ -9,7 +9,20 @@ from . import config
 from .relevance import extract_keywords
 
 SCOPUS_SEARCH_URL = "https://api.elsevier.com/content/search/scopus"
-SCOPUS_MAX_TERMS = 5
+
+# TITLE-ABS-KEY treats a bare term list as AND, so every added word shrinks
+# the candidate set rather than refining its ranking. Scopus therefore wants a
+# much shorter query than the other keyword sources, which weight terms and
+# tolerate length. Sweeping this value over 20 LitSearch queries:
+#
+#   terms:  1   2   3   4   5
+#   hits:   2   3   3   1   0
+#
+# 5, the previous value, retrieved nothing at all. The mechanism is visible on
+# a single query ("knowledge distillation techniques compress scale"): at 5
+# terms Scopus matches 20 documents total, at 3 it matches 719, at 2 it
+# matches 19,916 and the ground-truth paper appears in the top 25.
+SCOPUS_MAX_TERMS = 2
 
 # Elsevier caps `count` per service level. Free developer keys allow 25; asking
 # for more returns HTTP 400 INVALID_INPUT rather than clamping, so exceeding it
