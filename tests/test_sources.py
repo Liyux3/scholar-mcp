@@ -161,3 +161,52 @@ class TestRegisteredDefaults:
     def test_semantic_property_tracks_query_style(self):
         assert sources.get("openalex_semantic").semantic is True
         assert sources.get("openalex").semantic is False
+
+
+class TestFanOutBudget:
+    """One slow source used to set the latency for all of them: a source
+    taking 12s while the rest finished in 3s made every search take 12s.
+    """
+
+    def test_slow_source_does_not_block_fast_ones(self, isolated_registry):
+        import time
+
+        def slow(q, limit, **kw):
+            time.sleep(5)
+            return [{"title": "late"}]
+
+        sources.register(sources.Source(name="slow", search=slow))
+        sources.register(sources.Source(name="fast", search=lambda q, l, **kw: [{"title": "quick"}]))
+
+        t0 = time.monotonic()
+        results = sources.parallel_search("q", budget_s=0.5)
+        elapsed = time.monotonic() - t0
+
+        assert elapsed < 2.0, f"fan-out waited {elapsed:.1f}s for the slow source"
+        by_name = {r.source: r for r in results}
+        assert by_name["fast"].status == "ok"
+        assert by_name["slow"].status == "timeout"
+
+    def test_every_source_is_reported_even_when_timed_out(self, isolated_registry):
+        """Callers reconcile per-source reports against the registry, so a
+        dropped source must appear as timed out rather than vanish.
+        """
+        import time
+
+        sources.register(sources.Source(name="a", search=lambda q, l, **kw: [{"title": "x"}]))
+        sources.register(sources.Source(name="b", search=lambda q, l, **kw: (time.sleep(5), [])[1]))
+
+        reported = {r.source for r in sources.parallel_search("q", budget_s=0.5)}
+        assert reported == {"a", "b"}
+
+    def test_budget_defaults_from_config(self, isolated_registry, monkeypatch):
+        from scholar_mcp import config
+        monkeypatch.setattr(config, "SOURCE_BUDGET_S", 0.3)
+
+        import time
+        sources.register(sources.Source(name="slow", search=lambda q, l, **kw: (time.sleep(5), [])[1]))
+
+        t0 = time.monotonic()
+        results = sources.parallel_search("q")
+        assert time.monotonic() - t0 < 2.0
+        assert results[0].status == "timeout"

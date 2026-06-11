@@ -96,10 +96,21 @@ def _timed_call(source_name: str, fn: Callable, *args, **kwargs) -> SourceResult
         return SourceResult(source_name, status, [], ms, f"{type(e).__name__}: {e}")
 
 
-def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_query: str = "", **kwargs) -> list[SourceResult]:
+def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_query: str = "",
+                    budget_s: float | None = None, **kwargs) -> list[SourceResult]:
+    """Query every available source concurrently and collect their results.
+
+    budget_s caps how long the whole fan-out may take. Sources that have not
+    answered by then are reported as timed out and their results discarded.
+    Without a budget the slowest source sets the latency for all of them: one
+    source taking 12s while the rest finish in 3s makes every search 12s.
+    """
     sources = search_sources()
     if not sources:
         return []
+
+    if budget_s is None:
+        budget_s = config.SOURCE_BUDGET_S
 
     def _pick_query(s):
         if s.query_style == QUERY_RAW:
@@ -109,13 +120,28 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
         return query
 
     results = []
-    with ThreadPoolExecutor(max_workers=min(len(sources), 12)) as pool:
+    # Not a context manager: on timeout we must return without waiting for
+    # stragglers, and ThreadPoolExecutor.__exit__ joins every worker. The
+    # abandoned threads finish into nothing and are reclaimed normally.
+    pool = ThreadPoolExecutor(max_workers=min(len(sources), 12))
+    try:
         futures = {
             pool.submit(_timed_call, s.name, s.search, _pick_query(s), limit, **kwargs): s.name
             for s in sources
         }
-        for future in as_completed(futures):
+        for future in as_completed(futures, timeout=budget_s):
             results.append(future.result())
+    except TimeoutError:
+        elapsed_ms = int(budget_s * 1000)
+        answered = {r.source for r in results}
+        for name in futures.values():
+            if name not in answered:
+                results.append(SourceResult(
+                    name, "timeout", [], elapsed_ms,
+                    f"exceeded {budget_s:.0f}s fan-out budget",
+                ))
+    finally:
+        pool.shutdown(wait=False)
     return results
 
 
