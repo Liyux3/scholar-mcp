@@ -48,3 +48,10 @@ include = ["scholar_mcp*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Integration tests call live APIs: slow, rate-limited, and prone to failing
+# for reasons unrelated to the code. Excluded by default so `pytest` stays a
+# usable feedback loop; run them with `pytest -m integration`.
+addopts = "-m 'not integration'"
+markers = [
+    "integration: hits live external APIs, needs network and often API keys",
+]

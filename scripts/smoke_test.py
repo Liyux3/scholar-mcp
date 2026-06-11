@@ -1,11 +1,7 @@
-import pytest
-
-pytestmark = pytest.mark.skip(reason="requires running MCP server")
-
 """Quick smoke test for scholar-mcp server.
 
 Run after installing or updating to verify all tools work.
-Usage: S2_API_KEY=... uv run python tests/smoke_test.py
+Usage: S2_API_KEY=... uv run python scripts/smoke_test.py
 """
 
 import json

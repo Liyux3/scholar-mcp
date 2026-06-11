@@ -1,10 +1,12 @@
 """Tests for PDF download and extraction utilities."""
 
+import pytest
 import os
 import tempfile
 from scholar_mcp import pdf_utils
 
 
+@pytest.mark.integration
 def test_download_from_arxiv():
     paper_info = {
         "paper_id": "1706.03762",
@@ -31,6 +33,7 @@ def test_download_nonexistent_paper():
         assert result["success"] is False
 
 
+@pytest.mark.integration
 def test_extract_text():
     """Download a known paper and extract text."""
     paper_info = {

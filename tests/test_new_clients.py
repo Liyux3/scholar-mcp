@@ -3,6 +3,7 @@
 import pytest
 
 
+@pytest.mark.integration
 class TestEuropePMC:
     def test_search_returns_results(self):
         from scholar_mcp import europepmc_client
@@ -27,6 +28,7 @@ class TestEuropePMC:
             assert isinstance(p.get("year"), (int, type(None)))
 
 
+@pytest.mark.integration
 class TestINSPIRE:
     def test_search_returns_results(self):
         from scholar_mcp import inspirehep_client
@@ -44,6 +46,7 @@ class TestINSPIRE:
 
 
 class TestDBLP:
+    @pytest.mark.integration
     def test_returns_list_for_query_with_no_matches(self):
         """A query with genuinely no CS matches returns an empty list. HTTP
         failures are a separate case and must raise, see test_propagates_errors.

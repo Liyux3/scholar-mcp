@@ -1,94 +1,128 @@
-"""Tests for search_papers in server.py (v0.7 pipeline)."""
+"""Tests for the multi-source merge search_papers in server.py."""
 
-import yaml
-from scholar_mcp import server, sources
+import pytest
+import json
+import httpx
 
-
-class FakeSourceResult:
-    def __init__(self, source, status, results, latency_ms=100, error=None):
-        self.source = source
-        self.status = status
-        self.results = results
-        self.latency_ms = latency_ms
-        self.error = error
+from scholar_mcp import server, s2_client, arxiv_client, openalex_client, core_client
 
 
-def _paper(title, doi=None, source="s2", cites=0, year=2024):
-    return {
-        "paper_id": doi or title.lower().replace(" ", "_"),
-        "title": title,
-        "authors": [],
-        "abstract": f"Abstract for {title}",
-        "year": year,
-        "venue": "arXiv",
-        "citation_count": cites,
-        "influential_citations": 0,
-        "is_open_access": True,
-        "open_access_url": "",
-        "fields_of_study": ["Computer Science"],
-        "publication_date": f"{year}-01-01",
-        "tldr": None,
-        "external_ids": {"DOI": doi} if doi else {},
-        "url": "",
-        "source": source,
-    }
+def _response(status_code, payload, url):
+    return httpx.Response(status_code, json=payload, request=httpx.Request("GET", url))
 
 
-def test_search_merges_sources(monkeypatch):
-    def fake_parallel_search(query, limit=50, **kwargs):
-        return [
-            FakeSourceResult("semantic_scholar", "ok", [_paper("Hybrid Attention Model", doi="10.1/a", source="s2", cites=100)]),
-            FakeSourceResult("arxiv", "ok", [_paper("Samba: Hybrid State Space", doi="10.1/b", source="arxiv")]),
-            FakeSourceResult("openalex", "ok", []),
-        ]
-    monkeypatch.setattr(sources, "parallel_search", fake_parallel_search)
-    monkeypatch.setattr(server.relevance, "rerank", lambda q, papers, top_n=50, intent="": papers)
+@pytest.mark.integration
+def test_search_merges_s2_and_arxiv(monkeypatch):
+    """When S2, arXiv, and OpenAlex return results, they should be merged and deduped."""
+    def fake_s2_get(url, params=None, headers=None, timeout=None):
+        return _response(200, {
+            "data": [{
+                "paperId": "s2_1", "title": "Hybrid Attention Model",
+                "abstract": "Transformer with linear attention",
+                "citationCount": 100, "year": 2025, "venue": "NeurIPS",
+                "fieldsOfStudy": ["Computer Science"],
+            }]
+        }, url)
 
-    result = yaml.safe_load(server.search_papers("hybrid attention transformer"))
+    monkeypatch.setattr(s2_client.httpx, "get", fake_s2_get)
+
+    def fake_arxiv(query, max_results=10):
+        return [{
+            "paper_id": "2406.07522", "title": "Samba: Hybrid State Space Model",
+            "authors": ["Author A"], "abstract": "Mamba with sliding window attention",
+            "year": 2024, "venue": "arXiv", "citation_count": 0,
+            "influential_citations": 0, "is_open_access": True,
+            "open_access_url": "https://arxiv.org/pdf/2406.07522.pdf",
+            "fields_of_study": ["cs.CL"], "publication_date": "2024-06-11",
+            "tldr": None, "external_ids": {"ArXiv": "2406.07522"},
+            "url": "https://arxiv.org/abs/2406.07522", "source": "arxiv",
+        }]
+
+    monkeypatch.setattr(arxiv_client, "search_papers", fake_arxiv)
+    monkeypatch.setattr(openalex_client, "search_papers", lambda q, **kw: [])
+
+    result = json.loads(server.search_papers("hybrid attention transformer"))
     assert "_meta" in result
     assert "semantic_scholar" in result["_meta"]["sources_used"]
     assert "arxiv" in result["_meta"]["sources_used"]
     assert len(result["results"]) == 2
 
 
+@pytest.mark.integration
 def test_search_falls_back_when_primary_empty(monkeypatch):
-    def fake_parallel_search(query, limit=50, **kwargs):
-        return [
-            FakeSourceResult("semantic_scholar", "error", [], error="rate limited"),
-            FakeSourceResult("arxiv", "empty", []),
-            FakeSourceResult("crossref", "ok", [_paper("Transformer Paper", doi="10.1/c", source="crossref", cites=50)]),
-        ]
-    monkeypatch.setattr(sources, "parallel_search", fake_parallel_search)
-    monkeypatch.setattr(server.relevance, "rerank", lambda q, papers, top_n=50, intent="": papers)
+    """When all primary sources fail, should fall back to Crossref/CORE etc."""
+    def fail_s2(*args, **kwargs):
+        raise Exception("S2 rate limited")
 
-    result = yaml.safe_load(server.search_papers("transformer attention"))
+    monkeypatch.setattr(s2_client, "search_papers", fail_s2)
+    monkeypatch.setattr(arxiv_client, "search_papers", lambda q, max_results=10: [])
+    monkeypatch.setattr(openalex_client, "search_papers", lambda q, **kw: [])
+
+    from scholar_mcp import crossref_client
+    def fake_crossref(q, limit=10):
+        return [{
+            "paper_id": "cr_test", "title": "Transformer Architecture Paper",
+            "authors": [], "abstract": "Attention mechanism in transformer models",
+            "year": 2024, "venue": "Nature", "citation_count": 50,
+            "influential_citations": 0, "is_open_access": False,
+            "open_access_url": None, "fields_of_study": [],
+            "publication_date": "2024-01-01", "tldr": None,
+            "external_ids": {"DOI": "10.1234/test"}, "url": "", "source": "crossref",
+        }]
+
+    monkeypatch.setattr(crossref_client, "search_papers", fake_crossref)
+
+    result = json.loads(server.search_papers("transformer attention"))
     assert "crossref" in result["_meta"]["sources_used"]
+    assert "semantic_scholar" in result["_meta"]["sources_failed"][0]
 
 
-def test_search_returns_error_on_no_results(monkeypatch):
-    def fake_parallel_search(query, limit=50, **kwargs):
-        return [
-            FakeSourceResult("semantic_scholar", "error", [], error="down"),
-            FakeSourceResult("arxiv", "empty", []),
-            FakeSourceResult("openalex", "empty", []),
-        ]
-    monkeypatch.setattr(sources, "parallel_search", fake_parallel_search)
+@pytest.mark.integration
+def test_search_returns_meta_on_no_results(monkeypatch):
+    """When nothing matches, return error with meta info."""
+    def fail_s2(*a, **kw):
+        raise Exception("down")
+    monkeypatch.setattr(s2_client, "search_papers", fail_s2)
+    monkeypatch.setattr(arxiv_client, "search_papers", lambda q, max_results=10: [])
+    monkeypatch.setattr(openalex_client, "search_papers", lambda q, **kw: [])
+    monkeypatch.setattr(core_client, "search_papers", lambda q, limit=10: [])
 
-    result = yaml.safe_load(server.search_papers("xyznonexistent"))
+    from scholar_mcp import crossref_client, pubmed_client, scholar_client as gscholar
+    monkeypatch.setattr(crossref_client, "search_papers", lambda q, limit=10: [])
+    monkeypatch.setattr(pubmed_client, "search_papers", lambda q, max_results=10: [])
+    monkeypatch.setattr(gscholar, "search_papers", lambda q, max_results=10: [])
+
+    result = json.loads(server.search_papers("xyznonexistent"))
     assert "error" in result
     assert "_meta" in result
+    assert len(result["_meta"]["sources_failed"]) >= 1
 
 
+@pytest.mark.integration
 def test_search_deduplicates(monkeypatch):
-    same_doi = "10.5555/test"
-    def fake_parallel_search(query, limit=50, **kwargs):
-        return [
-            FakeSourceResult("semantic_scholar", "ok", [_paper("Attention Is All You Need", doi=same_doi, source="s2", cites=1000, year=2017)]),
-            FakeSourceResult("arxiv", "ok", [_paper("Attention Is All You Need", doi=same_doi, source="arxiv", year=2017)]),
-            FakeSourceResult("openalex", "ok", []),
-        ]
-    monkeypatch.setattr(sources, "parallel_search", fake_parallel_search)
-    monkeypatch.setattr(server.relevance, "rerank", lambda q, papers, top_n=50, intent="": papers)
+    """Same paper from S2 and arXiv should be deduped."""
+    def fake_s2_get(url, params=None, headers=None, timeout=None):
+        return _response(200, {
+            "data": [{
+                "paperId": "abc", "title": "Attention Is All You Need",
+                "abstract": "Transformer architecture",
+                "externalIds": {"DOI": "10.5555/test"},
+                "citationCount": 1000, "year": 2017, "venue": "NeurIPS",
+            }]
+        }, url)
 
-    result = yaml.safe_load(server.search_papers("attention is all you need"))
+    monkeypatch.setattr(s2_client.httpx, "get", fake_s2_get)
+    monkeypatch.setattr(arxiv_client, "search_papers", lambda q, max_results=10: [{
+        "paper_id": "1706.03762", "title": "Attention Is All You Need",
+        "authors": [], "abstract": "Transformer architecture",
+        "year": 2017, "venue": "arXiv", "citation_count": 0,
+        "influential_citations": 0, "is_open_access": True,
+        "open_access_url": "", "fields_of_study": [],
+        "publication_date": "2017-06-12", "tldr": None,
+        "external_ids": {"DOI": "10.5555/test"}, "url": "", "source": "arxiv",
+    }])
+    monkeypatch.setattr(openalex_client, "search_papers", lambda q, **kw: [])
+
+    result = json.loads(server.search_papers("attention is all you need"))
+    assert result["_meta"]["total_before_filter"] >= 2
     assert len(result["results"]) == 1

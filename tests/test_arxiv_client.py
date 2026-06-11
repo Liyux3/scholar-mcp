@@ -1,12 +1,10 @@
-import pytest
-
-pytestmark = pytest.mark.skip(reason="requires live API access")
-
 """Tests for arXiv fallback client."""
 
+import pytest
 from scholar_mcp import arxiv_client
 
 
+@pytest.mark.integration
 def test_search_papers():
     results = arxiv_client.search_papers("transformer", max_results=3)
     assert len(results) > 0
