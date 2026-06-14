@@ -229,13 +229,24 @@ class TestRankFinal:
         assert ranked[0]["title"] == "relevant but uncited"
 
     def test_extreme_citations_do_overturn_rerank(self):
-        """Documents a known weakness rather than asserting desired behaviour.
+        """The boost is unbounded: at 100k citations alpha=0.05 yields +58%,
+        which flips a 0.9-vs-0.6 rerank gap.
 
-        The boost is logarithmic but unbounded: at 100k citations alpha=0.05
-        yields +58%, which flips a 0.9-vs-0.6 rerank gap. This is the
-        mechanism behind the ITER1-ONLY rank collapse seen in the v4
-        expansion analysis, where highly cited expansion papers displaced
-        low-citation ground truth. Capping the factor is open work.
+        This looks like a bug and was investigated as one. Capping it makes
+        retrieval worse. Re-ranking the cached LitSearch results offline
+        (eval/citation_boost_sweep.py) gives, on the expansion cache:
+
+            unbounded (current)   R@5 0.620   R@10 0.680   R@20 0.700
+            clamped at 0.25       R@5 0.580   R@10 0.640   R@20 0.700
+            saturating            R@5 0.520   R@10 0.580   R@20 0.660
+            no citation term      R@5 0.400   R@10 0.500   R@20 0.580
+
+        The reason is that ground-truth papers are far more cited than the
+        pool they are drawn from, 20x the median on the pre-expansion cache.
+        LitSearch ground truth is work that papers actually cite, so citation
+        count is a strong positive signal on this benchmark and suppressing
+        its tail discards information. Keep the term uncapped unless a
+        benchmark with different ground-truth characteristics says otherwise.
         """
         ranked = relevance.rank_final([
             _paper("relevant but uncited", rerank=0.9, cites=0),
