@@ -4,12 +4,16 @@ import httpx
 
 BASE_URL = "https://inspirehep.net/api/literature"
 
+# INSPIRE serves at least 200 per request; 100 matches the pipeline's fetch
+# limit. The previous cap of 25 was self-imposed.
+INSPIRE_MAX_SIZE = 100
 
-def search_papers(query: str, limit: int = 10) -> list[dict]:
+
+def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
     """Search INSPIRE-HEP for high-energy physics papers."""
     params = {
         "q": query,
-        "size": min(limit, 25),
+        "size": min(limit, INSPIRE_MAX_SIZE),
         "sort": "mostcited",
         "fields": "titles,authors,abstracts,dois,arxiv_eprints,publication_info,citation_count",
     }
