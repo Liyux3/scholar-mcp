@@ -129,6 +129,26 @@ throttling read as sparse CS coverage. Sources that fail intermittently are
 not an exception to this: intermittent failure is precisely what needs to be
 visible in the report.
 
+## Latency
+
+`parallel_search` enforces a wall-clock budget (`SOURCE_BUDGET_S`, default 8s,
+env `SCHOLAR_SOURCE_BUDGET_S`). Sources still running when it expires are
+reported as timed out and dropped. Without it the slowest source sets the
+latency for all thirteen.
+
+The dominant cost is the reranker, and it depends heavily on which one runs.
+DashScope handles 300 documents in about 1.8s; the FlashRank fallback takes
+12-17s for 100-300 documents, and the pipeline reranks twice per search
+(before and after expansion). A search is roughly 15s on DashScope and 45-50s
+on FlashRank, so an unavailable DashScope key is a latency problem as much as
+a quality one.
+
+Expansion issues most of the HTTP traffic: about 67 of the ~80 requests per
+search, of which `title_search` alone is 39 (a full fan-out for each of the
+top three papers). At that volume several APIs start returning 429. Reducing
+it is open work and needs recall measurements first, since the channels
+overlap.
+
 ## Rate limits
 
 | API | Limit |
