@@ -385,8 +385,9 @@ def _pre_rank_cap(papers: list[dict], cap: int) -> list[dict]:
     return ranked[:cap]
 
 def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") -> list[dict]:
-    """Rerank papers. Pre-ranks with metadata formula if pool too large.
-    DashScope up to 500 docs, FlashRank fallback caps at 150."""
+    """Rerank papers. Pre-ranks with the metadata formula if the pool exceeds
+    what the reranker accepts. DashScope takes up to 500 docs, FlashRank 150.
+    """
     if not papers:
         return papers
     if len(papers) > DASHSCOPE_CAP:
@@ -394,9 +395,10 @@ def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") ->
     result = _rerank_dashscope(query, papers, top_n, intent=intent)
     if result is not None:
         return result
-    if len(papers) > FLASHRANK_CAP:
-        papers = papers[:FLASHRANK_CAP]
-    return _rerank_flashrank(query, papers, top_n)
+    # Cap by metadata rank, not by list position. Papers arrive concatenated
+    # in source order, so slicing would discard candidates arbitrarily rather
+    # than keeping the most promising ones.
+    return _rerank_flashrank(query, _pre_rank_cap(papers, FLASHRANK_CAP), top_n)
 
 
 def rank_final(papers: list[dict]) -> list[dict]:

@@ -334,3 +334,57 @@ def test_merge_preserves_source_ranks():
     ranks = deduped[0].get("_source_ranks", {})
     assert "s2" in ranks and "openalex" in ranks
     assert ranks["s2"] == 0 and ranks["openalex"] == 3
+
+
+class TestRerankCapping:
+    """Papers reach rerank concatenated in source order, so capping by list
+    position discards candidates arbitrarily. The DashScope path always
+    pre-ranked by metadata; the FlashRank fallback used to slice.
+    """
+
+    def _pool(self, n=200, n_good=40):
+        """Good papers deliberately placed last, as a low-priority source
+        appended to the end of the pool would be.
+        """
+        papers = []
+        for i in range(n):
+            good = i >= n - n_good
+            papers.append({
+                "title": f"{'good' if good else 'filler'}-{i}",
+                "_rerank_score": 0.0,
+                "citation_count": 5000 if good else 0,
+                "year": 2024 if good else 2005,
+                "_source_ranks": {"a": 0, "b": 1, "c": 2} if good else {"z": 99},
+                "_source_count": 3 if good else 1,
+            })
+        return papers
+
+    def test_pre_rank_cap_keeps_promising_papers(self):
+        capped = relevance._pre_rank_cap(self._pool(), 150)
+        kept = sum(1 for p in capped if p["title"].startswith("good"))
+        assert len(capped) == 150
+        assert kept == 40, f"metadata capping dropped {40 - kept} strong candidates"
+
+    def test_pre_rank_cap_is_a_noop_below_the_cap(self):
+        pool = self._pool(n=10, n_good=2)
+        assert len(relevance._pre_rank_cap(pool, 150)) == 10
+
+    def test_flashrank_fallback_caps_by_rank_not_position(self, monkeypatch):
+        """Regression guard: with DashScope unavailable, the papers handed to
+        FlashRank must be the metadata-best ones, not the first 150.
+        """
+        monkeypatch.setattr(relevance, "_rerank_dashscope",
+                            lambda *a, **kw: None)
+        seen = {}
+
+        def fake_flashrank(query, papers, top_n):
+            seen["papers"] = papers
+            return papers[:top_n]
+
+        monkeypatch.setattr(relevance, "_rerank_flashrank", fake_flashrank)
+        relevance.rerank("q", self._pool(), top_n=20)
+
+        handed = seen["papers"]
+        assert len(handed) == relevance.FLASHRANK_CAP
+        kept = sum(1 for p in handed if p["title"].startswith("good"))
+        assert kept == 40, f"only {kept}/40 strong candidates survived the cap"
