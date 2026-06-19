@@ -560,11 +560,28 @@ def discover_field(topic: str, max_papers: int = 30) -> str:
 
 
 @mcp.tool()
-def scholar_status() -> str:
-    """Check scholar-mcp server version, available sources, and KB collections."""
+def scholar_status(check_reranker: bool = False) -> str:
+    """Check scholar-mcp server version, available sources, and KB collections.
+
+    Args:
+        check_reranker: probe the DashScope API instead of only checking that a
+            key is configured. Costs one request but catches an expired or
+            unfunded account, which otherwise shows up as slow, lower-quality
+            results with no other signal.
+    """
     available = [s.name for s in sources.search_sources()]
     cite_sources = [s.name for s in sources.citation_sources()]
     colls = kb.list_collections()
+
+    if config.DASHSCOPE_API_KEY:
+        reranker = "configured (not probed)"
+        if check_reranker:
+            probe = relevance._rerank_dashscope(
+                "test", [{"title": "test paper", "abstract": ""}], top_n=1)
+            reranker = "ok" if probe is not None else "unavailable, falling back to FlashRank"
+    else:
+        reranker = "no key, using FlashRank"
+
     return _yaml({
         "version": "0.7.0",
         "tools": 10,
@@ -572,7 +589,7 @@ def scholar_status() -> str:
         "citation_sources": cite_sources,
         "kb_collections": [{"name": c["name"], "papers": c["papers"]} for c in colls],
         "s2_key": bool(config.get_s2_api_key()),
-        "dashscope_key": bool(config.DASHSCOPE_API_KEY),
+        "reranker": reranker,
         "cache_enabled": True,
     })
 
