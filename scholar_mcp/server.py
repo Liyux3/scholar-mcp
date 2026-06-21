@@ -1,3 +1,4 @@
+import re
 import json
 import yaml
 from fastmcp import FastMCP
@@ -233,9 +234,47 @@ def _yaml(data: dict) -> str:
     return yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
 
+ERROR_MAX_CHARS = 160
+
+
+def _clean_error(message: str) -> str:
+    """Trim an exception message for display.
+
+    httpx embeds the full request URL, which for several sources carries the
+    API key as a query parameter. That must not reach the caller's context or
+    any log. The status line is the useful part; the URL is not.
+    """
+    if not message:
+        return message
+    message = re.sub(r"https?://\S+", "<url>", message)
+    message = " ".join(message.split())
+    if len(message) > ERROR_MAX_CHARS:
+        message = message[:ERROR_MAX_CHARS].rstrip() + "..."
+    return message
+
+
 def _meta_block(source_reports: list[dict], **extra) -> dict:
-    used = [r["source"] for r in source_reports if r["status"] == "ok"]
-    return {"sources_used": used, "source_details": source_reports, **extra}
+    """Summarise which sources answered, expanding only the ones that did not.
+
+    Listing all 13 in full costs ~60 lines of the caller's context per search,
+    almost all of it `error: null`. Healthy sources are reduced to
+    "name (count)"; anything not ok keeps its status, latency and a trimmed
+    error, since that is the case worth reading.
+    """
+    healthy = [r for r in source_reports if r["status"] == "ok"]
+    degraded = [r for r in source_reports if r["status"] != "ok"]
+
+    meta = {
+        "sources_used": [f"{r['source']} ({r['count']})" for r in
+                         sorted(healthy, key=lambda r: -r["count"])],
+    }
+    if degraded:
+        meta["sources_unavailable"] = [
+            {"source": r["source"], "status": r["status"],
+             "error": _clean_error(r.get("error") or "")}
+            for r in degraded
+        ]
+    return {**meta, **extra}
 
 
 @mcp.tool()
