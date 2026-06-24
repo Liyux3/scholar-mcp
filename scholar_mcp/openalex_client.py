@@ -25,6 +25,32 @@ def _params_base() -> dict:
     return p
 
 
+def _get(url: str, params: dict, timeout: int = 30) -> httpx.Response:
+    """GET with key rotation on 429.
+
+    OpenAlex keys carry a small daily budget and are exhausted independently.
+    get_openalex_api_key picks one at random, so a depleted key fails roughly
+    half the requests even when a healthy key is configured. On 429, retry
+    with each of the other keys before giving up.
+    """
+    response = httpx.get(url, params=params, timeout=timeout)
+    if response.status_code != 429 or not config.OPENALEX_API_KEYS:
+        response.raise_for_status()
+        return response
+
+    tried = {params.get("api_key")}
+    for key in config.OPENALEX_API_KEYS:
+        if key in tried:
+            continue
+        tried.add(key)
+        response = httpx.get(url, params={**params, "api_key": key}, timeout=timeout)
+        if response.status_code != 429:
+            break
+
+    response.raise_for_status()
+    return response
+
+
 def _reconstruct_abstract(inverted_index: dict) -> str:
     """OpenAlex stores abstracts as {word: [positions]}. Reconstruct to text."""
     words = []
@@ -145,8 +171,7 @@ def search_papers(query: str, limit: int = 10, year: str = None,
     if filters:
         params["filter"] = ",".join(filters)
 
-    r = httpx.get(BASE_URL, params=params, timeout=30)
-    r.raise_for_status()
+    r = _get(BASE_URL, params)
     data = r.json()
 
     results = []
@@ -166,8 +191,7 @@ def search_papers_semantic(query: str, limit: int = 50) -> list[dict]:
     params["per_page"] = min(limit, 50)
     params["select"] = OA_SELECT_FIELDS
 
-    r = httpx.get(BASE_URL, params=params, timeout=30)
-    r.raise_for_status()
+    r = _get(BASE_URL, params)
 
     results = []
     for work in r.json().get("results") or []:

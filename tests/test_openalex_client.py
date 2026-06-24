@@ -1,6 +1,7 @@
 """Tests for OpenAlex API client."""
 
 import httpx
+import pytest
 from scholar_mcp import openalex_client
 
 
@@ -127,3 +128,77 @@ class TestSearchOperatorStripping:
     def test_leaves_clean_queries_untouched(self):
         q = "knowledge distillation language model"
         assert openalex_client._strip_search_operators(q) == q
+
+
+class TestKeyRotationOn429:
+    """OpenAlex keys carry a small daily budget and deplete independently.
+    get_openalex_api_key picks one at random, so once a key is exhausted it
+    fails roughly half of all requests even though a healthy key is
+    configured, and OpenAlex carries the largest share of ground-truth hits.
+    """
+
+    class _Response:
+        def __init__(self, status_code):
+            self.status_code = status_code
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                import httpx
+                raise httpx.HTTPStatusError(str(self.status_code),
+                                            request=None, response=None)
+
+        def json(self):
+            return {"results": []}
+
+    def test_retries_with_another_key(self, monkeypatch):
+        from scholar_mcp import config, openalex_client
+        monkeypatch.setattr(config, "OPENALEX_API_KEYS", ["depleted", "healthy"])
+
+        seen = []
+
+        def fake_get(url, params=None, timeout=None):
+            key = params.get("api_key")
+            seen.append(key)
+            return self._Response(429 if key == "depleted" else 200)
+
+        monkeypatch.setattr(openalex_client.httpx, "get", fake_get)
+        resp = openalex_client._get("http://x", {"api_key": "depleted"})
+
+        assert resp.status_code == 200
+        assert seen == ["depleted", "healthy"]
+
+    def test_gives_up_when_all_keys_are_depleted(self, monkeypatch):
+        import httpx
+        from scholar_mcp import config, openalex_client
+        monkeypatch.setattr(config, "OPENALEX_API_KEYS", ["a", "b"])
+        monkeypatch.setattr(openalex_client.httpx, "get",
+                            lambda url, params=None, timeout=None: self._Response(429))
+
+        with pytest.raises(httpx.HTTPStatusError):
+            openalex_client._get("http://x", {"api_key": "a"})
+
+    def test_does_not_retry_non_429(self, monkeypatch):
+        """A 400 is a malformed request; trying another key would just repeat
+        it and burn budget on a request that cannot succeed.
+        """
+        import httpx
+        from scholar_mcp import config, openalex_client
+        monkeypatch.setattr(config, "OPENALEX_API_KEYS", ["a", "b"])
+
+        calls = []
+
+        def fake_get(url, params=None, timeout=None):
+            calls.append(params.get("api_key"))
+            return self._Response(400)
+
+        monkeypatch.setattr(openalex_client.httpx, "get", fake_get)
+        with pytest.raises(httpx.HTTPStatusError):
+            openalex_client._get("http://x", {"api_key": "a"})
+        assert calls == ["a"]
+
+    def test_passes_through_when_no_keys_configured(self, monkeypatch):
+        from scholar_mcp import config, openalex_client
+        monkeypatch.setattr(config, "OPENALEX_API_KEYS", [])
+        monkeypatch.setattr(openalex_client.httpx, "get",
+                            lambda url, params=None, timeout=None: self._Response(200))
+        assert openalex_client._get("http://x", {}).status_code == 200
