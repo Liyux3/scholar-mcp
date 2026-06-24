@@ -10,6 +10,10 @@ from functools import wraps
 _cache: dict[str, tuple[float, any]] = {}
 DEFAULT_TTL = 300  # 5 minutes
 
+# A cached search result holds up to 100 papers with abstracts, roughly 28 KB,
+# so the bound is about 14 MB.
+MAX_ENTRIES = 500
+
 
 def cached(ttl: int = DEFAULT_TTL):
     """Decorator that caches function results by args for ttl seconds."""
@@ -25,7 +29,7 @@ def cached(ttl: int = DEFAULT_TTL):
             result = fn(*args, **kwargs)
             if _is_cacheable(result):
                 _cache[key] = (now + ttl, result)
-            if len(_cache) > 500:
+            if len(_cache) > MAX_ENTRIES:
                 _evict()
             return result
         return wrapper
@@ -43,11 +47,22 @@ def _is_cacheable(result) -> bool:
 
 
 def _evict():
-    """Remove expired entries."""
+    """Drop expired entries, then the oldest survivors if still over budget.
+
+    Expiry alone does not bound the cache: with a 5 minute TTL, a session
+    issuing distinct queries faster than they expire grows without limit.
+    Falling back to insertion order keeps MAX_ENTRIES a real ceiling. dicts
+    preserve insertion order, and re-inserting on refresh is what makes the
+    oldest key also the least recently stored.
+    """
     now = time.time()
-    expired = [k for k, (exp, _) in _cache.items() if now >= exp]
-    for k in expired:
+    for k in [k for k, (exp, _) in _cache.items() if now >= exp]:
         del _cache[k]
+
+    overflow = len(_cache) - MAX_ENTRIES
+    if overflow > 0:
+        for k in list(_cache)[:overflow]:
+            del _cache[k]
 
 
 def clear():
