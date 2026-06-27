@@ -388,3 +388,47 @@ class TestRerankCapping:
         assert len(handed) == relevance.FLASHRANK_CAP
         kept = sum(1 for p in handed if p["title"].startswith("good"))
         assert kept == 40, f"only {kept}/40 strong candidates survived the cap"
+
+
+class TestDashScopeFailureVisibility:
+    """A silent fallback to FlashRank costs roughly 3x latency and worse
+    ranking with no other symptom. Arrearage in particular is permanent until
+    someone tops up the account, so it has to surface somewhere.
+    """
+
+    def setup_method(self):
+        relevance._dashscope_warning_shown = False
+
+    def teardown_method(self):
+        relevance._dashscope_warning_shown = False
+
+    def test_names_arrearage(self):
+        exc = Exception('{"code":"Arrearage","message":"Access denied"}')
+        assert "arrearage" in relevance._dashscope_reason(exc).lower()
+
+    def test_names_bad_key(self):
+        exc = Exception("InvalidApiKey: no such key")
+        assert "invalid api key" in relevance._dashscope_reason(exc).lower()
+
+    def test_falls_back_to_exception_type(self):
+        assert relevance._dashscope_reason(TimeoutError("slow")) == "TimeoutError"
+
+    def test_reads_response_body_when_present(self):
+        class Resp:
+            text = '{"code":"Arrearage"}'
+
+        exc = Exception("400 Bad Request")
+        exc.response = Resp()
+        assert "arrearage" in relevance._dashscope_reason(exc).lower()
+
+    def test_warns_only_once(self, capsys):
+        relevance._warn_dashscope_down("test reason")
+        relevance._warn_dashscope_down("test reason")
+        assert capsys.readouterr().err.count("scholar-mcp:") == 1
+
+    def test_warning_goes_to_stderr(self, capsys):
+        """stdout carries the MCP protocol; writing there corrupts it."""
+        relevance._warn_dashscope_down("test reason")
+        captured = capsys.readouterr()
+        assert "FlashRank" in captured.err
+        assert captured.out == ""

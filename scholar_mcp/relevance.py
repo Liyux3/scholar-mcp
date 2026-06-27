@@ -2,6 +2,7 @@
 
 import math
 import re
+import sys
 from datetime import datetime
 
 from . import config
@@ -298,6 +299,25 @@ INTENT_INSTRUCTS = {
 }
 
 
+_dashscope_warning_shown = False
+
+
+def _warn_dashscope_down(reason: str) -> None:
+    """Print once per process when the primary reranker stops working.
+
+    A silent fallback to FlashRank costs roughly 3x latency and measurably
+    worse ranking, with no other symptom. Account arrearage in particular is
+    permanent until someone acts, so it needs to be visible somewhere. stderr
+    is safe: the MCP protocol uses stdout.
+    """
+    global _dashscope_warning_shown
+    if not _dashscope_warning_shown:
+        _dashscope_warning_shown = True
+        print(f"scholar-mcp: DashScope reranker unavailable ({reason}), "
+              f"falling back to FlashRank (slower, lower quality)",
+              file=sys.stderr)
+
+
 def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = "") -> list[dict] | None:
     """Rerank via DashScope qwen3-rerank API. Returns None on failure."""
     api_key = config.DASHSCOPE_API_KEY
@@ -345,8 +365,19 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = 
             paper["_rerank_score"] = score
             reranked.append(paper)
         return reranked
-    except Exception:
+    except Exception as e:
+        _warn_dashscope_down(_dashscope_reason(e))
         return None
+
+
+def _dashscope_reason(exc: Exception) -> str:
+    """Name the failure, separating states that need action from transient ones."""
+    body = getattr(getattr(exc, "response", None), "text", "") or str(exc)
+    if "Arrearage" in body or "overdue" in body.lower():
+        return "account in arrearage, top up at model-studio"
+    if "InvalidApiKey" in body or "401" in body:
+        return "invalid API key"
+    return f"{type(exc).__name__}"
 
 
 def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
