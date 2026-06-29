@@ -210,3 +210,66 @@ class TestFanOutBudget:
         results = sources.parallel_search("q")
         assert time.monotonic() - t0 < 2.0
         assert results[0].status == "timeout"
+
+
+class TestCallersRouteQueries:
+    """parallel_search accepts raw_query and short_query as keyword arguments,
+    so a caller that omits them silently sends one string to all 13 sources.
+    Two callers did exactly that for months: discover_field, which then missed
+    the defining paper of any field it was asked about, and the title-based
+    expansion channel. Nothing fails at runtime, every source still returns
+    results, just worse ones, which is why this is checked structurally.
+    """
+
+    def _unrouted_call_sites(self):
+        import ast
+        from pathlib import Path
+
+        pkg = Path(sources.__file__).parent
+        offenders = []
+        for path in sorted(pkg.glob("*.py")):
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                fn = node.func
+                name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
+                if name != "parallel_search":
+                    continue
+                kwargs = {k.arg for k in node.keywords}
+                if "raw_query" not in kwargs:
+                    offenders.append((path.name, node.lineno))
+        return offenders
+
+    # Callers that intentionally send one string to every source, with the
+    # reason recorded at the call site.
+    EXEMPT = {
+        # A bag of frequent terms has no natural-language form, so there is no
+        # raw variant to give a semantic source.
+        ("server.py", "_expand_keyword_search"),
+    }
+
+    def test_every_caller_routes_queries(self):
+        offenders = self._unrouted_call_sites()
+        # Resolve each offender to its enclosing function so exemptions can be
+        # named rather than pinned to a line number that drifts.
+        import ast
+        from pathlib import Path
+
+        named = []
+        for filename, lineno in offenders:
+            path = Path(sources.__file__).parent / filename
+            tree = ast.parse(path.read_text())
+            enclosing = "<module>"
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if node.lineno <= lineno <= (node.end_lineno or node.lineno):
+                        enclosing = node.name
+            named.append((filename, enclosing))
+
+        unexpected = [n for n in named if n not in self.EXEMPT]
+        assert not unexpected, (
+            f"parallel_search called without raw_query at {unexpected}. Pass "
+            "raw_query and short_query, or add the caller to EXEMPT with the "
+            "reason it cannot be routed."
+        )
