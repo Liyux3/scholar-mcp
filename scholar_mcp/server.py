@@ -124,7 +124,14 @@ def _pipeline(
                 if not title:
                     return []
                 papers = []
-                for sr in sources.parallel_search(title, limit=20):
+                # A title is natural language, so semantic sources want it
+                # verbatim while keyword sources want it compressed. Passing
+                # one string gives every source the wrong form.
+                for sr in sources.parallel_search(
+                    relevance.optimize_query(title), limit=20,
+                    raw_query=title,
+                    short_query=relevance.optimize_query_short(title),
+                ):
                     papers.extend(sr.results)
                 return papers
 
@@ -148,6 +155,9 @@ def _pipeline(
                 if not top_terms:
                     return []
                 papers = []
+                # Deliberately unrouted. This query is a bag of frequent terms
+                # with no natural-language form, so there is no raw variant to
+                # give semantic sources; they get the same keyword string.
                 for sr in sources.parallel_search(" ".join(top_terms), limit=50):
                     papers.extend(sr.results)
                 return papers
