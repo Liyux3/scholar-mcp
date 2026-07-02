@@ -229,9 +229,15 @@ REC_FIELDS = ",".join([
 
 
 def get_recommendations(paper_id: str, limit: int = 10, pool_from: str = ""):
+    """Papers similar to the seed, via SPECTER2 embeddings.
+
+    `from` selects the candidate pool: "all-cs" spans computer science across
+    all time, "recent" only the last 60 days. Those are the only two values
+    the API accepts, and "recent" returns nothing for any older seed.
+    """
     pool = pool_from or config.S2_RECOMMEND_POOL
     data = _get(
-        f"{REC_URL}/papers/forpaper/{paper_id}",
+        f"{REC_URL}/papers/forpaper/{_normalize_s2_id(paper_id)}",
         params={"fields": REC_FIELDS, "limit": min(limit, 500), "from": pool},
     )
     return [format_paper(p) for p in data.get("recommendedPapers", [])]

@@ -21,7 +21,12 @@ S2_TIMEOUT: int = int(os.environ.get("S2_TIMEOUT", "30"))
 SOURCE_BUDGET_S: float = float(os.environ.get("SCHOLAR_SOURCE_BUDGET_S", "8"))
 SCIHUB_ENABLED: bool = os.environ.get("SCIHUB_ENABLED", "").lower() in ("1", "true", "yes")
 RANK_PARAMS_PATH: str = os.path.expanduser("~/.scholar-mcp/rank_params.json")
-S2_RECOMMEND_POOL: str = os.environ.get("S2_RECOMMEND_POOL", "recent")
+# S2 recommendation candidate pool. "recent" restricts to papers from the last
+# 60 days, which returns nothing for any seed older than that: a 2017 paper
+# gets 0 recommendations. "all-cs" covers computer science across all time and
+# is the right default for a literature tool. Non-CS users can set "recent",
+# the only other value the API accepts.
+S2_RECOMMEND_POOL: str = os.environ.get("S2_RECOMMEND_POOL", "all-cs")
 
 
 def get_s2_api_key() -> str | None:

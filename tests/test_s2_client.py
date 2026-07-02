@@ -253,3 +253,46 @@ def test_format_paper_handles_missing_fields():
     assert result["authors"] == []
     assert result["citation_count"] == 0
     assert result["open_access_url"] is None
+
+
+class TestRecommendations:
+    """recommend_papers returned nothing for any paper older than 60 days,
+    which is nearly every paper worth asking about.
+    """
+
+    def test_normalizes_bare_arxiv_id(self, monkeypatch):
+        """The recommendations endpoint interpolated paper_id directly,
+        skipping the normalizer every other S2 call uses, so a bare arXiv id
+        404'd.
+        """
+        seen = {}
+
+        def fake_get(url, params=None):
+            seen["url"] = url
+            return {"recommendedPapers": []}
+
+        monkeypatch.setattr(s2_client, "_get", fake_get)
+        s2_client.get_recommendations("1706.03762")
+        assert "ArXiv:1706.03762" in seen["url"]
+
+    def test_leaves_prefixed_ids_alone(self, monkeypatch):
+        seen = {}
+        monkeypatch.setattr(s2_client, "_get",
+                            lambda url, params=None: seen.update(url=url) or {})
+        s2_client.get_recommendations("DOI:10.1234/abc")
+        assert "DOI:10.1234/abc" in seen["url"]
+
+    def test_default_pool_is_not_recent(self):
+        """'recent' limits candidates to the last 60 days, so a 2017 seed gets
+        zero recommendations. Measured: pool=recent returns 0 for Attention Is
+        All You Need, pool=all-cs returns results.
+        """
+        from scholar_mcp import config
+        assert config.S2_RECOMMEND_POOL != "recent"
+
+    def test_pool_is_overridable(self, monkeypatch):
+        seen = {}
+        monkeypatch.setattr(s2_client, "_get",
+                            lambda url, params=None: seen.update(params=params) or {})
+        s2_client.get_recommendations("ArXiv:1706.03762", pool_from="recent")
+        assert seen["params"]["from"] == "recent"
