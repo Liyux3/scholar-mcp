@@ -588,11 +588,24 @@ def knowledge_base(
     else:
         papers = kb.list_papers(collection=collection, limit=limit)
 
-    return _yaml({
+    output = {
         "collection": collection,
         "total": len(papers),
         "papers": [{"title": p.get("title", ""), "year": p.get("year"), "citations": p.get("citation_count", 0), "notes": p.get("notes", "")} for p in papers],
-    })
+    }
+
+    # An empty result from the default collection reads as "nothing saved",
+    # even when other collections are full. discover_field and download both
+    # write to named collections, so this is the common case.
+    if not papers:
+        others = [c for c in kb.list_collections()
+                  if c["name"] != collection and c.get("papers")]
+        if others:
+            output["other_collections"] = [
+                f"{c['name']} ({c['papers']})" for c in others
+            ]
+
+    return _yaml(output)
 
 
 @mcp.tool()

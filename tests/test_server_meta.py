@@ -75,3 +75,36 @@ class TestErrorCleaning:
             "openalex", status="error", count=0,
             error="Error for url 'https://api.openalex.org/works?api_key=LEAKME'")])
         assert "LEAKME" not in str(meta)
+
+
+class TestKnowledgeBaseDiscoverability:
+    """An empty listing of the default collection reads as "nothing saved",
+    even when other collections are full. discover_field and download both
+    write to named collections, so that is the normal state.
+    """
+
+    def test_empty_result_points_at_other_collections(self, monkeypatch):
+        from scholar_mcp import knowledge_base as kb
+        monkeypatch.setattr(kb, "list_papers", lambda **kw: [])
+        monkeypatch.setattr(kb, "list_collections", lambda: [
+            {"name": "default", "papers": 0},
+            {"name": "downloads", "papers": 70},
+        ])
+        out = server.knowledge_base(action="list")
+        assert "downloads (70)" in out
+
+    def test_no_hint_when_nothing_is_saved_anywhere(self, monkeypatch):
+        from scholar_mcp import knowledge_base as kb
+        monkeypatch.setattr(kb, "list_papers", lambda **kw: [])
+        monkeypatch.setattr(kb, "list_collections", lambda: [
+            {"name": "default", "papers": 0},
+        ])
+        assert "other_collections" not in server.knowledge_base(action="list")
+
+    def test_no_hint_when_results_exist(self, monkeypatch):
+        from scholar_mcp import knowledge_base as kb
+        monkeypatch.setattr(kb, "list_papers", lambda **kw: [{"title": "A Paper"}])
+        monkeypatch.setattr(kb, "list_collections", lambda: [
+            {"name": "other", "papers": 5},
+        ])
+        assert "other_collections" not in server.knowledge_base(action="list")
