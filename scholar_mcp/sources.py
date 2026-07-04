@@ -145,14 +145,23 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
     return results
 
 
-def parallel_citations(paper_id: str, limit: int = 20) -> list[SourceResult]:
+def parallel_citations(paper_id: str, limit: int = 20, title: str = "") -> list[SourceResult]:
+    """Fetch citing papers from every capable source.
+
+    title is a fallback identifier. OpenAlex cannot resolve arXiv identifiers
+    (it does not index 10.48550 DOIs and has no arXiv-id filter), so without a
+    title it silently returns nothing for arXiv papers, leaving S2 as the only
+    citation source. S2 orders citations by recency, which is why the graph
+    for a 2017 landmark came back full of 2026 papers with one citation each.
+    """
     sources = citation_sources()
     if not sources:
         return []
     results = []
     with ThreadPoolExecutor(max_workers=min(len(sources), 6)) as pool:
         futures = {
-            pool.submit(_timed_call, s.name, s.get_citations, paper_id, limit=limit): s.name
+            pool.submit(_timed_call, s.name, s.get_citations, paper_id,
+                        limit=limit, title=title): s.name
             for s in sources
         }
         for future in as_completed(futures):

@@ -72,7 +72,11 @@ def _fetch_related(paper: dict, relation: str, limit: int, delay: float) -> list
         return []
 
     if relation == "citations":
-        source_results = sources.parallel_citations(paper_id, limit=limit)
+        # Pass the title so OpenAlex can resolve arXiv papers, which it cannot
+        # do from an id alone. Without it OpenAlex contributes nothing and the
+        # graph is built from S2's recency-ordered citations only.
+        source_results = sources.parallel_citations(
+            paper_id, limit=limit, title=paper.get("title", ""))
     else:
         source_results = sources.parallel_references(paper_id, limit=limit)
 

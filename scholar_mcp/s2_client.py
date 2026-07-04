@@ -189,7 +189,7 @@ def get_paper(paper_id: str) -> dict:
 
 
 @cached(ttl=300)
-def get_citations(paper_id: str, limit: int = 20):
+def get_citations(paper_id: str, limit: int = 20, **kwargs):
     paper_id = _normalize_s2_id(paper_id)
     fetch_limit = min(max(limit * 3, 100), 1000)
     params = {"fields": CITATION_FIELDS + ",isInfluential", "limit": fetch_limit}
@@ -210,7 +210,7 @@ def get_citations(paper_id: str, limit: int = 20):
 
 
 @cached(ttl=300)
-def get_references(paper_id: str, limit: int = 20):
+def get_references(paper_id: str, limit: int = 20, **kwargs):
     paper_id = _normalize_s2_id(paper_id)
     params = {"fields": CITATION_FIELDS, "limit": min(limit, 1000)}
     data = _get(f"{BASE_URL}/paper/{paper_id}/references", params=params)

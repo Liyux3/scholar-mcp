@@ -202,3 +202,68 @@ class TestKeyRotationOn429:
         monkeypatch.setattr(openalex_client.httpx, "get",
                             lambda url, params=None, timeout=None: self._Response(200))
         assert openalex_client._get("http://x", {}).status_code == 200
+
+
+class TestWorkIdResolution:
+    """OpenAlex cannot resolve arXiv identifiers: it does not index 10.48550
+    DOIs and offers no arXiv-id filter. Without a title fallback every arXiv
+    paper resolved to None, OpenAlex contributed no citations, and S2 became
+    the only citation source. S2 orders citations by recency, so the graph for
+    Attention Is All You Need consisted entirely of 2026 papers with one or
+    two citations each.
+    """
+
+    def test_passes_through_w_ids(self):
+        assert openalex_client._resolve_to_wid("W2626778328") == "W2626778328"
+
+    def test_extracts_w_id_from_url(self):
+        assert openalex_client._resolve_to_wid(
+            "https://openalex.org/W2626778328") == "W2626778328"
+
+    def test_arxiv_id_without_title_is_unresolvable(self, monkeypatch):
+        """Documents the underlying limitation rather than asserting it is
+        desirable: there is no id-only route for arXiv papers.
+        """
+        monkeypatch.setattr(openalex_client, "_resolve_by_title",
+                            lambda title: pytest.fail("should not be reached"))
+        assert openalex_client._resolve_to_wid("ArXiv:1706.03762") is None
+
+    def test_falls_back_to_title(self, monkeypatch):
+        monkeypatch.setattr(openalex_client, "_resolve_by_title",
+                            lambda title: "W2626778328")
+        assert openalex_client._resolve_to_wid(
+            "ArXiv:1706.03762", title="Attention Is All You Need") == "W2626778328"
+
+    def test_title_match_must_be_exact(self, monkeypatch):
+        """title.search is fuzzy: querying the BERT paper returns "FAD-BERT:
+        Improved prediction of FAD binding". Accepting that would attach
+        another paper's entire citation graph.
+        """
+        class FakeResponse:
+            status_code = 200
+
+            def json(self):
+                return {"results": [{
+                    "id": "https://openalex.org/W9999",
+                    "title": "FAD-BERT: Improved prediction of FAD binding",
+                }]}
+
+        monkeypatch.setattr(openalex_client, "_request",
+                            lambda *a, **kw: FakeResponse())
+        assert openalex_client._resolve_by_title(
+            "BERT: Pre-training of Deep Bidirectional Transformers") is None
+
+    def test_accepts_match_ignoring_punctuation_and_case(self, monkeypatch):
+        class FakeResponse:
+            status_code = 200
+
+            def json(self):
+                return {"results": [{
+                    "id": "https://openalex.org/W2626778328",
+                    "title": "attention is all you need",
+                }]}
+
+        monkeypatch.setattr(openalex_client, "_request",
+                            lambda *a, **kw: FakeResponse())
+        assert openalex_client._resolve_by_title(
+            "Attention Is All You Need!") == "W2626778328"
