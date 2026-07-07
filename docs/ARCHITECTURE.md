@@ -116,6 +116,28 @@ Priority determines ordering in `all_sources()`, not fallback sequence.
 | search_openreview | Conference submissions and reviews |
 | scholar_status | Version, active sources, KB collections |
 
+## Citations
+
+Two sources answer citation queries, and they differ in a way that matters:
+
+- Semantic Scholar orders citations by recency. For a heavily cited paper the
+  first page is whatever cited it most recently, typically low-citation
+  preprints.
+- OpenAlex sorts by `cited_by_count`, so it returns the impactful citing
+  work, but it cannot resolve arXiv identifiers: it does not index 10.48550
+  DOIs and offers no arXiv-id filter.
+
+The consequence, before this was fixed, was that any arXiv paper got
+citations from S2 alone and its graph consisted entirely of very recent,
+barely-cited papers. `parallel_citations` therefore takes an optional title,
+which OpenAlex uses to resolve a work id via `title.search`. The match is
+verified by normalised title equality, because `title.search` is fuzzy enough
+to return a different paper (querying the BERT paper returns "FAD-BERT:
+Improved prediction of FAD binding").
+
+Callers that hold the paper dict should pass its title. Those that only have
+an id will still work, but lose OpenAlex for arXiv papers.
+
 ## Error handling
 
 Clients raise on HTTP errors. `sources._timed_call` catches them and records
