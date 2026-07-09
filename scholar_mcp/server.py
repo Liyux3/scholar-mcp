@@ -18,6 +18,24 @@ mcp = FastMCP("scholar-mcp")
 INTERNAL_FETCH_LIMIT = 100
 
 
+def _lookup_title(paper_id: str) -> str:
+    """Fetch just the title of a paper, for id resolution.
+
+    Costs one request against the first source that answers. Only called when
+    the caller has not already fetched the paper.
+    """
+    for src in sources.all_sources():
+        if not src.get_paper or not src.available():
+            continue
+        try:
+            paper = src.get_paper(paper_id)
+            if paper and paper.get("title"):
+                return paper["title"]
+        except Exception:
+            continue
+    return ""
+
+
 def _get_best_id(paper: dict) -> str:
     ext = paper.get("external_ids") or {}
     for key in ("DOI", "OpenAlex", "ArXiv"):
@@ -36,6 +54,7 @@ def _pipeline(
     rerank_query: str = "",
     raw_query: str = "",
     intent: str = "",
+    paper_title: str = "",
     expand_citations: bool = True,
     expand_top_n: int = 10,
     expand_limit: int = 20,
@@ -49,6 +68,7 @@ def _pipeline(
         limit: final output size
         rerank_query: if set, run reranker with this query
         raw_query: original unoptimized query, sent to semantic sources
+        paper_title: title of the seed paper, for citation-source id resolution
         expand_citations: if True, expand pool via refs/cites of top results (2nd rerank pass)
         expand_top_n: how many top papers to expand from
         expand_limit: refs/cites to fetch per paper
@@ -60,7 +80,11 @@ def _pipeline(
         short_q = relevance.optimize_query_short(raw_query or query_or_id)
         source_results = sources.parallel_search(query_or_id, limit=INTERNAL_FETCH_LIMIT, raw_query=raw_query, short_query=short_q, **kwargs)
     elif dispatch == "citations":
-        source_results = sources.parallel_citations(query_or_id, limit=INTERNAL_FETCH_LIMIT)
+        # title lets OpenAlex resolve arXiv papers, which it cannot do from an
+        # id. Without it the results come from S2 alone, which orders
+        # citations by recency rather than impact.
+        source_results = sources.parallel_citations(
+            query_or_id, limit=INTERNAL_FETCH_LIMIT, title=paper_title)
     elif dispatch == "references":
         source_results = sources.parallel_references(query_or_id, limit=INTERNAL_FETCH_LIMIT)
     else:
@@ -113,7 +137,8 @@ def _pipeline(
                     return []
                 papers = []
                 min_cite = {"foundational": 10, "survey": 5, "method": 3}.get(intent, 1)
-                for sr in sources.parallel_citations(pid, limit=expand_limit):
+                for sr in sources.parallel_citations(pid, limit=expand_limit,
+                                                     title=paper.get("title", "")):
                     for p in sr.results:
                         if (p.get("citation_count") or 0) >= min_cite:
                             papers.append(p)
@@ -383,7 +408,13 @@ def paper_info(
                 continue
 
     if "citations" in parts:
-        cites, reports = _pipeline("citations", paper_id, limit)
+        # OpenAlex needs a title to resolve arXiv ids. Fetch one if the caller
+        # did not ask for detail, otherwise citations for arXiv papers come
+        # from S2 alone and arrive ordered by recency rather than impact.
+        title = (output.get("paper") or {}).get("title", "")
+        if not title:
+            title = _lookup_title(paper_id)
+        cites, reports = _pipeline("citations", paper_id, limit, paper_title=title)
         output["citations"] = [_format_compact(p) for p in cites]
         output["_citations_meta"] = _meta_block(reports, total=len(cites))
 
