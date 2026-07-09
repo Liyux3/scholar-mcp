@@ -22,17 +22,28 @@ classifiers = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "fastmcp>=2.0.0",
+    # Tested against fastmcp 3.x / mcp 1.26 (protocol 2025-11-25). The old
+    # floor of >=2.0.0 allowed a fresh install to resolve a major version
+    # behind what anyone has actually run.
+    "fastmcp>=3.0.0,<4",
     "feedparser>=6.0.0",
     "pypdf>=4.0.0",
     "httpx>=0.27.0",
     "beautifulsoup4>=4.12.0",
     "lxml>=4.9.0",
     "networkx>=3.4.2",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
-graph = ["networkx>=3.0"]
+# Query compression. optimize_query degrades to plain keyword extraction
+# without these, which the 2026-05 sweep measured as materially worse.
+compression = [
+    "keybert>=0.9.0",
+    "model2vec>=0.8.0",
+]
+# Reranker fallback, used whenever the DashScope API is unavailable.
+rerank = ["flashrank>=0.2.10"]
 dev = ["pytest>=8.0.0"]
 
 [project.urls]
