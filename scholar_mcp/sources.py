@@ -198,6 +198,7 @@ def _register_defaults():
     from . import europepmc_client, dblp_client, inspirehep_client
     from . import scholar_client
     from . import exa_client, scopus_client, arxivgg_client, doaj_client
+    from . import s2_snippet_client
 
     register(Source(
         name="semantic_scholar",
@@ -220,6 +221,14 @@ def _register_defaults():
         get_paper=openalex_client.get_paper_by_id,
         priority=80,
         domains=["all"],
+    ))
+
+    register(Source(
+        name="s2_snippet",
+        search=lambda q, limit, **kw: s2_snippet_client.search_papers(q, limit=limit),
+        priority=78,
+        domains=["all"],
+        query_style=QUERY_RAW,
     ))
 
     register(Source(
