@@ -42,6 +42,9 @@ class Source:
     requires_key: bool = False
     key_available: Callable | None = None
     query_style: str = QUERY_COMPRESSED
+    # Optional probe for sources whose semantic mode can degrade at runtime.
+    # Returning False makes the registry route compressed queries instead.
+    semantic_available: Callable | None = None
 
     @property
     def semantic(self) -> bool:
@@ -113,9 +116,14 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
         budget_s = config.SOURCE_BUDGET_S
 
     def _pick_query(s):
-        if s.query_style == QUERY_RAW:
+        style = s.query_style
+        # A semantic source that has fallen back to keyword matching should be
+        # fed a keyword query, not the raw sentence it would normally want.
+        if style == QUERY_RAW and s.semantic_available and not s.semantic_available():
+            style = QUERY_COMPRESSED
+        if style == QUERY_RAW:
             return raw_query or query
-        if s.query_style == QUERY_SHORT and short_query:
+        if style == QUERY_SHORT and short_query:
             return short_query
         return query
 
@@ -305,6 +313,7 @@ def _register_defaults():
         priority=65,
         domains=["computer science", "physics", "mathematics", "statistics"],
         query_style=QUERY_RAW,
+        semantic_available=arxivgg_client.semantic_available,
     ))
 
     register(Source(

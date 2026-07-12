@@ -12,6 +12,7 @@ from . import graph
 from . import discovery
 from . import knowledge_base as kb
 from . import sources
+from . import traversal
 
 mcp = FastMCP("scholar-mcp")
 
@@ -430,32 +431,75 @@ def paper_info(
 
 
 @mcp.tool()
-def recommend_papers(paper_id: str, limit: int = 10) -> str:
-    """Find similar/related papers using Semantic Scholar's recommendation engine.
+def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) -> str:
+    """Find related papers by a chosen citation-graph relation.
+
+    "Related" is several different questions, and which one you want depends
+    on what you are doing:
+
+        similar     embedding neighbours (SPECTER2). Same topic, possibly
+                    different vocabulary. Good default.
+        foundations what this paper cites. Where the ideas came from.
+        descendants what cites this paper, impact-ordered. What came after.
+        peers       what is cited alongside this paper. Its intellectual
+                    cohort, which is usually what "related work" means.
+        kin         what cites the same works this paper does. Shared method
+                    rather than shared topic, so this is the relation that
+                    crosses field boundaries: two papers can be coupled
+                    without sharing any vocabulary.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
-        limit: Maximum recommendations (1-500, default 10)
+        relation: similar | foundations | descendants | peers | kin
+        limit: Maximum results (default 10)
     """
-    ids_to_try = [paper_id]
+    title = _lookup_title(paper_id)
+
+    if relation == "peers":
+        results = traversal.co_citation(paper_id, title=title, limit=limit)
+    elif relation == "kin":
+        results = traversal.bibliographic_coupling(paper_id, title=title, limit=limit)
+    elif relation == "foundations":
+        results = [p for sr in sources.parallel_references(paper_id, limit=limit)
+                   for p in sr.results][:limit]
+    elif relation == "descendants":
+        results = [p for sr in sources.parallel_citations(paper_id, limit=limit, title=title)
+                   for p in sr.results][:limit]
+    elif relation == "similar":
+        results = []
+        for pid in _id_variants(paper_id):
+            try:
+                results = s2_client.get_recommendations(pid, limit=limit)
+                if results:
+                    break
+            except Exception:
+                continue
+    else:
+        return _yaml({"error": f"Unknown relation '{relation}'. Use one of: "
+                               "similar, foundations, descendants, peers, kin"})
+
+    if not results:
+        return _yaml({"error": f"No '{relation}' results for '{paper_id}'",
+                      "seed_title": title or None})
+
+    return _yaml({
+        "relation": relation,
+        "seed": title or paper_id,
+        "papers": [_format_compact(p) for p in results],
+        "total": len(results),
+    })
+
+
+def _id_variants(paper_id: str) -> list[str]:
+    """IDs to try for S2, which will not accept an OpenAlex W-id."""
+    variants = [paper_id]
     if paper_id.startswith("W"):
         oa_paper = openalex_client.get_paper_by_id(paper_id)
         if oa_paper:
             doi = (oa_paper.get("external_ids") or {}).get("DOI", "")
             if doi:
-                ids_to_try.insert(0, doi)
-
-    for pid in ids_to_try:
-        try:
-            results = s2_client.get_recommendations(pid, limit=limit)
-            if results:
-                return _yaml({
-                    "recommendations": [_format_compact(p) for p in results],
-                    "total": len(results),
-                })
-        except Exception:
-            continue
-    return _yaml({"error": f"Could not get recommendations for '{paper_id}'"})
+                variants.insert(0, doi)
+    return variants
 
 
 @mcp.tool()

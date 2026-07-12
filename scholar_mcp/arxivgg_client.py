@@ -1,8 +1,25 @@
 """arxiv.gg semantic search client. 644K arXiv papers with embeddings, no auth."""
 
+import sys
+
 import httpx
 
 ARXIVGG_SEMANTIC_URL = "https://arxiv.gg/api/v1/search/semantic"
+
+_degraded_warning_shown = False
+
+
+def semantic_available() -> bool:
+    """Whether the last call actually ran semantic search.
+
+    arxiv.gg answers with HTTP 206 and `fallback.used: true` when its
+    embedding index is unavailable, silently serving keyword results for a
+    request that asked for semantic. The registry routes this source the raw
+    natural-language query precisely because it is supposed to be semantic, so
+    during a fallback that raw sentence goes to a keyword matcher, which is
+    the worst pairing available.
+    """
+    return not _degraded_warning_shown
 
 
 def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
@@ -19,6 +36,8 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
 
     if not data.get("success"):
         return []
+
+    _check_degraded(data.get("data") or {})
 
     papers = []
     for item in data.get("data", {}).get("papers", []) if "papers" in data.get("data", {}) else data.get("data", {}).get("results", []):
@@ -56,3 +75,17 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
         })
 
     return papers[:limit]
+
+
+def _check_degraded(data: dict) -> None:
+    """Warn once if arxiv.gg served keyword results for a semantic request."""
+    global _degraded_warning_shown
+    fallback = data.get("fallback") or {}
+    if not fallback.get("used"):
+        return
+    if not _degraded_warning_shown:
+        _degraded_warning_shown = True
+        reason = fallback.get("reasonCode") or "unknown"
+        print(f"scholar-mcp: arxiv.gg semantic search unavailable ({reason}), "
+              f"serving keyword results; this source is routed raw queries and "
+              f"will underperform until it recovers", file=sys.stderr)

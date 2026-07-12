@@ -273,3 +273,37 @@ class TestCallersRouteQueries:
             "raw_query and short_query, or add the caller to EXEMPT with the "
             "reason it cannot be routed."
         )
+
+
+class TestDegradedSemanticRouting:
+    """arxiv.gg answers HTTP 206 with fallback.used when its embedding index
+    is down, silently serving keyword results for a semantic request. Since
+    the registry routes semantic sources the raw natural-language query, a
+    degraded source receives a full sentence at a keyword matcher, which is
+    the worst of both worlds and produces no error.
+    """
+
+    def test_degraded_source_gets_compressed_query(self, isolated_registry):
+        src, seen = _recording_source("sem", query_style=sources.QUERY_RAW)
+        src.semantic_available = lambda: False
+        sources.register(src)
+
+        sources.parallel_search("compressed kw", raw_query="the full question",
+                                short_query="eight words")
+        assert seen == ["compressed kw"]
+
+    def test_healthy_source_still_gets_raw(self, isolated_registry):
+        src, seen = _recording_source("sem", query_style=sources.QUERY_RAW)
+        src.semantic_available = lambda: True
+        sources.register(src)
+
+        sources.parallel_search("compressed kw", raw_query="the full question")
+        assert seen == ["the full question"]
+
+    def test_sources_without_a_probe_are_unaffected(self, isolated_registry):
+        """Only sources that can degrade need to declare a probe."""
+        src, seen = _recording_source("sem", query_style=sources.QUERY_RAW)
+        sources.register(src)
+
+        sources.parallel_search("compressed kw", raw_query="the full question")
+        assert seen == ["the full question"]
