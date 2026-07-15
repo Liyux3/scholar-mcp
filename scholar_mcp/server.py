@@ -13,6 +13,7 @@ from . import discovery
 from . import knowledge_base as kb
 from . import sources
 from . import traversal
+from . import vault
 
 mcp = FastMCP("scholar-mcp")
 
@@ -634,7 +635,8 @@ def knowledge_base(
     """Manage saved papers in the knowledge base.
 
     Args:
-        action: "save" to save papers, "list" to list papers, "search" to search, "collections" to list all collections
+        action: "save", "list", "search", "collections", or "export"
+            ("export" writes an Obsidian-compatible markdown vault)
         paper_titles: Comma-separated paper titles or DOIs (for action="save")
         collection: Collection name (default: "default")
         query: Search query (for action="search")
@@ -643,6 +645,15 @@ def knowledge_base(
     """
     if action == "collections":
         return _yaml({"collections": kb.list_collections()})
+
+    if action == "export":
+        # Markdown mirror of the JSONL store. The JSONL stays authoritative;
+        # the vault exists so the collection can be browsed, annotated and
+        # linked in Obsidian, and walked by following wikilinks.
+        papers = kb.list_papers(collection=collection, limit=10000)
+        if not papers:
+            return _yaml({"error": f"Collection '{collection}' is empty"})
+        return _yaml(vault.export_collection(papers, collection))
 
     if action == "save":
         titles = [t.strip() for t in paper_titles.split(",") if t.strip()]
