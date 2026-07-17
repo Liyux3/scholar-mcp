@@ -1,5 +1,6 @@
 """Tests for PDF download and extraction utilities."""
 
+import httpx
 import pytest
 import os
 import tempfile
@@ -48,3 +49,64 @@ def test_extract_text():
             text = pdf_utils.extract_text(dl["file_path"], max_pages=1)
             assert len(text) > 100
             assert "attention" in text.lower() or "transformer" in text.lower()
+
+
+class TestLibraryProxy:
+    """The institutional proxy is the last automated step before Sci-Hub and
+    the least reliable one: sessions expire, publishers serve interstitials
+    instead of files, and many papers are not covered at all. Failures must be
+    quiet and fast rather than slowing every download.
+    """
+
+    def test_disabled_without_a_cookie(self, monkeypatch):
+        from scholar_mcp import pdf_utils
+        monkeypatch.delenv("LIBRARY_PROXY_COOKIE", raising=False)
+        monkeypatch.setattr(pdf_utils, "_library_cookie", lambda: "")
+        monkeypatch.setattr(pdf_utils.httpx, "get",
+                            lambda *a, **kw: pytest.fail("should not make a request"))
+        assert pdf_utils._try_ezproxy("10.1234/abc", "/tmp", "x.pdf") is None
+
+    def test_rejects_non_pdf_responses(self, monkeypatch, tmp_path):
+        """A login form or landing page returns 200 with HTML. Saving that
+        would produce a file that looks like a paper and is not one.
+        """
+        from scholar_mcp import pdf_utils
+        monkeypatch.setattr(pdf_utils, "_library_cookie", lambda: "session=abc")
+
+        class FakeResponse:
+            status_code = 200
+            headers = {"content-type": "text/html; charset=utf-8"}
+            content = b"<html>Sign in</html>"
+
+        monkeypatch.setattr(pdf_utils.httpx, "get", lambda *a, **kw: FakeResponse())
+        assert pdf_utils._try_ezproxy("10.1234/abc", str(tmp_path), "x.pdf") is None
+        assert not (tmp_path / "x.pdf").exists()
+
+    def test_saves_a_real_pdf(self, monkeypatch, tmp_path):
+        from scholar_mcp import pdf_utils
+        monkeypatch.setattr(pdf_utils, "_library_cookie", lambda: "session=abc")
+
+        class FakeResponse:
+            status_code = 200
+            headers = {"content-type": "application/pdf"}
+            content = b"%PDF-1.4 fake"
+
+        monkeypatch.setattr(pdf_utils.httpx, "get", lambda *a, **kw: FakeResponse())
+        path = pdf_utils._try_ezproxy("10.1234/abc", str(tmp_path), "x.pdf")
+        assert path is not None
+        assert (tmp_path / "x.pdf").read_bytes().startswith(b"%PDF")
+
+    def test_network_errors_are_swallowed(self, monkeypatch, tmp_path):
+        from scholar_mcp import pdf_utils
+        monkeypatch.setattr(pdf_utils, "_library_cookie", lambda: "session=abc")
+
+        def boom(*a, **kw):
+            raise httpx.ConnectError("proxy unreachable")
+
+        monkeypatch.setattr(pdf_utils.httpx, "get", boom)
+        assert pdf_utils._try_ezproxy("10.1234/abc", str(tmp_path), "x.pdf") is None
+
+    def test_cookie_is_read_from_env_first(self, monkeypatch):
+        from scholar_mcp import pdf_utils
+        monkeypatch.setenv("LIBRARY_PROXY_COOKIE", "  session=fromenv  ")
+        assert pdf_utils._library_cookie() == "session=fromenv"

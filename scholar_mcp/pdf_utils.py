@@ -1,5 +1,7 @@
 import os
 import re
+from pathlib import Path
+
 import httpx
 from pypdf import PdfReader
 from . import config
@@ -7,6 +9,15 @@ from . import core_client
 
 DOWNLOAD_TIMEOUT = 60
 USER_AGENT = "scholar-mcp/0.1.0 (academic research tool)"
+
+# Institutional proxy. Off unless a session cookie is configured.
+DEFAULT_PROXY_BASE = "https://eproxy.lib.hku.hk"
+# Short on purpose: an expired session or an uncovered paper is the common
+# case, and it must not slow the rest of the download chain.
+PROXY_TIMEOUT = 12
+# Proxies and publishers routinely reject non-browser agents outright.
+BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+              "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 
 
 def _try_download(url: str, save_path: str, filename: str) -> str | None:
@@ -57,6 +68,60 @@ def _try_scihub(doi: str, save_path: str, filename: str) -> str | None:
         except (httpx.HTTPError, OSError):
             continue
     return None
+
+
+def _library_cookie() -> str:
+    """Session cookie for the institutional proxy, if the user set one up.
+
+    Read from LIBRARY_PROXY_COOKIE or ~/.scholar-mcp/library_cookie.txt. Kept
+    out of the repo and out of any output, since it is a live credential.
+    """
+    cookie = os.environ.get("LIBRARY_PROXY_COOKIE", "").strip()
+    if cookie:
+        return cookie
+    path = Path(os.path.expanduser("~/.scholar-mcp/library_cookie.txt"))
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _try_ezproxy(doi: str, save_path: str, filename: str) -> str | None:
+    """Resolve a DOI through an EZproxy session, if one is configured.
+
+    Deliberately the least persistent step in the chain. Proxy sessions expire,
+    publishers vary in whether they serve a PDF or an interstitial, and many
+    subscriptions simply do not cover a given paper, so a failure here is
+    ordinary and must stay quiet and fast rather than slow every download.
+
+    Only ever used for a single paper the caller already asked for. Bulk or
+    automated harvesting through a library subscription breaches the terms
+    every university attaches to these licences.
+    """
+    cookie = _library_cookie()
+    base = os.environ.get("LIBRARY_PROXY_BASE", DEFAULT_PROXY_BASE).strip()
+    if not cookie or not base:
+        return None
+
+    url = f"{base.rstrip('/')}/login?url=https://doi.org/{doi}"
+    try:
+        response = httpx.get(
+            url, headers={"Cookie": cookie, "User-Agent": BROWSER_UA},
+            timeout=PROXY_TIMEOUT, follow_redirects=True)
+    except Exception:
+        return None
+
+    if response.status_code != 200:
+        return None
+    if not response.headers.get("content-type", "").lower().startswith("application/pdf"):
+        # Landing page or login form rather than the file itself. Following
+        # publisher-specific paths from here is where scraping would begin.
+        return None
+
+    target = Path(save_path) / filename
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(response.content)
+    return str(target)
 
 
 def _try_unpaywall(doi: str) -> str | None:
@@ -209,7 +274,15 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
             return {"success": True, "file_path": result, "source": "pmc",
                     "message": f"Downloaded from PubMed Central ({pmcid})."}
 
-    # 7. Sci-Hub (opt-in only)
+    # 7. Institutional proxy, if a session cookie is configured. Tried before
+    # Sci-Hub because it is the licensed route to the same paper.
+    if doi:
+        result = _try_ezproxy(doi, save_path, filename)
+        if result:
+            return {"success": True, "file_path": result, "source": "library_proxy",
+                    "message": f"Downloaded via institutional proxy (DOI: {doi})."}
+
+    # 8. Sci-Hub (opt-in only)
     if config.SCIHUB_ENABLED and doi:
         result = _try_scihub(doi, save_path, filename)
         if result:
