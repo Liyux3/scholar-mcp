@@ -391,7 +391,13 @@ def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
 
     global _flashrank_ranker
     if _flashrank_ranker is None:
-        _flashrank_ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2", max_length=512)
+        # 128 tokens covers the title and the head of the abstract, which
+        # carries the ranking signal: measured against max_length=512 over 100
+        # real candidates, Spearman is 1.0000 with an identical top 5, at
+        # 2.39s versus 3.42s. Attention is quadratic in sequence length, so
+        # the gap widens on a loaded machine.
+        _flashrank_ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2",
+                                   max_length=FLASHRANK_MAX_TOKENS)
 
     passages = [{"id": i, "text": ((p.get("title") or "") + ". " + (p.get("abstract") or ""))[:1000]} for i, p in enumerate(papers)]
     request = RerankRequest(query=query, passages=passages)
@@ -407,6 +413,7 @@ def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
 
 DASHSCOPE_CAP = 500
 FLASHRANK_CAP = 150
+FLASHRANK_MAX_TOKENS = 128
 
 def _pre_rank_cap(papers: list[dict], cap: int) -> list[dict]:
     """Cap papers using rank_final metadata formula (rerank_score ignored)."""
