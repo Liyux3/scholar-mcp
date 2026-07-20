@@ -244,9 +244,20 @@ class TestRankFinal:
         The reason is that ground-truth papers are far more cited than the
         pool they are drawn from, 20x the median on the pre-expansion cache.
         LitSearch ground truth is work that papers actually cite, so citation
-        count is a strong positive signal on this benchmark and suppressing
-        its tail discards information. Keep the term uncapped unless a
-        benchmark with different ground-truth characteristics says otherwise.
+        count is a strong positive signal on that benchmark.
+
+        That conclusion does not generalise, and a later benchmark said so.
+        On PaSa the relationship inverts: ground-truth papers have a citation
+        median of 101 against the pool's 386, i.e. 0.3x rather than 20x. PaSa
+        asks for work supporting a specific claim, and the answers are often
+        recent papers that have not accumulated citations yet. One of its
+        queries wants "When Less is More" (7 citations) and "How to Train
+        Data-Efficient LLMs" (4 citations); we return LAION-5B and InstructGPT.
+
+        So this test pins behaviour that is right for LitSearch-shaped queries
+        and wrong for PaSa-shaped ones. The citation weight is not a constant
+        to be tuned once; it depends on whether the user wants established
+        work or current work, which the pipeline cannot currently tell apart.
         """
         ranked = relevance.rank_final([
             _paper("relevant but uncited", rerank=0.9, cites=0),
@@ -432,3 +443,52 @@ class TestDashScopeFailureVisibility:
         captured = capsys.readouterr()
         assert "FlashRank" in captured.err
         assert captured.out == ""
+
+
+class TestContrastPreservation:
+    """Comparatives look like filler and often carry the whole claim.
+
+    A PaSa query asking for papers where a *smaller* dataset beats a bigger
+    one compressed to "models bigger datasets pre training result": KeyBERT
+    kept "bigger", dropped "smaller", and the search then asked for the
+    largest datasets in existence.
+    """
+
+    def test_restores_the_dropped_side_of_a_contrast(self):
+        original = ("using a smaller dataset can result in better models "
+                    "than using bigger datasets")
+        restored = relevance._restore_contrast(original, "models bigger datasets")
+        assert "smaller" in restored
+        assert "bigger" in restored, "the surviving side must be kept too"
+
+    def test_leaves_untouched_when_no_contrast_survived(self):
+        """Nothing to repair if compression dropped the comparison entirely;
+        re-inserting one side alone would invent a claim.
+        """
+        original = "smaller datasets beat bigger datasets"
+        assert relevance._restore_contrast(original, "dataset scaling") == "dataset scaling"
+
+    def test_leaves_untouched_when_nothing_was_dropped(self):
+        original = "smaller models outperform larger models"
+        compressed = "smaller models larger"
+        assert relevance._restore_contrast(original, compressed) == compressed
+
+    def test_ignores_one_sided_comparatives(self):
+        """"Training larger models" is not a contrast, so there is nothing to
+        restore and no reason to pad the query.
+        """
+        original = "training larger and larger vision transformers"
+        assert relevance._restore_contrast(original, "larger vision transformers") == \
+            "larger vision transformers"
+
+    def test_does_not_duplicate(self):
+        original = "smaller smaller smaller than bigger"
+        restored = relevance._restore_contrast(original, "bigger models")
+        assert restored.split().count("smaller") == 1
+
+    def test_end_to_end_keeps_both_sides(self):
+        q = ("Give me papers which show that using a smaller dataset in large "
+             "language model pre-training can result in better models than "
+             "using bigger datasets.")
+        optimized = relevance.optimize_query(q).lower()
+        assert "smaller" in optimized, f"claim inverted: {optimized}"

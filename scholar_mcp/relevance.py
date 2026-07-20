@@ -35,6 +35,13 @@ TOP_VENUES = frozenset({
 })
 
 
+# Words carrying little information on their own, stripped before KeyBERT so
+# it does not spend its phrase slots on scaffolding.
+#
+# Comparatives are deliberately absent. They look like filler but often carry
+# the entire claim: "smaller dataset ... better models than bigger datasets"
+# compressed to "models bigger datasets pre training result", inverting the
+# meaning and retrieving the largest dataset papers in existence.
 WEAK_WORDS = frozenset({
     "wondering", "simply", "question", "whether", "think", "believe",
     "approach", "problem", "paper", "work", "method", "proposed", "propose",
@@ -49,8 +56,7 @@ WEAK_WORDS = frozenset({
     "however", "therefore", "although", "despite", "beyond", "within",
     "across", "along", "among", "towards", "toward", "without",
     "achieve", "achieves", "address", "addresses", "aim", "aims",
-    "better", "best", "worse", "worst", "high", "higher", "highest",
-    "low", "lower", "lowest", "large", "larger", "small", "smaller",
+    "high", "highest", "low", "lowest", "large", "small",
     "fully", "enough", "already", "particularly", "especially", "primarily",
     "point", "making", "fundamentally", "inherent", "inherently",
     "ceiling", "incremental", "ever", "baked",
@@ -159,8 +165,42 @@ def _keybert_extract(query: str, top_n: int = KB_TOP_N) -> str | None:
         cleaned, keyphrase_ngram_range=KB_NGRAM_RANGE, stop_words="english",
         top_n=top_n, use_mmr=True, diversity=KB_DIVERSITY,
     )
-    # Cleaned text is still a valid keyword query, just unranked.
-    return " ".join(kw for kw, _ in keyphrases) if keyphrases else cleaned
+    if not keyphrases:
+        # Cleaned text is still a valid keyword query, just unranked.
+        return cleaned
+
+    compressed = " ".join(kw for kw, _ in keyphrases)
+    return _restore_contrast(query, compressed)
+
+
+# Comparatives that carry a claim rather than describe magnitude. KeyBERT
+# ranks by embedding salience, and these score low on their own, so a query
+# built around a contrast can lose the half that makes it a contrast.
+CONTRAST_WORDS = frozenset({
+    "smaller", "larger", "bigger", "fewer", "less", "lower", "shorter",
+    "better", "worse", "faster", "slower", "cheaper", "weaker", "stronger",
+})
+
+
+def _restore_contrast(original: str, compressed: str) -> str:
+    """Re-insert contrast words that compression dropped one side of.
+
+    "smaller dataset ... better than bigger datasets" compressed to
+    "models bigger datasets pre training result": KeyBERT kept "bigger" and
+    dropped "smaller", inverting the claim, so the search returned the largest
+    datasets in existence. Only restores a word when its counterpart survived,
+    since that asymmetry is what signals a broken comparison.
+    """
+    present = set(re.findall(r"[a-zA-Z0-9][\w\-]*", compressed.lower()))
+    missing = [
+        word for word in re.findall(r"[a-zA-Z0-9][\w\-]*", original.lower())
+        if word in CONTRAST_WORDS and word not in present
+    ]
+    if not missing or not (present & CONTRAST_WORDS):
+        return compressed
+    # Preserve first-appearance order, without duplicates.
+    ordered = list(dict.fromkeys(missing))
+    return " ".join([compressed] + ordered)
 
 
 
