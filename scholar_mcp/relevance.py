@@ -455,12 +455,61 @@ DASHSCOPE_CAP = 500
 FLASHRANK_CAP = 150
 FLASHRANK_MAX_TOKENS = 128
 
+# Share of the cap reserved for papers the metadata formula ranks poorly.
+# Without it, a purely metadata-ordered cut is a citation filter applied
+# before the reranker has read anything.
+RECENT_RESERVE = 0.25
+
+# A paper this new has not had time to accumulate citations, so its citation
+# count carries no information about its quality yet.
+RECENT_YEARS = 3
+
+
 def _pre_rank_cap(papers: list[dict], cap: int) -> list[dict]:
-    """Cap papers using rank_final metadata formula (rerank_score ignored)."""
+    """Trim the pool to what the reranker can accept, keeping recent work.
+
+    This exists because DashScope takes at most 500 documents per call, not
+    because the pool needs filtering on quality. Ordering by the rank_final
+    metadata formula was convenient, but that formula is dominated by citation
+    count, so using it here silently removed low-citation papers before the
+    reranker ever saw them.
+
+    That is the wrong place for a citation preference. Ranking by citations is
+    a reasonable product decision: a reader asking for papers on a topic
+    generally wants established work. Excluding papers from consideration by
+    citation count is not, because the two questions a search answers, "what
+    is the accepted work here" and "what is the newest work here", need
+    different answers from the same pool.
+
+    So a quarter of the cap is reserved for recent papers, which by
+    construction cannot have accumulated citations yet.
+    """
     if len(papers) <= cap:
         return papers
+
     ranked = rank_final(papers)
-    return ranked[:cap]
+    current_year = datetime.now().year
+    reserve = int(cap * RECENT_RESERVE)
+
+    kept, recent_overflow = [], []
+    for paper in ranked:
+        if len(kept) < cap - reserve:
+            kept.append(paper)
+            continue
+        year = paper.get("year") or 0
+        if year and current_year - year <= RECENT_YEARS and len(recent_overflow) < reserve:
+            recent_overflow.append(paper)
+
+    # Fill any unused reserve from the ordering, so the cap is never underfilled.
+    if len(kept) + len(recent_overflow) < cap:
+        chosen = {id(p) for p in kept} | {id(p) for p in recent_overflow}
+        for paper in ranked:
+            if len(kept) + len(recent_overflow) >= cap:
+                break
+            if id(paper) not in chosen:
+                kept.append(paper)
+
+    return kept + recent_overflow
 
 def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") -> list[dict]:
     """Rerank papers. Pre-ranks with the metadata formula if the pool exceeds
