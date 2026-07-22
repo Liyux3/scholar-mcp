@@ -534,3 +534,45 @@ class TestPreRankCapReserve:
     def test_returns_no_duplicates(self):
         capped = relevance._pre_rank_cap(self._pool(), 100)
         assert len({p["title"] for p in capped}) == len(capped)
+
+
+class TestChannelVsPhysicalSources:
+    """Source agreement is meant to measure independent corroboration. Once a
+    single source can be queried several times with different facets, keying
+    ranks by source name alone both overwrites earlier ranks and turns one
+    source answering four times into four sources agreeing.
+    """
+
+    def test_facets_do_not_inflate_source_count(self):
+        paper = {"title": "X", "external_ids": {}}
+        for facet in ("pruning", "dedup", "quality"):
+            relevance.tag_source_ranks([paper], "arxiv", facet=facet)
+        assert relevance.physical_source_count(paper) == 1
+        assert len(paper["_source_ranks"]) == 3, "each facet keeps its own rank"
+
+    def test_distinct_sources_still_count(self):
+        paper = {"title": "Y", "external_ids": {}}
+        relevance.tag_source_ranks([paper], "arxiv", facet="pruning")
+        relevance.tag_source_ranks([paper], "openalex")
+        assert relevance.physical_source_count(paper) == 2
+
+    def test_facet_ranks_are_not_overwritten(self):
+        paper = {"title": "Z", "external_ids": {}}
+        relevance.tag_source_ranks([paper, {}], "arxiv", facet="a")
+        relevance.tag_source_ranks([{}, paper], "arxiv", facet="b")
+        assert paper["_source_ranks"]["arxiv::a"] == 0
+        assert paper["_source_ranks"]["arxiv::b"] == 1
+
+    def test_falls_back_for_records_without_the_field(self):
+        """Cached results predate _physical_sources and must still score."""
+        assert relevance.physical_source_count(
+            {"_source_ranks": {"arxiv": 0, "openalex": 1}}) == 2
+
+    def test_merge_unions_physical_sources(self):
+        a = {"title": "Same Paper", "external_ids": {"DOI": "10.1/x"}}
+        b = {"title": "Same Paper", "external_ids": {"DOI": "10.1/x"}}
+        relevance.tag_source_ranks([a], "arxiv", facet="pruning")
+        relevance.tag_source_ranks([b], "crossref")
+        merged = relevance.deduplicate([a, b])
+        assert len(merged) == 1
+        assert relevance.physical_source_count(merged[0]) == 2

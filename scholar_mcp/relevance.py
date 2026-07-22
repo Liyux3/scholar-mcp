@@ -210,19 +210,34 @@ def _normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
-def tag_source_ranks(papers: list[dict], source_name: str) -> list[dict]:
+def tag_source_ranks(papers: list[dict], source_name: str, facet: str = "") -> list[dict]:
     """Tag each paper with its rank position from the given source.
     Call this on each source's results before merging.
+
+    facet distinguishes several queries sent to one source. Keying ranks by
+    source alone would let the second query overwrite the first, and would
+    count one source answering twice as two independent sources agreeing,
+    which is the opposite of what source agreement is supposed to mean.
     """
+    channel = f"{source_name}::{facet}" if facet else source_name
     for rank, p in enumerate(papers):
         if "_source_ranks" not in p:
             p["_source_ranks"] = {}
-        p["_source_ranks"][source_name] = rank
+        p["_source_ranks"][channel] = rank
+        p.setdefault("_physical_sources", set()).add(source_name)
         if "source" not in p or not p["source"]:
             p["source"] = source_name
-        if "_source_count" not in p:
-            p["_source_count"] = 1
+        p["_source_count"] = len(p["_physical_sources"])
     return papers
+
+
+def physical_source_count(paper: dict) -> int:
+    """How many distinct APIs returned this paper, ignoring per-query channels."""
+    physical = paper.get("_physical_sources")
+    if physical:
+        return len(physical)
+    ranks = paper.get("_source_ranks") or {}
+    return len({channel.split("::", 1)[0] for channel in ranks}) or 1
 
 
 def _merge_two(a: dict, b: dict) -> dict:
@@ -251,10 +266,14 @@ def _merge_two(a: dict, b: dict) -> dict:
     b_sources = set((b.get("source") or "").split("+")) - {""}
     all_sources = a_sources | b_sources
     merged["source"] = "+".join(sorted(all_sources))
-    merged["_source_count"] = len(all_sources)
     a_ranks = merged.get("_source_ranks") or {}
     b_ranks = b.get("_source_ranks") or {}
     merged["_source_ranks"] = {**a_ranks, **b_ranks}
+    merged["_physical_sources"] = (
+        (merged.get("_physical_sources") or set()) | (b.get("_physical_sources") or set())
+        or all_sources
+    )
+    merged["_source_count"] = len(merged["_physical_sources"])
     return merged
 
 
@@ -540,12 +559,17 @@ def rank_final(papers: list[dict]) -> list[dict]:
     )
 
     current_year = datetime.now().year
-    n_sources = max(len(set(s for p in papers for s in (p.get("_source_ranks") or {}).keys())), 1)
+    # Count distinct APIs, not query channels: one source answering four
+    # queries is one source, and treating it as four inflates agreement.
+    n_sources = max(len({
+        channel.split("::", 1)[0]
+        for p in papers for channel in (p.get("_source_ranks") or {})
+    }), 1)
 
     for p in papers:
         r = max(p.get("_rerank_score", 0.0), 1e-6)
         cites = p.get("citation_count", 0) or 0
-        src_count = p.get("_source_count", 1)
+        src_count = physical_source_count(p)
         year = p.get("year") or current_year
         recency = max(0, 1.0 - (current_year - year) / 10.0)
 
