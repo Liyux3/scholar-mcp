@@ -1,6 +1,7 @@
 """Semantic Scholar API client using direct httpx calls."""
 
 import re
+import threading
 import time
 import httpx
 from . import config
@@ -40,18 +41,54 @@ def _headers() -> dict:
     return h
 
 
-def _get(url: str, params: dict = None, retries: int = 3) -> dict:
+# S2 allows about one request per second per key. The pipeline fans out from
+# several threads at once, so without a shared gate they queue on the server
+# and each gets a 429, then each backs off independently and retries into the
+# same contention. Serialising at the client is both faster and politer.
+_s2_gate = threading.Lock()
+_s2_last_request = 0.0
+S2_MIN_INTERVAL = 1.05
+
+# How long a caller will wait for its turn before giving up. Expansion runs
+# several S2 calls concurrently and none of them is worth stalling the whole
+# search for.
+S2_GATE_TIMEOUT = 6.0
+
+
+def _wait_for_turn(timeout: float = S2_GATE_TIMEOUT) -> bool:
+    """Space out requests across threads. False if the wait would be too long."""
+    global _s2_last_request
+    deadline = time.monotonic() + timeout
+    if not _s2_gate.acquire(timeout=timeout):
+        return False
+    try:
+        delay = S2_MIN_INTERVAL - (time.monotonic() - _s2_last_request)
+        if delay > 0:
+            if time.monotonic() + delay > deadline:
+                return False
+            time.sleep(delay)
+        _s2_last_request = time.monotonic()
+        return True
+    finally:
+        _s2_gate.release()
+
+
+def _get(url: str, params: dict = None, retries: int = 2) -> dict:
     for attempt in range(retries):
+        if not _wait_for_turn():
+            raise httpx.HTTPStatusError(
+                "S2 rate-limit gate timed out", request=None, response=None)
         try:
             r = httpx.get(url, params=params, headers=_headers(), timeout=config.S2_TIMEOUT)
         except httpx.TimeoutException:
             if attempt < retries - 1:
-                time.sleep(1)
                 continue
             raise
         if r.status_code == 429 and attempt < retries - 1:
-            wait = min(2 ** attempt + 1, 8)
-            time.sleep(wait)
+            # The gate already spaces requests, so a 429 means the server is
+            # busier than our interval assumes. One short extra pause, not an
+            # escalating chain that multiplies across concurrent callers.
+            time.sleep(2)
             continue
         r.raise_for_status()
         return r.json()

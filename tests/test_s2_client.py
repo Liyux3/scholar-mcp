@@ -27,7 +27,12 @@ def test_get_retries_rate_limit_before_success(monkeypatch):
 
     assert result == {"data": []}
     assert calls["count"] == 2
-    assert sleeps == [2]
+    # One backoff after the 429, plus the shared gate spacing the retry a
+    # second behind the first attempt. Both are intended; assert the backoff
+    # specifically rather than the exact list, since gate delays are timing
+    # dependent.
+    assert 2 in sleeps
+    assert len(sleeps) <= 2
 
 
 def test_search_papers(monkeypatch):
