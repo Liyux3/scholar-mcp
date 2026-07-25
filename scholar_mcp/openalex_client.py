@@ -40,6 +40,8 @@ def _request(url: str, params: dict, timeout: int = 30) -> httpx.Response:
     if response.status_code != 429 or not config.OPENALEX_API_KEYS:
         return response
 
+    _note_exhausted(params.get("api_key"), response)
+
     tried = {params.get("api_key")}
     for key in config.OPENALEX_API_KEYS:
         if key in tried:
@@ -48,7 +50,24 @@ def _request(url: str, params: dict, timeout: int = 30) -> httpx.Response:
         response = httpx.get(url, params={**params, "api_key": key}, timeout=timeout)
         if response.status_code != 429:
             break
+        _note_exhausted(key, response)
     return response
+
+
+def _note_exhausted(key: str | None, response: httpx.Response) -> None:
+    """Record a spent key so rotation stops picking it until it refills.
+
+    OpenAlex reports the seconds remaining until the allowance resets, so the
+    key can come back on its own rather than being dropped for good.
+    """
+    if not key:
+        return
+    try:
+        headers = getattr(response, "headers", {}) or {}
+        reset_after = float(headers.get("x-ratelimit-reset", 0))
+    except (TypeError, ValueError):
+        reset_after = 0
+    config.mark_openalex_exhausted(key, reset_after)
 
 
 def _get(url: str, params: dict, timeout: int = 30) -> httpx.Response:

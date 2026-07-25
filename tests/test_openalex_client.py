@@ -140,6 +140,7 @@ class TestKeyRotationOn429:
     class _Response:
         def __init__(self, status_code):
             self.status_code = status_code
+            self.headers = {}
 
         def raise_for_status(self):
             if self.status_code >= 400:
@@ -267,3 +268,74 @@ class TestWorkIdResolution:
                             lambda *a, **kw: FakeResponse())
         assert openalex_client._resolve_by_title(
             "Attention Is All You Need!") == "W2626778328"
+
+
+class TestExhaustedKeyAvoidance:
+    """OpenAlex bills per request against a per-key daily allowance that
+    refills on a rolling window. Random selection over a pool containing spent
+    keys wastes a round trip every time it picks one, so a spent key is parked
+    until its reported reset time.
+    """
+
+    def setup_method(self):
+        from scholar_mcp import config
+        config._openalex_exhausted.clear()
+
+    def teardown_method(self):
+        from scholar_mcp import config
+        config._openalex_exhausted.clear()
+
+    def test_skips_a_key_known_to_be_spent(self, monkeypatch):
+        from scholar_mcp import config
+        monkeypatch.setattr(config, "OPENALEX_API_KEYS", ["spent", "healthy"])
+        config.mark_openalex_exhausted("spent", 3600)
+        assert {config.get_openalex_api_key() for _ in range(20)} == {"healthy"}
+
+    def test_returns_a_key_once_the_window_passes(self, monkeypatch):
+        from scholar_mcp import config
+        monkeypatch.setattr(config, "OPENALEX_API_KEYS", ["recovered"])
+        config.mark_openalex_exhausted("recovered", -1)
+        assert config.get_openalex_api_key() == "recovered"
+
+    def test_tries_anyway_when_every_key_is_spent(self, monkeypatch):
+        """A stale reset estimate should not stop us making the request; a 429
+        is no worse than refusing to try.
+        """
+        from scholar_mcp import config
+        monkeypatch.setattr(config, "OPENALEX_API_KEYS", ["a", "b"])
+        for key in ("a", "b"):
+            config.mark_openalex_exhausted(key, 3600)
+        assert config.get_openalex_api_key() in {"a", "b"}
+
+    def test_429_parks_the_key_using_the_reset_header(self, monkeypatch):
+        from scholar_mcp import config, openalex_client
+
+        class Spent:
+            status_code = 429
+            headers = {"x-ratelimit-reset": "7200"}
+
+            def raise_for_status(self):
+                pass
+
+        monkeypatch.setattr(config, "OPENALEX_API_KEYS", ["spent"])
+        monkeypatch.setattr(openalex_client.httpx, "get", lambda *a, **kw: Spent())
+        openalex_client._request("http://x", {"api_key": "spent"})
+
+        import time
+        parked = config._openalex_exhausted.get("spent", 0)
+        assert 7000 < parked - time.time() <= 7200
+
+    def test_malformed_reset_header_still_parks_the_key(self, monkeypatch):
+        from scholar_mcp import config, openalex_client
+
+        class Spent:
+            status_code = 429
+            headers = {"x-ratelimit-reset": "not-a-number"}
+
+            def raise_for_status(self):
+                pass
+
+        monkeypatch.setattr(config, "OPENALEX_API_KEYS", ["spent"])
+        monkeypatch.setattr(openalex_client.httpx, "get", lambda *a, **kw: Spent())
+        openalex_client._request("http://x", {"api_key": "spent"})
+        assert "spent" in config._openalex_exhausted
