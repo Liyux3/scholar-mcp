@@ -85,6 +85,26 @@ def reference_sources() -> list[Source]:
     return [s for s in all_sources() if s.get_references and s.available()]
 
 
+# Source count a full, keyed install fans out to. Fewer than this means keys
+# are missing and the remaining sources should carry more of the pool.
+FULL_FLEET = 13
+MAX_SCALED_LIMIT = 300
+
+
+def _scale_limit(limit: int, available: int) -> int:
+    """Ask surviving sources for more when much of the fleet is unavailable.
+
+    Scales in proportion to what is missing, capped so a single source is
+    never asked for an unreasonable page. Measured on a keyless install:
+    arXiv returns 300 in 3.5s against 100 in 2.2s, Crossref 300 in 2.3s
+    against 100 in 1.8s, so the extra breadth is nearly free.
+    """
+    if available >= FULL_FLEET or available <= 0:
+        return limit
+    scaled = int(limit * FULL_FLEET / available)
+    return min(scaled, MAX_SCALED_LIMIT)
+
+
 def _timed_call(source_name: str, fn: Callable, *args, **kwargs) -> SourceResult:
     t0 = _time.monotonic()
     try:
@@ -114,6 +134,14 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
 
     if budget_s is None:
         budget_s = config.SOURCE_BUDGET_S
+
+    # Without API keys most of the fleet is unavailable: OpenAlex now bills per
+    # request and returns 429 unauthenticated, and S2 snippet needs a key too.
+    # A keyless install drops from 13 sources to 4 and from ~590 candidates to
+    # ~240. The survivors are not themselves limited, arXiv and Crossref both
+    # serve 300 with almost no extra latency, so ask them for more rather than
+    # leaving the pool thin.
+    limit = _scale_limit(limit, len(sources))
 
     def _pick_query(s):
         style = s.query_style

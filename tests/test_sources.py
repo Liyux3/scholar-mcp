@@ -307,3 +307,38 @@ class TestDegradedSemanticRouting:
 
         sources.parallel_search("compressed kw", raw_query="the full question")
         assert seen == ["the full question"]
+
+
+class TestKeylessFleetScaling:
+    """An install without API keys loses most of the fleet. OpenAlex now bills
+    per request and 429s unauthenticated, and S2 snippet needs a key, so a
+    keyless user drops from 13 sources to about 4 and from ~590 candidates to
+    ~240. The sources that remain are not themselves constrained, so they are
+    asked to carry more of the pool.
+    """
+
+    def test_full_fleet_is_unchanged(self):
+        assert sources._scale_limit(100, sources.FULL_FLEET) == 100
+
+    def test_scales_up_as_sources_disappear(self):
+        assert sources._scale_limit(100, 4) > sources._scale_limit(100, 8) > 100
+
+    def test_respects_the_per_source_ceiling(self):
+        """One source must not be asked for an unbounded page just because it
+        is the only one left.
+        """
+        assert sources._scale_limit(100, 1) == sources.MAX_SCALED_LIMIT
+
+    def test_handles_an_empty_fleet(self):
+        assert sources._scale_limit(100, 0) == 100
+
+    def test_applies_to_the_actual_fan_out(self, isolated_registry):
+        seen = []
+
+        def search(q, limit, **kw):
+            seen.append(limit)
+            return [{"title": "x"}]
+
+        sources.register(sources.Source(name="lonely", search=search))
+        sources.parallel_search("q", limit=100)
+        assert seen == [sources.MAX_SCALED_LIMIT]
