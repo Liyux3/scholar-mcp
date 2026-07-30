@@ -221,13 +221,31 @@ class TestWorkIdResolution:
         assert openalex_client._resolve_to_wid(
             "https://openalex.org/W2626778328") == "W2626778328"
 
-    def test_arxiv_id_without_title_is_unresolvable(self, monkeypatch):
-        """Documents the underlying limitation rather than asserting it is
-        desirable: there is no id-only route for arXiv papers.
+    def test_preprint_only_paper_is_unresolvable_without_title(self, monkeypatch):
+        """A paper that never left arXiv has no published DOI to bridge with,
+        so the id-only route genuinely cannot resolve it.
         """
+        monkeypatch.setattr(openalex_client, "_published_doi", lambda pid: None)
         monkeypatch.setattr(openalex_client, "_resolve_by_title",
                             lambda title: pytest.fail("should not be reached"))
         assert openalex_client._resolve_to_wid("ArXiv:1706.03762") is None
+
+    def test_resolves_arxiv_paper_through_its_published_doi(self, monkeypatch):
+        """The route that matters for conference papers.
+
+        OpenAlex does not index arXiv DOIs, and its title index does not
+        surface BERT at all, so before this every relation in recommend_papers
+        returned nothing for a conference paper addressed by arXiv id.
+        """
+        monkeypatch.setattr(openalex_client, "_published_doi",
+                            lambda pid: "10.18653/v1/N19-1423")
+        monkeypatch.setattr(openalex_client, "_wid_by_doi",
+                            lambda doi: "W2963341956" if doi == "10.18653/v1/N19-1423" else None)
+        monkeypatch.setattr(openalex_client, "_resolve_by_title",
+                            lambda title: pytest.fail("published DOI should win"))
+
+        assert openalex_client._resolve_to_wid(
+            "10.48550/arXiv.1810.04805") == "W2963341956"
 
     def test_falls_back_to_title(self, monkeypatch):
         monkeypatch.setattr(openalex_client, "_resolve_by_title",
@@ -339,3 +357,50 @@ class TestExhaustedKeyAvoidance:
         monkeypatch.setattr(openalex_client.httpx, "get", lambda *a, **kw: Spent())
         openalex_client._request("http://x", {"api_key": "spent"})
         assert "spent" in config._openalex_exhausted
+
+
+class TestPublishedDoiBridge:
+    """Semantic Scholar knows both a paper's arXiv and published identities.
+
+    S2 404s on the arXiv DOI form and needs `ArXiv:<id>`, which is the detail
+    that made this route look impossible when tried the obvious way.
+    """
+
+    def test_rewrites_arxiv_doi_to_the_form_s2_accepts(self, monkeypatch):
+        seen = []
+
+        def fake_get_paper(pid):
+            seen.append(pid)
+            return {"external_ids": {"DOI": "10.18653/v1/N19-1423"}}
+
+        monkeypatch.setattr("scholar_mcp.s2_client.get_paper", fake_get_paper)
+        doi = openalex_client._published_doi("10.48550/arXiv.1810.04805")
+        assert seen == ["ArXiv:1810.04805"]
+        assert doi == "10.18653/v1/N19-1423"
+
+    def test_accepts_a_bare_arxiv_id(self, monkeypatch):
+        seen = []
+        monkeypatch.setattr("scholar_mcp.s2_client.get_paper",
+                            lambda pid: seen.append(pid) or {"external_ids": {}})
+        openalex_client._published_doi("1810.04805")
+        assert seen == ["ArXiv:1810.04805"]
+
+    def test_rejects_an_arxiv_doi_echoed_back(self, monkeypatch):
+        """S2 sometimes reports the arXiv DOI as the DOI. That is the identity
+        OpenAlex cannot index, so returning it would just fail again a step later.
+        """
+        monkeypatch.setattr("scholar_mcp.s2_client.get_paper",
+                            lambda pid: {"external_ids": {"DOI": "10.48550/arXiv.1810.04805"}})
+        assert openalex_client._published_doi("10.48550/arXiv.1810.04805") is None
+
+    def test_ignores_non_arxiv_identifiers(self, monkeypatch):
+        monkeypatch.setattr("scholar_mcp.s2_client.get_paper",
+                            lambda pid: pytest.fail("should not call S2"))
+        assert openalex_client._published_doi("10.1109/cvpr.2016.90") is None
+
+    def test_survives_s2_failure(self, monkeypatch):
+        def boom(pid):
+            raise RuntimeError("S2 unavailable")
+
+        monkeypatch.setattr("scholar_mcp.s2_client.get_paper", boom)
+        assert openalex_client._published_doi("10.48550/arXiv.1810.04805") is None

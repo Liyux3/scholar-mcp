@@ -251,12 +251,13 @@ def _extract_oa_short_id(full_id: str) -> str:
 def _resolve_to_wid(paper_id: str, title: str = "") -> str | None:
     """Resolve any paper ID to an OA W-ID for use in cites/cited_by filters.
 
-    Tries direct ID, then DOI, then the title if one is supplied. The title
-    route matters because arXiv identifiers have no path here: OpenAlex does
-    not index arXiv DOIs (10.48550/*) and has no arXiv-id filter, so without
-    it every arXiv paper resolved to None and OpenAlex silently contributed no
-    citations. That left S2 as the only citation source, and S2 returns
-    citations recency-first, so the graph for a 2017 landmark consisted
+    Tries the id directly, then its DOI, then the published DOI behind an
+    arXiv identity, then the title. The extra routes exist because arXiv
+    identifiers have no path of their own: OpenAlex does not index arXiv DOIs
+    (10.48550/*) and offers no arXiv-id filter, so without them an arXiv paper
+    resolves to None and OpenAlex silently contributes no citations at all.
+    That leaves S2 as the only citation source, and S2 returns citations
+    recency-first, so the graph for a 2017 landmark came back consisting
     entirely of 2026 papers with one or two citations each.
     """
     if paper_id.startswith("W"):
@@ -266,17 +267,67 @@ def _resolve_to_wid(paper_id: str, title: str = "") -> str | None:
         if wid.startswith("W"):
             return wid
     if paper_id.startswith("10."):
-        url = f"https://api.openalex.org/works/doi:{paper_id}"
-        params = _params_base()
-        params["select"] = "id"
-        r = _request(url, params, timeout=15)
-        if r.status_code == 200:
-            oa_url = r.json().get("id", "")
-            if "openalex.org/" in oa_url:
-                return oa_url.split("/")[-1]
+        wid = _wid_by_doi(paper_id)
+        if wid:
+            return wid
+
+    published = _published_doi(paper_id)
+    if published:
+        wid = _wid_by_doi(published)
+        if wid:
+            return wid
 
     if title:
         return _resolve_by_title(title)
+    return None
+
+
+def _wid_by_doi(doi: str) -> str | None:
+    params = _params_base()
+    params["select"] = "id"
+    r = _request(f"https://api.openalex.org/works/doi:{doi}", params, timeout=15)
+    if r.status_code != 200:
+        return None
+    oa_url = r.json().get("id", "")
+    return oa_url.split("/")[-1] if "openalex.org/" in oa_url else None
+
+
+_ARXIV_DOI = re.compile(r"^10\.48550/arxiv\.(.+)$", re.I)
+_ARXIV_ID = re.compile(r"^\d{4}\.\d{4,5}(v\d+)?$")
+
+
+def _published_doi(paper_id: str) -> str | None:
+    """Find the journal or conference DOI for a paper given its arXiv identity.
+
+    OpenAlex does not index arXiv DOIs, so a paper whose id is an arXiv DOI has
+    no direct route in. Title search does not save it either: OpenAlex's title
+    index does not surface BERT at all, returning only a Japanese paper-review
+    article that quotes the title. The result was that every relation in
+    recommend_papers returned nothing for conference papers addressed by arXiv
+    id, which is most of them.
+
+    Semantic Scholar knows both identities, so it can bridge the two. Note it
+    404s on the arXiv DOI form and needs `ArXiv:<id>` instead, which is why the
+    id is rewritten rather than passed through. Papers that never appeared
+    outside arXiv have no published DOI and fall through to the title route.
+    """
+    match = _ARXIV_DOI.match(paper_id)
+    if match:
+        s2_id = f"ArXiv:{match.group(1)}"
+    elif _ARXIV_ID.match(paper_id):
+        s2_id = f"ArXiv:{paper_id}"
+    else:
+        return None
+
+    from . import s2_client
+    try:
+        paper = s2_client.get_paper(s2_id)
+    except Exception:
+        return None
+
+    doi = (paper or {}).get("external_ids", {}).get("DOI") or ""
+    if doi and not doi.lower().startswith("10.48550"):
+        return doi
     return None
 
 
