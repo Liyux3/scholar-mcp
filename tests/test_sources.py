@@ -246,7 +246,7 @@ class TestCallersRouteQueries:
     EXEMPT = {
         # A bag of frequent terms has no natural-language form, so there is no
         # raw variant to give a semantic source.
-        ("server.py", "_expand_keyword_search"),
+        ("expansion.py", "frequent_terms"),
     }
 
     def test_every_caller_routes_queries(self):

@@ -10,6 +10,7 @@ from . import pdf_utils
 from . import relevance
 from . import graph
 from . import discovery
+from . import expansion
 from . import knowledge_base as kb
 from . import sources
 from . import traversal
@@ -49,6 +50,33 @@ def _get_best_id(paper: dict) -> str:
     return ""
 
 
+# Seeds expanded from. Each costs a fan-out per channel, so this is the main
+# lever on how much traffic expansion generates.
+EXPANSION_SEEDS = 3
+
+# Weight kept from the first reranking pass when a paper was scored twice.
+# Both passes score the same paper against the same query, so disagreement is
+# noise from a different candidate set rather than new information; averaging
+# damps it.
+PASS_BLEND = 0.2
+
+
+def _smooth_across_passes(papers: list[dict]) -> None:
+    """Average a paper's two rerank scores, where it has two.
+
+    Only papers present before expansion have a first-pass score. Blending a
+    missing one as zero would multiply every expanded paper by 1 - PASS_BLEND,
+    a flat 20% penalty applied for no reason other than arriving late, which
+    works directly against the point of expanding.
+    """
+    for paper in papers:
+        first = paper.get("_iter1_score")
+        if first is None:
+            continue
+        second = paper.get("_rerank_score", 0.0)
+        paper["_rerank_score"] = PASS_BLEND * first + (1 - PASS_BLEND) * second
+
+
 def _pipeline(
     dispatch: str,
     query_or_id: str,
@@ -58,8 +86,9 @@ def _pipeline(
     intent: str = "",
     paper_title: str = "",
     expand_citations: bool = True,
-    expand_top_n: int = 10,
+    expand_min_pool: int = 10,
     expand_limit: int = 20,
+    expand_channels: list[str] | None = None,
     **kwargs,
 ) -> tuple[list[dict], list[dict]]:
     """Shared pipeline: parallel fetch -> dedup -> rerank -> (expand) -> rank -> truncate.
@@ -71,9 +100,11 @@ def _pipeline(
         rerank_query: if set, run reranker with this query
         raw_query: original unoptimized query, sent to semantic sources
         paper_title: title of the seed paper, for citation-source id resolution
-        expand_citations: if True, expand pool via refs/cites of top results (2nd rerank pass)
-        expand_top_n: how many top papers to expand from
-        expand_limit: refs/cites to fetch per paper
+        expand_citations: if True, expand the pool from the top results
+        expand_min_pool: skip expansion when fewer results than this came back,
+            since seeds picked from a thin pool are unlikely to be good ones
+        expand_limit: how many papers each channel fetches per seed
+        expand_channels: channel names to run; None means expansion.CHANNELS
         **kwargs: passed to source search (year, fields_of_study, etc.)
     Returns:
         (ranked_papers, source_reports)
@@ -118,96 +149,19 @@ def _pipeline(
         for p in all_papers:
             p["_iter1_score"] = p.get("_rerank_score", 0.0)
 
-        if expand_citations and len(all_papers) >= expand_top_n:
-            from concurrent.futures import ThreadPoolExecutor, as_completed
-            from collections import Counter
-            top_papers = all_papers[:expand_top_n]
-            expansion = []
+        if expand_citations and len(all_papers) >= expand_min_pool:
+            by_channel = expansion.expand(
+                all_papers[:EXPANSION_SEEDS],
+                intent=intent,
+                per_seed_limit=expand_limit,
+                channels=expand_channels,
+            )
+            found = [p for papers in by_channel.values() for p in papers]
 
-            def _expand_refs(paper):
-                pid = _get_best_id(paper)
-                if not pid:
-                    return []
-                papers = []
-                for sr in sources.parallel_references(pid, limit=expand_limit):
-                    papers.extend(sr.results)
-                return papers
-
-            def _expand_cites(paper):
-                pid = _get_best_id(paper)
-                if not pid:
-                    return []
-                papers = []
-                min_cite = {"foundational": 10, "survey": 5, "method": 3}.get(intent, 1)
-                for sr in sources.parallel_citations(pid, limit=expand_limit,
-                                                     title=paper.get("title", "")):
-                    for p in sr.results:
-                        if (p.get("citation_count") or 0) >= min_cite:
-                            papers.append(p)
-                return papers
-
-            def _expand_title_search(paper):
-                title = paper.get("title", "")
-                if not title:
-                    return []
-                papers = []
-                # A title is natural language, so semantic sources want it
-                # verbatim while keyword sources want it compressed. Passing
-                # one string gives every source the wrong form.
-                for sr in sources.parallel_search(
-                    relevance.optimize_query(title), limit=20,
-                    raw_query=title,
-                    short_query=relevance.optimize_query_short(title),
-                ):
-                    papers.extend(sr.results)
-                return papers
-
-            def _expand_recommend(paper):
-                pid = _get_best_id(paper)
-                if not pid:
-                    return []
-                try:
-                    return s2_client.get_recommendations(pid, limit=20)
-                except Exception:
-                    return []
-
-            def _expand_keyword_search():
-                from collections import Counter
-                terms = Counter()
-                for p in top_papers:
-                    text = (p.get("title", "") + " " + p.get("abstract", ""))
-                    for w in relevance.extract_keywords(text, max_keywords=5):
-                        terms[w] += 1
-                top_terms = [w for w, _ in terms.most_common(8)]
-                if not top_terms:
-                    return []
-                papers = []
-                # Deliberately unrouted. This query is a bag of frequent terms
-                # with no natural-language form, so there is no raw variant to
-                # give semantic sources; they get the same keyword string.
-                for sr in sources.parallel_search(" ".join(top_terms), limit=50):
-                    papers.extend(sr.results)
-                return papers
-
-            with ThreadPoolExecutor(max_workers=15) as pool:
-                futures = []
-                for p in top_papers[:3]:
-                    futures.append(pool.submit(_expand_refs, p))
-                    futures.append(pool.submit(_expand_cites, p))
-                    futures.append(pool.submit(_expand_title_search, p))
-                    futures.append(pool.submit(_expand_recommend, p))
-                futures.append(pool.submit(_expand_keyword_search))
-
-                for f in as_completed(futures):
-                    try:
-                        expansion.extend(f.result())
-                    except Exception:
-                        pass
-
-            if expansion:
-                for p in expansion:
+            if found:
+                for p in found:
                     relevance.tag_source_ranks([p], "expansion")
-                all_papers.extend(expansion)
+                all_papers.extend(found)
                 all_papers = relevance.deduplicate(all_papers)
                 if len(all_papers) > 500:
                     old = [p for p in all_papers if p.get("_rerank_score")]
@@ -218,11 +172,7 @@ def _pipeline(
                     new_keep = new_ranked[:500 - len(old_keep)]
                     all_papers = old_keep + new_keep
                 all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
-                ema_alpha = 0.2
-                for p in all_papers:
-                    i1 = p.get("_iter1_score", 0.0)
-                    i2 = p.get("_rerank_score", 0.0)
-                    p["_rerank_score"] = ema_alpha * i1 + (1 - ema_alpha) * i2
+                _smooth_across_passes(all_papers)
                 all_papers = relevance.rank_final(all_papers)
     else:
         all_papers.sort(key=lambda p: -(p.get("citation_count", 0) or 0))
