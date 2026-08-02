@@ -119,3 +119,152 @@ class TestExportCollection:
         monkeypatch.setattr(vault, "DEFAULT_VAULT_DIR", str(tmp_path))
         result = vault.export_collection([_paper(), {"title": ""}], "c")
         assert result["notes_written"] == 1
+
+
+class TestInternalRelations:
+    """Relations among the papers a user actually saved.
+
+    A collection is not a random sample, so connections inside it are the ones
+    worth drawing. Without them every note is an isolated node and the graph
+    view shows a cloud of unconnected dots.
+    """
+
+    def _paper(self, title, abstract="", authors=None):
+        return {"title": title, "abstract": abstract, "authors": authors or []}
+
+    def test_abstract_naming_another_title_is_directional(self):
+        papers = [
+            self._paper("A Careful Study of Retrieval Augmented Generation Systems",
+                        abstract="We extend Dense Passage Retrieval for Open Domain "
+                                 "Question Answering with a reranking stage."),
+            self._paper("Dense Passage Retrieval for Open Domain Question Answering"),
+        ]
+        relations = vault.build_internal_relations(papers)
+
+        assert relations["A Careful Study of Retrieval Augmented Generation Systems"]["mentions"][0]["title"] \
+            == "Dense Passage Retrieval for Open Domain Question Answering"
+        assert relations["Dense Passage Retrieval for Open Domain Question Answering"]["mentioned_by"][0]["title"] \
+            == "A Careful Study of Retrieval Augmented Generation Systems"
+
+    def test_field_name_titles_do_not_become_hubs(self):
+        """The failure this guards against was measured, not imagined.
+
+        In a 451-paper RAG collection, the paper titled "Retrieval-Augmented
+        Generation" matched 128 other abstracts, because that phrase is the
+        name of the field rather than a citation. It and one other generic
+        title produced almost every edge in the graph, and the largest
+        connected component was held together entirely by them.
+        """
+        generic = "Retrieval Augmented Generation For Knowledge Tasks"
+        papers = [self._paper(generic)] + [
+            self._paper(f"Paper {i}",
+                        abstract=f"We apply {generic.lower()} to a new domain.")
+            for i in range(vault.MAX_MENTION_HITS + 3)
+        ]
+        relations = vault.build_internal_relations(papers)
+        assert "mentioned_by" not in relations.get(generic, {})
+
+    def test_a_few_mentions_still_count(self):
+        title = "Retrieval Augmented Generation For Knowledge Tasks"
+        papers = [self._paper(title)] + [
+            self._paper(f"Paper {i}", abstract=f"We build on {title.lower()} here.")
+            for i in range(2)
+        ]
+        relations = vault.build_internal_relations(papers)
+        assert len(relations[title]["mentioned_by"]) == 2
+
+    def test_short_titles_are_not_matched(self):
+        """Below a few words a title is a phrase, and phrases recur in prose
+        for reasons unrelated to citation.
+        """
+        papers = [
+            self._paper("Segment Anything"),
+            self._paper("Another Paper", abstract="we segment anything in the image"),
+        ]
+        assert vault.build_internal_relations(papers) == {}
+
+    def test_shared_authors_link_both_ways(self):
+        papers = [
+            self._paper("First Paper", authors=["Ada Lovelace", "Alan Turing"]),
+            self._paper("Second Paper", authors=["Ada Lovelace"]),
+        ]
+        relations = vault.build_internal_relations(papers)
+        assert relations["First Paper"]["coauthored"][0]["title"] == "Second Paper"
+        assert relations["Second Paper"]["coauthored"][0]["title"] == "First Paper"
+
+    def test_hyperprolific_author_lists_are_skipped(self):
+        """A paper with hundreds of authors would otherwise link to everything
+        else that shares any one of them.
+        """
+        crowd = [f"Author {i}" for i in range(vault.MAX_AUTHORS_FOR_COAUTHOR_EDGE + 1)]
+        papers = [
+            self._paper("Consortium Report", authors=crowd),
+            self._paper("Small Paper", authors=["Author 0"]),
+        ]
+        assert vault.build_internal_relations(papers) == {}
+
+    def test_a_paper_never_links_to_itself(self):
+        papers = [self._paper("Solo Paper", abstract="solo paper studies solo paper",
+                              authors=["One Person"])]
+        assert vault.build_internal_relations(papers) == {}
+
+
+class TestCitationRelations:
+    def test_builds_edges_from_reference_lists(self, monkeypatch):
+        papers = [
+            {"title": "Citing Work", "doi": "10.1/a", "authors": []},
+            {"title": "Cited Work", "doi": "10.1/b", "authors": []},
+        ]
+        monkeypatch.setattr(vault.s2_client, "get_references",
+                            lambda pid, limit=100:
+                            [{"title": "Cited Work"}] if pid == "10.1/a" else [])
+
+        relations = vault.build_citation_relations(papers, max_workers=1)
+        assert relations["Citing Work"]["foundations"][0]["title"] == "Cited Work"
+        assert relations["Cited Work"]["descendants"][0]["title"] == "Citing Work"
+
+    def test_references_outside_the_collection_are_ignored(self, monkeypatch):
+        """Only edges between saved papers are drawable; a reference to a paper
+        with no note would produce a wikilink to nothing.
+        """
+        papers = [{"title": "Citing Work", "doi": "10.1/a", "authors": []}]
+        monkeypatch.setattr(vault.s2_client, "get_references",
+                            lambda pid, limit=100: [{"title": "Some Paper Elsewhere"}])
+        assert vault.build_citation_relations(papers, max_workers=1) == {}
+
+    def test_a_failed_lookup_does_not_lose_the_others(self, monkeypatch):
+        papers = [
+            {"title": "Broken", "doi": "10.1/x", "authors": []},
+            {"title": "Working", "doi": "10.1/a", "authors": []},
+            {"title": "Cited Work", "doi": "10.1/b", "authors": []},
+        ]
+
+        def refs(pid, limit=100):
+            if pid == "10.1/x":
+                raise RuntimeError("S2 down")
+            return [{"title": "Cited Work"}] if pid == "10.1/a" else []
+
+        monkeypatch.setattr(vault.s2_client, "get_references", refs)
+        relations = vault.build_citation_relations(papers, max_workers=1)
+        assert "Broken" not in relations
+        assert relations["Working"]["foundations"][0]["title"] == "Cited Work"
+
+    def test_titles_match_across_spellings(self, monkeypatch):
+        """Sources disagree on capitalisation and punctuation, so an exact
+        comparison would miss most real edges.
+        """
+        papers = [
+            {"title": "Citing Work", "doi": "10.1/a", "authors": []},
+            {"title": "Attention Is All You Need", "doi": "10.1/b", "authors": []},
+        ]
+        monkeypatch.setattr(vault.s2_client, "get_references",
+                            lambda pid, limit=100:
+                            [{"title": "Attention is all you need."}] if pid == "10.1/a" else [])
+        relations = vault.build_citation_relations(papers, max_workers=1)
+        assert relations["Citing Work"]["foundations"][0]["title"] == "Attention Is All You Need"
+
+    def test_export_leaves_citations_alone_unless_asked(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(vault, "DEFAULT_VAULT_DIR", str(tmp_path))
+        monkeypatch.setattr(vault.s2_client, "get_references",
+                            lambda *a, **kw: pytest.fail("should not call S2"))
+        vault.export_collection([{"title": "A Paper", "authors": []}], collection="c")

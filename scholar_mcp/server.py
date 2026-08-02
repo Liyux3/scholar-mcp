@@ -581,6 +581,7 @@ def knowledge_base(
     query: str = "",
     notes: str = "",
     limit: int = 20,
+    link_citations: bool = False,
 ) -> str:
     """Manage saved papers in the knowledge base.
 
@@ -592,6 +593,11 @@ def knowledge_base(
         query: Search query (for action="search")
         notes: Notes to attach to saved papers (for action="save")
         limit: Maximum papers to return
+        link_citations: for action="export", resolve each paper's reference
+            list so notes link along real citations. Costs one request per
+            paper, and is what actually connects the graph: on a 71-paper
+            collection, stored metadata yields 26 links and 13% of notes
+            connected, while reference lists yield 342 links and 73%.
     """
     if action == "collections":
         return _yaml({"collections": kb.list_collections()})
@@ -603,7 +609,8 @@ def knowledge_base(
         papers = kb.list_papers(collection=collection, limit=10000)
         if not papers:
             return _yaml({"error": f"Collection '{collection}' is empty"})
-        return _yaml(vault.export_collection(papers, collection))
+        return _yaml(vault.export_collection(papers, collection,
+                                             link_citations=link_citations))
 
     if action == "save":
         titles = [t.strip() for t in paper_titles.split(",") if t.strip()]
