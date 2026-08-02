@@ -11,9 +11,12 @@ scholar_mcp/
   server.py       — FastMCP server, 10 tools, the shared _pipeline
   sources.py      — source registry, parallel dispatch, per-source query routing
   relevance.py    — query compression, dedup, rerank, final ranking
+  expansion.py    — expansion channels, one function each, registered in a table
+  traversal.py    — co-citation and bibliographic coupling
   graph.py        — citation graph construction, PageRank, pivot detection
   discovery.py    — field-landscape assembly for discover_field
   knowledge_base.py — JSONL persistence at ~/.scholar-mcp/kb/
+  vault.py        — Obsidian export of saved papers
   cache.py        — response cache, 5 min TTL
   pdf_utils.py    — download chain across preprint servers, pypdf extraction
   config.py       — env var configuration
@@ -42,8 +45,8 @@ query
   rank_final               — rerank score adjusted by citations, source
                              agreement, recency
         ↓
-  citation expansion       — refs + cites + recommendations of top 10,
-                             then a second rerank pass with EMA smoothing
+  expansion                — channels run over the top 3 results,
+                             then a second rerank pass
         ↓
   truncate to limit
 ```
@@ -116,6 +119,40 @@ Priority determines ordering in `all_sources()`, not fallback sequence.
 | search_openreview | Conference submissions and reviews |
 | scholar_status | Version, active sources, KB collections |
 
+## Expansion
+
+Keyword search can only return papers whose text matches the query, but a
+fifth of the ground truth in the cached benchmark run (9 of 42 papers) is
+reachable only one hop away from a good result. `expansion.py` takes the top
+three results as seeds and pulls in their neighbours.
+
+Each channel is a function of `(seed, context)` registered in a table, not a
+closure inside the pipeline. That is a testability decision with a specific
+history: an evaluation harness that reconstructed the pipeline around the
+closures omitted the reranking step, leaving seeds ordered by citation count,
+and reported that four channels contributed nothing. A harness has to call the
+same code that runs in production.
+
+| Channel | Reaches | Cost per seed |
+|---------|---------|---------------|
+| references | what the seed cites, towards foundations | 2 requests |
+| citations | what cites the seed, towards descendants | 2 requests |
+| title_search | a full re-search from the seed's title | one fan-out |
+| recommendations | SPECTER2 embedding neighbours | 1 request |
+| frequent_terms | terms common to all seeds, run once globally | one fan-out |
+
+`peers` and `kin` (co-citation and bibliographic coupling) are registered in
+`OPTIONAL_CHANNELS` and off by default. They are the only relations that cross
+field boundaries, since shared references imply shared method even when the
+vocabulary differs, but each costs seconds and a batch of metered OpenAlex
+requests. They are available on demand through `recommend_papers`.
+
+Papers scored in both reranking passes have the two blended, weighted by
+`PASS_BLEND`. Papers that arrive during expansion are scored once and keep
+that score. Blending a missing first-pass score as zero, which is what an
+earlier version did, applied a flat 20% penalty to every expanded paper for no
+reason other than arriving late.
+
 ## Citations
 
 Two sources answer citation queries, and they differ in a way that matters:
@@ -137,6 +174,45 @@ Improved prediction of FAD binding").
 
 Callers that hold the paper dict should pass its title. Those that only have
 an id will still work, but lose OpenAlex for arXiv papers.
+
+Resolution tries the id, then its DOI, then the published DOI behind an arXiv
+identity, then the title. The third route exists because OpenAlex indexes
+neither arXiv DOIs nor arXiv ids, and its title index does not contain every
+paper: searching it for BERT returns only a Japanese paper-review article that
+quotes the title inside its own, which the normalised-title check rejects. So
+a conference paper addressed by arXiv id had no route in at all, and every
+relation in `recommend_papers` returned nothing for it. Semantic Scholar knows
+both identities and bridges them, but it 404s on the arXiv DOI form and needs
+`ArXiv:<id>`, which is why the identifier is rewritten rather than passed
+through.
+
+## OpenAlex record hazards
+
+Two failure modes in OpenAlex's data affect anything that walks the graph, and
+both are silent.
+
+Some work ids that still appear inside other works' `referenced_works` arrays
+are no longer served: they 404 on direct fetch, return no redirect, and are
+simply omitted from batched `openalex_id:` filters. They are not obscure
+papers. The two strongest co-citation edges for BERT are "Attention Is All You
+Need" and ELMo, and both are dead ids, so the relation was discarding exactly
+what it exists to surface. Ids minted during the MAG import keep the MAG
+identifier as their numeric part, so `W2xxxxxxxxx` can be recovered through
+Semantic Scholar as `MAG:xxxxxxxxx`. Measured over four seeds, 8 of 21 dead
+edges come back. Ids allocated later by OpenAlex (W6 and above) have no MAG
+counterpart and are unrecoverable.
+
+Separately, OpenAlex holds several work records per paper, so a paper's
+co-occurrence count is split across them: VGG appeared twice among ResNet's
+peers at 32 and 20 votes, and neither figure was the real edge weight.
+`traversal._materialise` merges by normalised title and sums the strength,
+which both removes the duplicate and restores the count to 52.
+
+A third hazard is documented but not yet handled: some records have a title
+and DOI belonging to one paper and the authors, year and citation counts of
+another. W2965373594 is titled "HISTORIAE, History of Socio-Cultural
+Transformation as Linguistic Data" with a LIPIcs DOI, while its author list is
+unmistakably RoBERTa's. See `docs/OPENALEX_DATA_QUALITY.md`.
 
 ## Error handling
 
