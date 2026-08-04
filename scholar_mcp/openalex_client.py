@@ -282,6 +282,7 @@ def _resolve_to_wid(paper_id: str, title: str = "") -> str | None:
     return None
 
 
+@cached(ttl=3600)
 def _wid_by_doi(doi: str) -> str | None:
     params = _params_base()
     params["select"] = "id"
@@ -296,6 +297,7 @@ _ARXIV_DOI = re.compile(r"^10\.48550/arxiv\.(.+)$", re.I)
 _ARXIV_ID = re.compile(r"^\d{4}\.\d{4,5}(v\d+)?$")
 
 
+@cached(ttl=3600)
 def _published_doi(paper_id: str) -> str | None:
     """Find the journal or conference DOI for a paper given its arXiv identity.
 
@@ -310,6 +312,11 @@ def _published_doi(paper_id: str) -> str | None:
     404s on the arXiv DOI form and needs `ArXiv:<id>` instead, which is why the
     id is rewritten rather than passed through. Papers that never appeared
     outside arXiv have no published DOI and fall through to the title route.
+
+    Cached because the mapping is a fact about the paper rather than a query
+    result: it does not change, and expansion asks for the same seeds through
+    several channels at once. Each miss costs a request against the S2 gate,
+    which serialises at roughly a second apiece.
     """
     match = _ARXIV_DOI.match(paper_id)
     if match:
