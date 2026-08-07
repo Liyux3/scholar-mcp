@@ -208,11 +208,33 @@ peers at 32 and 20 votes, and neither figure was the real edge weight.
 `traversal._materialise` merges by normalised title and sums the strength,
 which both removes the duplicate and restores the count to 52.
 
-A third hazard is documented but not yet handled: some records have a title
-and DOI belonging to one paper and the authors, year and citation counts of
-another. W2965373594 is titled "HISTORIAE, History of Socio-Cultural
-Transformation as Linguistic Data" with a LIPIcs DOI, while its author list is
-unmistakably RoBERTa's. See `docs/OPENALEX_DATA_QUALITY.md`.
+A third hazard is deliberately not handled, and the reason is worth stating.
+Some Works are overmerged: OpenAlex joins unrelated source records into one
+Work and then selects each field from a different part of the cluster, so the
+title and DOI describe one paper while the authors, year and citation count
+belong to another. W2965373594 carries a LIPIcs title and DOI over RoBERTa's
+author list and citation count.
+
+There is no detector for this with an acceptable false-positive rate.
+Comparing the title against its registration record catches the shape above,
+but a 500-Work sample of Crossref-registered DOIs found zero mismatches while
+a census of DataCite-only Works found 20 in 614 (3.3%), so it only addresses
+one stratum. More importantly it cannot catch the worse case: W3038568908 has
+a coherent title, DOI, authors and locations while reporting 801,217 citations
+against Crossref's 9. Contaminated citation edges are invisible to any check
+on descriptive fields.
+
+The defence is therefore cross-source agreement rather than filtering. A paper
+that several sources return is not distorted by one bad record, and
+`rank_final` weights citations weakly (α=0.05, so 100k citations buys 23%)
+precisely because the count cannot be trusted at face value.
+
+Two related corrections to earlier readings of this data. "Attention Is All
+You Need" showing 2025 and 6,598 citations is not a stale duplicate record: it
+is the real Work, contaminated by eight unrelated posted-content DOIs attached
+as locations. And GPT-3's low count is not preprint/proceedings splitting, as
+its arXiv and NeurIPS versions are already locations on a single Work. See
+`docs/OPENALEX_DATA_QUALITY.md` for the measurements.
 
 ## Error handling
 
