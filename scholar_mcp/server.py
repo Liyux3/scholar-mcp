@@ -1,7 +1,9 @@
+import os
 import re
-import json
 import yaml
 from fastmcp import FastMCP
+from mcp.types import ToolAnnotations
+from . import __version__
 from . import config
 from . import s2_client
 from . import openalex_client
@@ -16,7 +18,12 @@ from . import sources
 from . import traversal
 from . import vault
 
-mcp = FastMCP("scholar-mcp")
+mcp = FastMCP(
+    "scholar-mcp",
+    version=__version__,
+    website_url="https://github.com/Liyux3/scholar-mcp",
+    mask_error_details=True,
+)
 
 INTERNAL_FETCH_LIMIT = 100
 
@@ -294,7 +301,13 @@ def _meta_block(source_reports: list[dict], **extra) -> dict:
     return {**meta, **extra}
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Search academic papers",
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=True,
+))
 def search_papers(
     query: str,
     limit: int = 10,
@@ -361,7 +374,13 @@ def search_papers(
     })
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Inspect a paper and its citation neighborhood",
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=True,
+))
 def paper_info(
     paper_id: str,
     include: str = "detail",
@@ -411,7 +430,13 @@ def paper_info(
     return _yaml(output)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Recommend related papers",
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=True,
+))
 def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) -> str:
     """Find related papers by a chosen citation-graph relation.
 
@@ -483,7 +508,13 @@ def _id_variants(paper_id: str) -> list[str]:
     return variants
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Search academic authors",
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=True,
+))
 def search_authors(query: str, limit: int = 5) -> str:
     """Search for academic authors/researchers.
 
@@ -498,7 +529,13 @@ def search_authors(query: str, limit: int = 5) -> str:
         return _yaml({"error": f"Author search failed: {e}"})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Download and read a paper",
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=False,
+    openWorldHint=True,
+))
 def read_paper(paper_id: str, save_dir: str = "", max_pages: int = 0, extract_text: bool = True) -> str:
     """Download a paper's PDF and optionally extract its text content.
 
@@ -532,7 +569,13 @@ def read_paper(paper_id: str, save_dir: str = "", max_pages: int = 0, extract_te
         return _yaml({"error": f"PDF downloaded but text extraction failed: {e}", "file_path": dl_result.get("file_path")})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Search OpenReview submissions",
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=True,
+))
 def search_openreview(query: str, venue: str = "", limit: int = 10) -> str:
     """Search OpenReview for conference papers (ICLR, NeurIPS, ICML, etc.).
     No API key required. Returns papers with PDFs and review links.
@@ -551,7 +594,13 @@ def search_openreview(query: str, venue: str = "", limit: int = 10) -> str:
         return _yaml({"error": f"OpenReview search failed: {e}"})
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Build a paper citation graph",
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=True,
+))
 def build_paper_graph(
     paper_ids: str,
     max_hops: int = 2,
@@ -603,7 +652,13 @@ def build_paper_graph(
     return result["summary"] + "\n\n```mermaid\n" + result["mermaid"] + "\n```"
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Manage a local paper collection",
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=False,
+    openWorldHint=False,
+))
 def knowledge_base(
     action: str = "list",
     paper_titles: str = "",
@@ -681,7 +736,13 @@ def knowledge_base(
     return _yaml(output)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Map a research field",
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=True,
+))
 def discover_field(topic: str, max_papers: int = 30) -> str:
     """Map a research field: find surveys, foundational papers, and recent advances.
 
@@ -694,7 +755,13 @@ def discover_field(topic: str, max_papers: int = 30) -> str:
     return result["summary"] + "\n\n```mermaid\n" + result["mermaid"] + "\n```"
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    title="Inspect Scholar MCP status",
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+))
 def scholar_status(check_reranker: bool = False) -> str:
     """Check scholar-mcp server version, available sources, and KB collections.
 
@@ -718,7 +785,7 @@ def scholar_status(check_reranker: bool = False) -> str:
         reranker = "no key, using FlashRank"
 
     return _yaml({
-        "version": "0.7.0",
+        "version": __version__,
         "tools": 10,
         "search_sources": available,
         "citation_sources": cite_sources,
@@ -730,6 +797,18 @@ def scholar_status(check_reranker: bool = False) -> str:
 
 
 def main():
+    transport = os.environ.get("SCHOLAR_MCP_TRANSPORT", "stdio").strip().lower()
+    if transport in {"http", "streamable-http"}:
+        mcp.run(
+            transport="http",
+            host=os.environ.get("SCHOLAR_MCP_HOST", "127.0.0.1"),
+            port=int(os.environ.get("SCHOLAR_MCP_PORT", "8000")),
+            path=os.environ.get("SCHOLAR_MCP_PATH", "/mcp"),
+            stateless_http=os.environ.get("SCHOLAR_MCP_STATELESS", "1").lower()
+            in {"1", "true", "yes"},
+            show_banner=False,
+        )
+        return
     mcp.run(transport="stdio", show_banner=False)
 
 

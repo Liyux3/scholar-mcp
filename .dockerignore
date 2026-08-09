@@ -1,0 +1,8 @@
+.git
+.gitnexus
+.venv
+__pycache__
+*.pyc
+downloads
+eval
+tests

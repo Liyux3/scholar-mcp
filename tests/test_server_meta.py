@@ -4,7 +4,9 @@ This block is returned on every search, so its size is a recurring cost to
 the caller's context, and its contents are a recurring disclosure risk.
 """
 
-from scholar_mcp import server
+import asyncio
+
+from scholar_mcp import __version__, server
 
 
 def _report(source, status="ok", count=100, latency_ms=1000, error=None):
@@ -108,3 +110,21 @@ class TestKnowledgeBaseDiscoverability:
             {"name": "other", "papers": 5},
         ])
         assert "other_collections" not in server.knowledge_base(action="list")
+
+
+class TestPublishedToolMetadata:
+    def test_server_version_matches_package(self):
+        assert __version__ == "0.8.0"
+        assert server.mcp.version == __version__
+
+    def test_every_tool_declares_behavior_annotations(self):
+        tools = {
+            tool.name: tool
+            for tool in asyncio.run(server.mcp.list_tools())
+        }
+        assert len(tools) == 10
+        assert all(tool.annotations is not None for tool in tools.values())
+        assert tools["search_papers"].annotations.readOnlyHint is True
+        assert tools["knowledge_base"].annotations.readOnlyHint is False
+        assert tools["read_paper"].annotations.readOnlyHint is False
+        assert all(tool.annotations.destructiveHint is False for tool in tools.values())

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.liyux3/scholar-mcp",
+  "title": "Scholar MCP",
+  "description": "Multi-source academic search, reranking, citation traversal, graphs, and open-access reading.",
+  "repository": {
+    "url": "https://github.com/Liyux3/scholar-mcp",
+    "source": "github"
+  },
+  "version": "0.8.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "scholar-mcp",
+      "version": "0.8.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {"name": "S2_API_KEY", "isRequired": false, "isSecret": true},
+        {"name": "OPENALEX_API_KEY", "isRequired": false, "isSecret": true},
+        {"name": "CORE_API_KEY", "isRequired": false, "isSecret": true},
+        {"name": "SCOPUS_API_KEY", "isRequired": false, "isSecret": true},
+        {"name": "DASHSCOPE_API_KEY", "isRequired": false, "isSecret": true},
+        {"name": "EXA_API_KEY", "isRequired": false, "isSecret": true}
+      ]
+    }
+  ]
+}
