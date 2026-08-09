@@ -158,9 +158,68 @@ def format_paper(work: dict) -> dict | None:
 # question routed to the keyword endpoint failed outright.
 _OA_SEARCH_OPERATORS = str.maketrans({"?": " ", "*": " "})
 
+# OpenAlex's Works API accepts topic field IDs in filters.  It does not accept
+# display-name search at `topics.display_name.search`; using that former field
+# makes the whole source fail with HTTP 400.  These IDs are the stable field
+# taxonomy exposed by the official `/fields` endpoint.  Common Semantic
+# Scholar field names are aliases because `search_papers` exposes one shared
+# cross-source filter vocabulary.
+_OPENALEX_FIELD_IDS: dict[str, tuple[str, ...]] = {
+    "agricultural and biological sciences": ("11",),
+    "agricultural and food sciences": ("11",),
+    "arts and humanities": ("12",),
+    "art": ("12",),
+    "history": ("12",),
+    "philosophy": ("12",),
+    "biochemistry, genetics and molecular biology": ("13",),
+    "biology": ("11", "13", "24", "28"),
+    "business, management and accounting": ("14",),
+    "business": ("14",),
+    "chemical engineering": ("15",),
+    "chemistry": ("16",),
+    "computer science": ("17",),
+    "decision sciences": ("18",),
+    "earth and planetary sciences": ("19",),
+    "geology": ("19",),
+    "economics, econometrics and finance": ("20",),
+    "economics": ("20",),
+    "energy": ("21",),
+    "engineering": ("22",),
+    "environmental science": ("23",),
+    "immunology and microbiology": ("24",),
+    "materials science": ("25",),
+    "mathematics": ("26",),
+    "medicine": ("27",),
+    "neuroscience": ("28",),
+    "nursing": ("29",),
+    "pharmacology, toxicology and pharmaceutics": ("30",),
+    "physics and astronomy": ("31",),
+    "physics": ("31",),
+    "psychology": ("32",),
+    "social sciences": ("33",),
+    "sociology": ("33",),
+    "political science": ("33",),
+    "geography": ("33",),
+    "education": ("33",),
+    "law": ("33",),
+    "linguistics": ("33",),
+    "veterinary": ("34",),
+    "dentistry": ("35",),
+    "health professions": ("36",),
+}
+
 
 def _strip_search_operators(query: str) -> str:
     return " ".join(query.translate(_OA_SEARCH_OPERATORS).split())
+
+
+def _openalex_field_ids(fields: list[str]) -> list[str]:
+    ids = {
+        field_id
+        for field in fields
+        for field_id in _OPENALEX_FIELD_IDS.get(field.strip().lower(), ())
+    }
+    return sorted(ids, key=int)
 
 
 @cached(ttl=300)
@@ -182,8 +241,9 @@ def search_papers(query: str, limit: int = 10, year: str = None,
             filters.append(f"publication_year:{year}")
 
     if fields_of_study:
-        fos_filter = "|".join(fields_of_study)
-        filters.append(f"topics.display_name.search:{fos_filter}")
+        field_ids = _openalex_field_ids(fields_of_study)
+        if field_ids:
+            filters.append(f"topics.field.id:{'|'.join(field_ids)}")
 
     if publication_types:
         oa_type_map = {"JournalArticle": "article", "Conference": "article", "Review": "review", "Book": "book", "Dataset": "dataset"}

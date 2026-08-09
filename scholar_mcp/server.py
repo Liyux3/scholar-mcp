@@ -217,6 +217,36 @@ def _format_compact(p: dict) -> dict:
     return out
 
 
+_DATE_PREFIX = re.compile(
+    r"^\s*(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?"
+)
+
+
+def _publication_sort_key(paper: dict) -> tuple[int, int, int]:
+    """Return a comparable newest-first key across heterogeneous sources.
+
+    Source clients normally expose an ISO ``publication_date`` string, but
+    some records only have ``year`` and older/cached records may store that
+    year as either an int or a string.  Sorting the raw values mixes ``str``
+    and ``int``, which Python 3 cannot compare.
+    """
+    for raw in (paper.get("publication_date"), paper.get("year")):
+        if raw is None or raw == "":
+            continue
+        match = _DATE_PREFIX.match(str(raw))
+        if not match:
+            continue
+        year = int(match.group(1))
+        month = int(match.group(2) or 0)
+        day = int(match.group(3) or 0)
+        if not 1 <= month <= 12:
+            month = 0
+        if not 1 <= day <= 31:
+            day = 0
+        return year, month, day
+    return 0, 0, 0
+
+
 def _yaml(data: dict) -> str:
     return yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
@@ -318,7 +348,7 @@ def search_papers(
     if sort == "citations":
         results.sort(key=lambda p: -(p.get("citation_count", 0) or 0))
     elif sort == "date":
-        results.sort(key=lambda p: p.get("publication_date") or p.get("year") or 0, reverse=True)
+        results.sort(key=_publication_sort_key, reverse=True)
 
     results = results[:limit]
 

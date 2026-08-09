@@ -80,6 +80,25 @@ def test_search_papers(monkeypatch):
     assert "search" in captured["params"]
 
 
+def test_search_papers_translates_field_names_to_openalex_ids(monkeypatch):
+    """The Works API accepts field IDs, not display-name search filters."""
+    captured = {}
+
+    def fake_get(url, params=None, timeout=None):
+        captured["params"] = params
+        return _response(200, {"results": []}, url)
+
+    monkeypatch.setattr(openalex_client.httpx, "get", fake_get)
+
+    openalex_client.search_papers(
+        "robot learning",
+        fields_of_study=["Computer Science", "Mathematics"],
+    )
+
+    assert "topics.field.id:17|26" in captured["params"]["filter"]
+    assert "display_name.search" not in captured["params"]["filter"]
+
+
 def test_output_format_matches_s2():
     work = {
         "id": "https://openalex.org/W1",
