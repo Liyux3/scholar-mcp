@@ -162,12 +162,26 @@ def frequent_terms(ctx: ExpansionContext) -> list[dict]:
             for p in sr.results]
 
 
-# Per-seed channels, run once for each seed paper.
+# Per-seed channels, run once for each seed paper. Measured over 25 LitSearch
+# queries against the 17 ground-truth papers the initial search missed:
+#
+#   channel          recovered   requests   per 100 requests
+#   references           7          150          4.67
+#   kin                  7         1575          0.44
+#   peers                6          150          4.00
+#   title_search         4         1050          0.38
+#   citations            3          150          2.00
+#   recommendations      1           75          1.33
+#
 CHANNELS = {
     "references": references,
     "citations": citations,
     "title_search": title_search,
     "recommendations": recommendations,
+    # Recovers as efficiently as references at the same cost, and is the only
+    # default channel that does not follow an edge from the seed, so it can
+    # reach work the seed neither cites nor is cited by.
+    "peers": peers,
 }
 
 # Channels that read all seeds at once and run a single time.
@@ -175,12 +189,11 @@ GLOBAL_CHANNELS = {
     "frequent_terms": frequent_terms,
 }
 
-# Not enabled by default. peers and kin are the only channels that cross
-# field boundaries, but each costs several seconds and a batch of metered
-# OpenAlex requests, and their value in expansion has not been measured yet.
-# They are exposed on demand through recommend_papers meanwhile.
+# kin recovers as much as any channel but issues a query per sampled
+# reference, which is 1575 requests against peers' 150 for one more paper. The
+# relation is worth having and crosses field boundaries better than anything
+# else; the implementation is what makes it too expensive to run by default.
 OPTIONAL_CHANNELS = {
-    "peers": peers,
     "kin": kin,
 }
 
