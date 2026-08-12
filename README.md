@@ -1,5 +1,7 @@
 # scholar-mcp
 
+<!-- mcp-name: io.github.liyux3/scholar-mcp -->
+
 [![PyPI version](https://badge.fury.io/py/scholar-mcp.svg)](https://pypi.org/project/scholar-mcp)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -7,7 +9,7 @@
 
 Multi-source academic paper search, citation graph exploration, and PDF download as an MCP server. Designed for LLM agents doing research.
 
-Queries 13 academic sources in parallel, reranks the merged pool with a cross-encoder, then expands it by walking the citation graph of the top results. PDF access spans 10+ preprint servers.
+Queries up to 16 retrieval channels across 14 source families in parallel, reranks the merged pool, then expands it through citations, references, co-citation, and bibliographic coupling. PDF access spans 10+ open-access and preprint services.
 
 Each source is sent the query format it actually wants: semantic endpoints get the full question, keyword endpoints get a compressed keyphrase query, and Semantic Scholar gets a short one to stay under its length limit. That routing is worth more recall than any ranking change measured so far, see [docs/QUERY_COMPRESSION.md](docs/QUERY_COMPRESSION.md).
 
@@ -40,13 +42,27 @@ claude mcp add scholar -e S2_API_KEY=your_key -- uvx scholar-mcp
 
 > Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/). No API key needed for basic use.
 
+**Plugin with the bundled Deep Research skill:**
+
+```bash
+# Codex
+codex plugin marketplace add Liyux3/scholar-mcp
+codex plugin add scholar-mcp@scholar-mcp
+
+# Claude Code
+claude plugin marketplace add Liyux3/scholar-mcp
+claude plugin install scholar-mcp@scholar-mcp
+```
+
+Cursor can import the same repository as an Agent Plugin. The underlying MCP server always starts without bundled credentials; optional API keys stay in the user's MCP environment.
+
 ## Tools
 
 | Tool | Description |
 |------|-------------|
 | `search_papers` | Multi-source search with citation expansion. Filters: year, venue, field, citations, open access |
 | `paper_info` | Paper details, citations, and references. `include` selects which |
-| `recommend_papers` | Similar papers via SPECTER2 embeddings |
+| `recommend_papers` | Semantic neighbors, foundations, descendants, co-citation peers, or bibliographic kin |
 | `search_authors` | Researchers with h-index, affiliations, paper counts |
 | `build_paper_graph` | Citation graph with PageRank analytics and Mermaid visualization |
 | `search_openreview` | Conference papers (ICLR, NeurIPS, ICML) |
@@ -62,6 +78,7 @@ claude mcp add scholar -e S2_API_KEY=your_key -- uvx scholar-mcp
 | OpenAlex | 250M works | Best coverage, impact-ranked citations |
 | OpenAlex semantic | 250M works | Embedding search, carries most ground-truth hits |
 | Semantic Scholar | 214M papers | Citations, references, SPECTER2 recommendations |
+| S2 snippets | Full-text passages | Passage-level retrieval (needs key) |
 | Scopus | 100M+ items | Curated metadata, citation-sorted (needs key) |
 | arXiv | CS/Math/Physics | Preprints |
 | arxiv.gg | 644K arXiv papers | Embedding search over preprints |
@@ -84,7 +101,8 @@ A failing source degrades recall rather than failing the request. Every search r
 4. Preprint servers: bioRxiv, medRxiv, SSRN, ChemRxiv, PsyArXiv, EarthArXiv, SocArXiv, engrXiv, AgriXiv, SportRxiv, Preprints.org
 5. Unpaywall (legal OA discovery)
 6. PubMed Central
-7. Sci-Hub (opt-in via `SCIHUB_ENABLED=1`)
+7. An optional user-configured institutional proxy
+8. Sci-Hub as a disabled-by-default local opt-in fallback
 
 ## Citation Graph
 
@@ -113,7 +131,12 @@ build_paper_graph("Attention Is All You Need", max_hops=2, max_papers=20, topic_
 | `OPENALEX_EMAIL` | - | Email for Unpaywall + OpenAlex polite pool |
 | `SCHOLAR_SOURCE_BUDGET_S` | `8` | Wall-clock cap on the source fan-out |
 | `SCHOLAR_DOWNLOAD_DIR` | `./downloads` | PDF save directory |
-| `SCIHUB_ENABLED` | `false` | Enable Sci-Hub as last-resort source |
+| `SCIHUB_ENABLED` | `false` | Opt in to the local Sci-Hub fallback; never enabled by hosted profiles |
+| `SCHOLAR_MCP_TRANSPORT` | `stdio` | Set to `http` for Streamable HTTP deployment |
+| `SCHOLAR_MCP_HOST` | `127.0.0.1` | HTTP bind host |
+| `SCHOLAR_MCP_PORT` | `8000` | HTTP bind port |
+
+No API key is embedded in the package, plugin, image, logs, or examples. Error summaries strip request URLs before returning source failures to the model.
 
 ## Development
 
@@ -122,14 +145,25 @@ git clone https://github.com/Liyux3/scholar-mcp.git
 cd scholar-mcp
 uv venv && uv pip install -e ".[dev]"
 
-uv run pytest                    # 115 unit tests, ~8s, no network
-uv run pytest -m integration     # 37 tests against live APIs
+uv run pytest                    # 291 unit tests, no network
+uv run pytest -m integration     # live source checks
 uv run python scripts/smoke_test.py   # manual end-to-end check
 ```
 
 Unit tests are the default because integration tests are slow, rate-limited, and fail for reasons unrelated to the code. Anything calling a live API must be marked `@pytest.mark.integration`.
 
 Evaluation harnesses live in `eval/`. `compare_compression.py` A/B tests query strategies against LitSearch ground truth, and `citation_boost_sweep.py` re-ranks cached results offline so ranking changes can be checked in seconds without spending API calls.
+
+## Container and remote transport
+
+The default image remains a stdio MCP server for Docker MCP Toolkit and local clients:
+
+```bash
+docker build -t scholar-mcp:0.8.0 .
+docker run --rm -i scholar-mcp:0.8.0
+```
+
+For a remote deployment, set `SCHOLAR_MCP_TRANSPORT=http`; the endpoint is `/mcp` by default. Keep runtime credentials in the deployment secret store, never in the image or command line.
 
 ## License
 
