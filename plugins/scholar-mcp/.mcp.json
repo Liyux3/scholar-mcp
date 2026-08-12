@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": ["--from", "scholar-mcp==0.8.0", "scholar-mcp"]
+    }
+  }
+}

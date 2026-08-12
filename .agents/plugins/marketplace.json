@@ -1,0 +1,20 @@
+{
+  "name": "scholar-mcp",
+  "interface": {
+    "displayName": "Scholar MCP"
+  },
+  "plugins": [
+    {
+      "name": "scholar-mcp",
+      "source": {
+        "source": "local",
+        "path": "./plugins/scholar-mcp"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Research"
+    }
+  ]
+}

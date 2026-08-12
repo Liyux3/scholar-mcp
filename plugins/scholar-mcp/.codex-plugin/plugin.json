@@ -1,0 +1,29 @@
+{
+  "name": "scholar-mcp",
+  "version": "0.8.0",
+  "description": "Multi-source academic search, citation graphs, paper reading, and deep research workflows.",
+  "author": {
+    "name": "Yuxian Li",
+    "url": "https://github.com/Liyux3"
+  },
+  "homepage": "https://github.com/Liyux3/scholar-mcp",
+  "repository": "https://github.com/Liyux3/scholar-mcp",
+  "license": "MIT",
+  "keywords": ["academic-search", "citations", "deep-research", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Scholar MCP",
+    "shortDescription": "Search papers and trace academic evidence.",
+    "longDescription": "Search and rerank academic literature across multiple sources, follow citations and references, build paper graphs, read open-access papers, and run evidence-grounded deep research workflows.",
+    "developerName": "Yuxian Li",
+    "category": "Research",
+    "capabilities": ["Academic Search", "Citation Graph", "Paper Reading"],
+    "websiteURL": "https://github.com/Liyux3/scholar-mcp",
+    "defaultPrompt": [
+      "Map the recent literature and key paper lineages for this topic.",
+      "Verify this technical claim against primary academic sources.",
+      "Find the strongest papers, counterevidence, and open questions."
+    ]
+  }
+}
