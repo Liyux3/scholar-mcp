@@ -122,9 +122,20 @@ class TestPublishedToolMetadata:
             tool.name: tool
             for tool in asyncio.run(server.mcp.list_tools())
         }
-        assert len(tools) == 10
+        assert set(tools) == {
+            "search_papers",
+            "paper_info",
+            "recommend_papers",
+            "search_authors",
+            "download_paper",
+            "read_paper",
+        }
         assert all(tool.annotations is not None for tool in tools.values())
         assert tools["search_papers"].annotations.readOnlyHint is True
-        assert tools["knowledge_base"].annotations.readOnlyHint is False
-        assert tools["read_paper"].annotations.readOnlyHint is False
+        assert tools["download_paper"].annotations.readOnlyHint is False
+        assert tools["read_paper"].annotations.readOnlyHint is True
         assert all(tool.annotations.destructiveHint is False for tool in tools.values())
+
+    def test_status_is_a_resource(self):
+        resources = asyncio.run(server.mcp.list_resources())
+        assert [str(resource.uri) for resource in resources] == ["scholar://status"]

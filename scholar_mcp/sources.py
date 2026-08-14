@@ -87,7 +87,7 @@ def reference_sources() -> list[Source]:
 
 # Source count a full, keyed install fans out to. Fewer than this means keys
 # are missing and the remaining sources should carry more of the pool.
-FULL_FLEET = 13
+FULL_FLEET = 14
 MAX_SCALED_LIMIT = 300
 
 
@@ -226,7 +226,7 @@ def _register_defaults():
     from . import europepmc_client, dblp_client, inspirehep_client
     from . import scholar_client
     from . import exa_client, scopus_client, arxivgg_client, doaj_client
-    from . import s2_snippet_client
+    from . import s2_snippet_client, openreview_client
 
     register(Source(
         name="semantic_scholar",
@@ -358,6 +358,20 @@ def _register_defaults():
         search=lambda q, limit, **kw: doaj_client.search_papers(q, limit=limit),
         priority=20,
         domains=["all"],
+    ))
+
+    register(Source(
+        name="openreview",
+        search=lambda q, limit, **kw: openreview_client.search_papers(
+            q,
+            max_results=min(limit, 50),
+            venue=kw.get("venue") or None,
+        ),
+        priority=68,
+        domains=["computer science"],
+        requires_key=True,
+        key_available=openreview_client.is_configured,
+        query_style=QUERY_RAW,
     ))
 
 

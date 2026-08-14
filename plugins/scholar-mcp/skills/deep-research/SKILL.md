@@ -33,19 +33,21 @@ Match the search breadth and artifact size to the request. Keep focused verifica
 
 | Need | Tool and approach |
 |---|---|
-| Check coverage | Call `scholar_status` once. Record active and unavailable sources. |
-| Map an unfamiliar field | Start with `discover_field`, then verify its important papers individually. |
+| Check coverage | Read `scholar://status` when source availability matters. |
+| Map an unfamiliar field | Search the topic with `intent=survey`, `foundational`, and `recent`; merge the resulting vocabulary, works, and open questions. |
 | Search literature | Use `search_papers`; preserve the natural-language question and apply year, venue, field, type, OA, and intent filters only when justified. |
 | Inspect a paper | Use `paper_info` with `detail,citations,references`. Prefer DOI, arXiv, OpenAlex, or S2 identifiers over title matching. |
 | Find topical neighbors | Use `recommend_papers` with `relation=similar`. |
-| Recover foundations | Use `relation=foundations` and inspect references. |
-| Recover descendants | Use `relation=descendants` and inspect citations. |
+| Recover foundations | Use `paper_info` with `references`. |
+| Recover descendants | Use `paper_info` with `citations`. |
 | Recover intellectual peers | Use `relation=peers` for co-citation. |
 | Find methodological kin | Use `relation=kin` for bibliographic coupling across vocabulary boundaries. |
-| Trace a lineage | Use `build_paper_graph`, then open the bridge and pivot papers that affect the argument. |
-| Read primary evidence | Use `read_paper` selectively for papers capable of changing the judgment. |
+| Trace a lineage | Iteratively inspect citations and references, recording edges and opening bridge or pivot papers as they emerge. |
+| Read primary evidence | Use `read_paper` for temporary online reading. Use `download_paper` only when the PDF should remain on disk. |
 
 `search_papers` routes raw, short, and compressed queries to different source types. Preserve the natural-language question and let the source adapters choose their query form. Read `_meta.sources_used` and `_meta.sources_unavailable`; distinguish low recall from throttling, timeout, missing optional credentials, and a genuinely empty result.
+
+Graph building and field discovery are research workflows. Keep their evolving state in the evidence ledger and compose them from search, paper inspection, and the three non-overlapping recommendation relations. This keeps every retrieval step visible and lets the investigation choose its own depth.
 
 Keep optional API credentials inside the MCP runtime. Redact them from prompts, reports, logs, command arguments, and generated files. When an optional key is absent, continue with the available coverage and report the affected source briefly.
 

@@ -13,7 +13,7 @@ from scholar_mcp import sources
 @pytest.fixture
 def isolated_registry(monkeypatch):
     """Swap in an empty registry so tests do not depend on, or disturb, the
-    13 real sources registered at import time.
+    14 real sources registered at import time.
     """
     monkeypatch.setattr(sources, "_registry", {})
     return sources
@@ -214,7 +214,7 @@ class TestFanOutBudget:
 
 class TestCallersRouteQueries:
     """parallel_search accepts raw_query and short_query as keyword arguments,
-    so a caller that omits them silently sends one string to all 13 sources.
+    so a caller that omits them silently sends one string to every source.
     Two callers did exactly that for months: discover_field, which then missed
     the defining paper of any field it was asked about, and the title-based
     expansion channel. Nothing fails at runtime, every source still returns
@@ -312,7 +312,7 @@ class TestDegradedSemanticRouting:
 class TestKeylessFleetScaling:
     """An install without API keys loses most of the fleet. OpenAlex now bills
     per request and 429s unauthenticated, and S2 snippet needs a key, so a
-    keyless user drops from 13 sources to about 4 and from ~590 candidates to
+    keyless user drops from the full fleet to about 4 and from ~590 candidates to
     ~240. The sources that remain are not themselves constrained, so they are
     asked to carry more of the pool.
     """

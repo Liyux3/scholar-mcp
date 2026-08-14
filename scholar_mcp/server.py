@@ -1,5 +1,6 @@
 import os
 import re
+import tempfile
 import yaml
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
@@ -7,16 +8,11 @@ from . import __version__
 from . import config
 from . import s2_client
 from . import openalex_client
-from . import openreview_client
 from . import pdf_utils
 from . import relevance
-from . import graph
-from . import discovery
 from . import expansion
-from . import knowledge_base as kb
 from . import sources
 from . import traversal
-from . import vault
 
 mcp = FastMCP(
     "scholar-mcp",
@@ -28,33 +24,29 @@ mcp = FastMCP(
 INTERNAL_FETCH_LIMIT = 100
 
 
+def _find_paper(paper_id: str) -> dict | None:
+    """Resolve one paper through the same registered source fleet."""
+
+    for source in sources.all_sources():
+        if source.get_paper is None or not source.available():
+            continue
+        try:
+            paper = source.get_paper(paper_id)
+        except Exception:
+            continue
+        if paper:
+            return paper
+    return None
+
+
 def _lookup_title(paper_id: str) -> str:
     """Fetch just the title of a paper, for id resolution.
 
     Costs one request against the first source that answers. Only called when
     the caller has not already fetched the paper.
     """
-    for src in sources.all_sources():
-        if not src.get_paper or not src.available():
-            continue
-        try:
-            paper = src.get_paper(paper_id)
-            if paper and paper.get("title"):
-                return paper["title"]
-        except Exception:
-            continue
-    return ""
-
-
-def _get_best_id(paper: dict) -> str:
-    ext = paper.get("external_ids") or {}
-    for key in ("DOI", "OpenAlex", "ArXiv"):
-        if ext.get(key):
-            return ext[key]
-    pid = paper.get("paper_id", "")
-    if pid and not pid.startswith("W"):
-        return pid
-    return ""
+    paper = _find_paper(paper_id)
+    return "" if paper is None else str(paper.get("title") or "")
 
 
 # Seeds expanded from. Each costs a fan-out per channel, so this is the main
@@ -342,6 +334,8 @@ def search_papers(
     search_kwargs = {}
     if year:
         search_kwargs["year"] = year
+    if venue:
+        search_kwargs["venue"] = venue
     if fos_list:
         search_kwargs["fields_of_study"] = fos_list
     if type_list:
@@ -355,6 +349,14 @@ def search_papers(
 
     if fos_list:
         results = relevance.filter_by_fields(results, fos_list)
+    if venue and "/" not in venue:
+        normalized_venue = venue.casefold()
+        results = [
+            paper
+            for paper in results
+            if normalized_venue in str(paper.get("venue") or "").casefold()
+            or normalized_venue in str((paper.get("external_ids") or {}).get("OpenReview") or "").casefold()
+        ]
     if min_citations > 0:
         results = [p for p in results if (p.get("citation_count") or 0) >= min_citations]
 
@@ -397,16 +399,9 @@ def paper_info(
     output = {}
 
     if "detail" in parts:
-        for src in sources.all_sources():
-            if not src.get_paper or not src.available():
-                continue
-            try:
-                result = src.get_paper(paper_id)
-                if result:
-                    output["paper"] = _format_paper(result)
-                    break
-            except Exception:
-                continue
+        result = _find_paper(paper_id)
+        if result:
+            output["paper"] = _format_paper(result)
 
     if "citations" in parts:
         # OpenAlex needs a title to resolve arXiv ids. Fetch one if the caller
@@ -445,8 +440,6 @@ def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) 
 
         similar     embedding neighbours (SPECTER2). Same topic, possibly
                     different vocabulary. Good default.
-        foundations what this paper cites. Where the ideas came from.
-        descendants what cites this paper, impact-ordered. What came after.
         peers       what is cited alongside this paper. Its intellectual
                     cohort, which is usually what "related work" means.
         kin         what cites the same works this paper does. Shared method
@@ -456,7 +449,7 @@ def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) 
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
-        relation: similar | foundations | descendants | peers | kin
+        relation: similar | peers | kin
         limit: Maximum results (default 10)
     """
     title = _lookup_title(paper_id)
@@ -465,12 +458,6 @@ def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) 
         results = traversal.co_citation(paper_id, title=title, limit=limit)
     elif relation == "kin":
         results = traversal.bibliographic_coupling(paper_id, title=title, limit=limit)
-    elif relation == "foundations":
-        results = [p for sr in sources.parallel_references(paper_id, limit=limit)
-                   for p in sr.results][:limit]
-    elif relation == "descendants":
-        results = [p for sr in sources.parallel_citations(paper_id, limit=limit, title=title)
-                   for p in sr.results][:limit]
     elif relation == "similar":
         results = []
         for pid in _id_variants(paper_id):
@@ -482,7 +469,7 @@ def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) 
                 continue
     else:
         return _yaml({"error": f"Unknown relation '{relation}'. Use one of: "
-                               "similar, foundations, descendants, peers, kin"})
+                               "similar, peers, kin"})
 
     if not results:
         return _yaml({"error": f"No '{relation}' results for '{paper_id}'",
@@ -530,135 +517,55 @@ def search_authors(query: str, limit: int = 5) -> str:
 
 
 @mcp.tool(annotations=ToolAnnotations(
-    title="Download and read a paper",
+    title="Download a paper PDF",
     readOnlyHint=False,
     destructiveHint=False,
-    idempotentHint=False,
+    idempotentHint=True,
     openWorldHint=True,
 ))
-def read_paper(paper_id: str, save_dir: str = "", max_pages: int = 0, extract_text: bool = True) -> str:
-    """Download a paper's PDF and optionally extract its text content.
+def download_paper(paper_id: str, save_dir: str = "") -> str:
+    """Resolve and download one paper PDF.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
         save_dir: Directory to save PDF (default: configured download directory)
-        max_pages: Maximum pages to extract (0 = all pages)
-        extract_text: If True, extract and return text. If False, just download PDF.
     """
     save_path = save_dir or config.DOWNLOAD_DIR
-    try:
-        paper_info_data = s2_client.get_paper(paper_id)
-    except Exception as e:
-        return _yaml({"error": f"Could not find paper '{paper_id}': {e}"})
+    paper_info_data = _find_paper(paper_id)
+    if paper_info_data is None:
+        return _yaml({"error": f"Could not find paper '{paper_id}'"})
 
     dl_result = pdf_utils.download_paper(paper_info_data, save_path)
-    if not dl_result.get("success"):
-        return _yaml(dl_result)
-
-    if dl_result.get("file_path"):
-        paper_info_data["pdf_path"] = dl_result["file_path"]
-        kb.add_papers([paper_info_data], collection="downloads")
-
-    if not extract_text:
-        return _yaml(dl_result)
-
-    try:
-        text = pdf_utils.extract_text(dl_result["file_path"], max_pages=max_pages)
-        return text
-    except Exception as e:
-        return _yaml({"error": f"PDF downloaded but text extraction failed: {e}", "file_path": dl_result.get("file_path")})
+    return _yaml(dl_result)
 
 
 @mcp.tool(annotations=ToolAnnotations(
-    title="Search OpenReview submissions",
+    title="Read a paper without retaining its PDF",
     readOnlyHint=True,
     destructiveHint=False,
     idempotentHint=True,
     openWorldHint=True,
 ))
-def search_openreview(query: str, venue: str = "", limit: int = 10) -> str:
-    """Search OpenReview for conference papers (ICLR, NeurIPS, ICML, etc.).
-    No API key required. Returns papers with PDFs and review links.
+def read_paper(paper_id: str, max_pages: int = 0) -> str:
+    """Resolve and read one paper through an automatically cleaned temporary PDF.
 
     Args:
-        query: Search query (e.g., "vision language action robot")
-        venue: OpenReview venue ID filter (e.g., "ICLR.cc/2026/Conference")
-        limit: Maximum results (1-50, default 10)
+        paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
+        max_pages: Maximum pages to extract (0 = all pages)
     """
-    try:
-        results = openreview_client.search_papers(query, max_results=limit, venue=venue or None)
-        if results:
-            return _yaml(results)
-        return _yaml({"message": "No results found on OpenReview.", "query": query, "venue": venue})
-    except Exception as e:
-        return _yaml({"error": f"OpenReview search failed: {e}"})
+    paper_info_data = _find_paper(paper_id)
+    if paper_info_data is None:
+        return _yaml({"error": f"Could not find paper '{paper_id}'"})
+    with tempfile.TemporaryDirectory(prefix="scholar-read-") as directory:
+        result = pdf_utils.download_paper(paper_info_data, directory)
+        if not result.get("success") or not result.get("file_path"):
+            return _yaml(result)
+        try:
+            return pdf_utils.extract_text(result["file_path"], max_pages=max_pages)
+        except Exception as error:
+            return _yaml({"error": f"PDF text extraction failed: {error}"})
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    title="Build a paper citation graph",
-    readOnlyHint=True,
-    destructiveHint=False,
-    idempotentHint=True,
-    openWorldHint=True,
-))
-def build_paper_graph(
-    paper_ids: str,
-    max_hops: int = 2,
-    max_papers: int = 50,
-    direction: str = "both",
-    min_citations: int = 0,
-    topic_filter: str = "",
-) -> str:
-    """Build a citation graph starting from seed papers.
-    Recursively expands citations and references to map the research landscape.
-
-    Args:
-        paper_ids: Comma-separated paper identifiers (S2 IDs, DOIs, or paper titles to search)
-        max_hops: How many citation/reference hops to expand (1-3, default 2)
-        max_papers: Maximum total papers in the graph (10-200, default 50)
-        direction: "citations" (who cites this), "references" (what it cites), or "both"
-        min_citations: Skip papers with fewer citations than this
-        topic_filter: Space-separated keywords to keep graph focused on a topic
-    """
-    max_hops = min(max(max_hops, 1), 3)
-    max_papers = min(max(max_papers, 10), 200)
-
-    seeds = [pid.strip() for pid in paper_ids.split(",") if pid.strip()]
-    if not seeds:
-        return _yaml({"error": "No paper IDs provided"})
-
-    seed_papers = []
-    for seed in seeds:
-        if len(seed) > 30 and " " not in seed:
-            try:
-                p = s2_client.get_paper(seed)
-                if p:
-                    seed_papers.append(p)
-                    continue
-            except Exception:
-                pass
-        results, _ = _pipeline("search", seed, 1)
-        if results:
-            seed_papers.append(results[0])
-
-    if not seed_papers:
-        return _yaml({"error": "Could not find any of the specified papers"})
-
-    result = graph.build_graph(
-        seed_papers, max_hops=max_hops, max_papers=max_papers,
-        direction=direction, min_citations=min_citations, topic_filter=topic_filter,
-    )
-
-    return result["summary"] + "\n\n```mermaid\n" + result["mermaid"] + "\n```"
-
-
-@mcp.tool(annotations=ToolAnnotations(
-    title="Manage a local paper collection",
-    readOnlyHint=False,
-    destructiveHint=False,
-    idempotentHint=False,
-    openWorldHint=False,
-))
 def knowledge_base(
     action: str = "list",
     paper_titles: str = "",
@@ -684,6 +591,9 @@ def knowledge_base(
             collection, stored metadata yields 26 links and 13% of notes
             connected, while reference lists yield 342 links and 73%.
     """
+    from . import knowledge_base as kb
+    from . import vault
+
     if action == "collections":
         return _yaml({"collections": kb.list_collections()})
 
@@ -722,9 +632,7 @@ def knowledge_base(
         "papers": [{"title": p.get("title", ""), "year": p.get("year"), "citations": p.get("citation_count", 0), "notes": p.get("notes", "")} for p in papers],
     }
 
-    # An empty result from the default collection reads as "nothing saved",
-    # even when other collections are full. discover_field and download both
-    # write to named collections, so this is the common case.
+    # Point an empty collection listing toward populated sibling collections.
     if not papers:
         others = [c for c in kb.list_collections()
                   if c["name"] != collection and c.get("papers")]
@@ -736,64 +644,56 @@ def knowledge_base(
     return _yaml(output)
 
 
-@mcp.tool(annotations=ToolAnnotations(
-    title="Map a research field",
-    readOnlyHint=True,
-    destructiveHint=False,
-    idempotentHint=True,
-    openWorldHint=True,
-))
-def discover_field(topic: str, max_papers: int = 30) -> str:
-    """Map a research field: find surveys, foundational papers, and recent advances.
+@mcp.resource("scholar://status")
+def scholar_status() -> str:
+    """Return server capabilities without occupying the model's tool surface."""
 
-    Args:
-        topic: Research topic to explore (e.g., "RLHF language model alignment")
-        max_papers: Maximum papers to collect (10-50, default 30)
-    """
-    max_papers = min(max(max_papers, 10), 50)
-    result = discovery.discover_field(topic, max_papers=max_papers)
-    return result["summary"] + "\n\n```mermaid\n" + result["mermaid"] + "\n```"
-
-
-@mcp.tool(annotations=ToolAnnotations(
-    title="Inspect Scholar MCP status",
-    readOnlyHint=True,
-    destructiveHint=False,
-    idempotentHint=True,
-    openWorldHint=False,
-))
-def scholar_status(check_reranker: bool = False) -> str:
-    """Check scholar-mcp server version, available sources, and KB collections.
-
-    Args:
-        check_reranker: probe the DashScope API instead of only checking that a
-            key is configured. Costs one request but catches an expired or
-            unfunded account, which otherwise shows up as slow, lower-quality
-            results with no other signal.
-    """
     available = [s.name for s in sources.search_sources()]
     cite_sources = [s.name for s in sources.citation_sources()]
-    colls = kb.list_collections()
-
-    if config.DASHSCOPE_API_KEY:
-        reranker = "configured (not probed)"
-        if check_reranker:
-            probe = relevance._rerank_dashscope(
-                "test", [{"title": "test paper", "abstract": ""}], top_n=1)
-            reranker = "ok" if probe is not None else "unavailable, falling back to FlashRank"
-    else:
-        reranker = "no key, using FlashRank"
+    extensions = {
+        value.strip()
+        for value in os.environ.get("SCHOLAR_MCP_EXTENSIONS", "").split(",")
+        if value.strip()
+    }
 
     return _yaml({
         "version": __version__,
-        "tools": 10,
+        "core_tools": [
+            "search_papers",
+            "paper_info",
+            "recommend_papers",
+            "search_authors",
+            "download_paper",
+            "read_paper",
+        ],
+        "extensions": sorted(extensions),
         "search_sources": available,
         "citation_sources": cite_sources,
-        "kb_collections": [{"name": c["name"], "papers": c["papers"]} for c in colls],
         "s2_key": bool(config.get_s2_api_key()),
-        "reranker": reranker,
+        "reranker": "dashscope" if config.DASHSCOPE_API_KEY else "flashrank",
         "cache_enabled": True,
     })
+
+
+def _register_extensions() -> None:
+    enabled = {
+        value.strip()
+        for value in os.environ.get("SCHOLAR_MCP_EXTENSIONS", "").split(",")
+        if value.strip()
+    }
+    if "knowledge_base" in enabled:
+        mcp.tool(
+            annotations=ToolAnnotations(
+                title="Manage a local paper collection",
+                readOnlyHint=False,
+                destructiveHint=False,
+                idempotentHint=False,
+                openWorldHint=False,
+            )
+        )(knowledge_base)
+
+
+_register_extensions()
 
 
 def main():
