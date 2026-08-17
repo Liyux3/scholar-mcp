@@ -35,6 +35,18 @@ claude plugin marketplace add Liyux3/scholar-mcp
 claude plugin install scholar-mcp@scholar-mcp
 ```
 
+The same plugin directory follows the Agent Plugins standard for Cursor, Pi, and compatible
+harnesses. OpenCode can run the MCP directly; Pi uses its MCP adapter:
+
+```bash
+# OpenCode: add uvx scholar-mcp as a local MCP in opencode.json
+# Pi
+pi install npm:pi-mcp-adapter
+```
+
+All adapters launch the same six-tool server and discover the same `deep-research` skill. The
+portable plugin is `plugins/scholar-mcp`; `server.json` is the MCP Registry distribution manifest.
+
 ## Tools
 
 | Tool | Responsibility |

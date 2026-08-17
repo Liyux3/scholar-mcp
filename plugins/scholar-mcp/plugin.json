@@ -1,4 +1,5 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "scholar-mcp",
   "version": "0.8.0",
   "description": "Multi-source academic search, citation traversal, paper reading, and deep research workflows.",
