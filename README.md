@@ -4,7 +4,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/scholar-mcp.svg)](https://pypi.org/project/scholar-mcp)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
 
 OpenInquiry MCP is a federated academic search and evidence workspace distributed as the
 `scholar-mcp` package. It searches up to 17 retrieval channels across
@@ -122,4 +122,4 @@ the default endpoint is `/mcp`. Keep hosted credentials in the deployment secret
 
 ## License
 
-MIT
+Apache License 2.0

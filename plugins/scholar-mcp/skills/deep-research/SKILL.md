@@ -1,7 +1,7 @@
 ---
 name: deep-research
 description: Conduct long-horizon, evidence-grounded research with OpenInquiry MCP. Use for literature reviews, field maps, recent-frontier analysis, technical landscape studies, claim verification, paper lineage tracing, benchmark comparison, or any investigation that requires primary academic evidence and iterative search.
-license: MIT
+license: Apache-2.0
 ---
 
 # Deep Research
