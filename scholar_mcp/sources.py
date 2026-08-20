@@ -141,8 +141,8 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
 
     # Without API keys most of the fleet is unavailable: OpenAlex now bills per
     # request and returns 429 unauthenticated, and S2 snippet needs a key too.
-    # A keyless install drops from 13 sources to 4 and from ~590 candidates to
-    # ~240. The survivors are not themselves limited, arXiv and Crossref both
+    # A keyless install loses several high-yield channels and much of the
+    # candidate pool. The survivors are not themselves limited; arXiv and Crossref both
     # serve 300 with almost no extra latency, so ask them for more rather than
     # leaving the pool thin.
     limit = _scale_limit(limit, len(sources))

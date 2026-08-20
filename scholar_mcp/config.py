@@ -28,7 +28,7 @@ VAULT_DIR: str = os.path.expanduser(
 S2_TIMEOUT: int = int(os.environ.get("S2_TIMEOUT", "30"))
 # Wall-clock budget for the whole parallel source fan-out. Sources still
 # answering when it expires are dropped and reported as timed out, so one slow
-# API cannot set the latency for the other twelve.
+# API cannot set the latency for the rest of the fleet.
 SOURCE_BUDGET_S: float = float(os.environ.get("SCHOLAR_SOURCE_BUDGET_S", "8"))
 SCIHUB_ENABLED: bool = os.environ.get("SCIHUB_ENABLED", "").lower() in ("1", "true", "yes")
 RANK_PARAMS_PATH: str = os.path.expanduser("~/.scholar-mcp/rank_params.json")
