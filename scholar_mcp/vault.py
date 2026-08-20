@@ -23,16 +23,14 @@ rooted wherever attention currently is. Both projections come from the same
 files, which is what makes a vault better than a rendered diagram.
 """
 
-import os
 import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
-from . import s2_client
+from . import config, s2_client
 
-DEFAULT_VAULT_DIR = os.environ.get(
-    "SCHOLAR_VAULT_DIR", os.path.expanduser("~/.scholar-mcp/vault"))
+DEFAULT_VAULT_DIR = config.VAULT_DIR
 
 # Relation names shared with traversal.py, used as wikilink section headers.
 RELATION_HEADINGS = {
@@ -100,6 +98,7 @@ def _frontmatter(paper: dict) -> list[str]:
         "doi": external.get("DOI", ""),
         "arxiv": external.get("ArXiv", ""),
         "url": paper.get("url", ""),
+        "pdf": paper.get("pdf_path", ""),
         "authors": ", ".join(paper.get("authors") or [])[:300],
         "source": paper.get("source", ""),
         "added": date.today().isoformat(),

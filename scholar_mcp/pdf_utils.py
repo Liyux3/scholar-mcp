@@ -1,5 +1,6 @@
 import os
 import re
+import hashlib
 from pathlib import Path
 
 import httpx
@@ -18,6 +19,37 @@ PROXY_TIMEOUT = 12
 # Proxies and publishers routinely reject non-browser agents outright.
 BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+
+
+def _pdf_filename(paper_info: dict) -> str:
+    """Return one stable, collision-resistant filename for a paper."""
+    external = paper_info.get("external_ids") or {}
+    identifier = (
+        external.get("ArXiv")
+        or external.get("ArXivId")
+        or external.get("DOI")
+        or paper_info.get("paper_id")
+        or ""
+    )
+    title = str(paper_info.get("title") or "")
+    identity = str(identifier or title or "paper")
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", identity).strip("._-")[:120]
+    if not identifier:
+        digest = hashlib.sha256(title.encode("utf-8")).hexdigest()[:12]
+        safe = f"{safe or 'paper'}-{digest}"
+    return f"{safe or 'paper'}.pdf"
+
+
+def _cached_pdf(save_path: str, filename: str) -> str | None:
+    path = Path(save_path).expanduser() / filename
+    try:
+        if path.is_file():
+            with path.open("rb") as stream:
+                if stream.read(5) == b"%PDF-":
+                    return str(path)
+    except OSError:
+        pass
+    return None
 
 
 def _try_download(url: str, save_path: str, filename: str) -> str | None:
@@ -212,8 +244,12 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
     5. Sci-Hub (if SCIHUB_ENABLED, requires DOI)
     6. Fail gracefully with URLs
     """
-    safe_id = str(paper_info.get("paper_id", "unknown")).replace("/", "_").replace(":", "_")
-    filename = f"{safe_id}.pdf"
+    save_path = os.path.expanduser(save_path)
+    filename = _pdf_filename(paper_info)
+    cached = _cached_pdf(save_path, filename)
+    if cached:
+        return {"success": True, "file_path": cached, "source": "cache",
+                "message": "Using the existing local PDF."}
 
     # 1. S2 open access
     oa_url = paper_info.get("open_access_url")
@@ -229,9 +265,8 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
     # 2. arXiv
     arxiv_id = ext_ids.get("ArXiv") or ext_ids.get("ArXivId")
     if arxiv_id:
-        arxiv_filename = f"{arxiv_id.replace('/', '_')}.pdf"
         url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-        result = _try_download(url, save_path, arxiv_filename)
+        result = _try_download(url, save_path, filename)
         if result:
             return {"success": True, "file_path": result, "source": "arxiv",
                     "message": f"Downloaded from arXiv ({arxiv_id})."}
@@ -254,7 +289,7 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
         result = _try_download(preprint_url, save_path, filename)
         if result:
             return {"success": True, "file_path": result, "source": "preprint",
-                    "message": f"Downloaded from preprint server."}
+                    "message": "Downloaded from preprint server."}
 
     # 5. Unpaywall (legal OA discovery via DOI)
     if doi:

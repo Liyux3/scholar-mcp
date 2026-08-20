@@ -5,6 +5,8 @@ is that links resolve, that hand-written notes survive a refresh, and that
 titles from disagreeing sources do not produce phantom edges.
 """
 
+import pytest
+
 from scholar_mcp import vault
 
 
@@ -46,6 +48,10 @@ class TestRenderNote:
         """An unquoted colon makes the YAML frontmatter unparseable."""
         note = vault.render_note(_paper(title="BERT: Pre-training of Transformers"))
         assert 'title: "BERT: Pre-training of Transformers"' in note
+
+    def test_includes_local_pdf_in_frontmatter(self):
+        note = vault.render_note({**_paper(), "pdf_path": "/tmp/paper.pdf"})
+        assert 'pdf: "/tmp/paper.pdf"' in note
 
     def test_renders_relations_as_wikilinks(self):
         note = vault.render_note(_paper(), {

@@ -38,8 +38,8 @@ def test_expansion_priority_favors_new_hot():
 def test_matches_topic():
     paper = _make_paper("Attention Mechanism in Transformers")
     assert graph._matches_topic(paper, ["attention", "transformer"])
-    assert graph._matches_topic(paper, ["neural"])  == False
-    assert graph._matches_topic(paper, []) == True
+    assert not graph._matches_topic(paper, ["neural"])
+    assert graph._matches_topic(paper, [])
 
 
 def test_short_label():

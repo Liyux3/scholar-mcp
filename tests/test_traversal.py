@@ -4,8 +4,6 @@ These relations are the part of the system that can cross field boundaries,
 so the logic that decides what counts as a link is worth pinning precisely.
 """
 
-import pytest
-
 from scholar_mcp import traversal
 
 

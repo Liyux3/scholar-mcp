@@ -1,7 +1,7 @@
 {
   "name": "scholar-mcp",
   "version": "0.8.0",
-  "description": "Multi-source academic search, citation traversal, paper reading, and deep research workflows.",
+  "description": "OpenInquiry MCP for multi-source academic search, citation traversal, paper reading, and deep research workflows.",
   "author": {
     "name": "Yuxian Li",
     "url": "https://github.com/Liyux3"
@@ -13,7 +13,7 @@
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
-    "displayName": "Scholar MCP",
+    "displayName": "OpenInquiry MCP",
     "shortDescription": "Search papers and trace academic evidence.",
     "longDescription": "Search and rerank academic literature across multiple sources, follow citations and references, read open-access papers, and run evidence-grounded deep research workflows.",
     "developerName": "Yuxian Li",

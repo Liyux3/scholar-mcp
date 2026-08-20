@@ -6,13 +6,14 @@ Cross-session persistent: papers survive MCP server restarts.
 """
 
 import json
-import os
 import re
 from pathlib import Path
 from datetime import datetime
 
+from . import config
 
-DEFAULT_KB_DIR = os.environ.get("SCHOLAR_KB_DIR", os.path.expanduser("~/.scholar-mcp/kb"))
+
+DEFAULT_KB_DIR = config.KB_DIR
 
 
 def _kb_path(collection: str = "default") -> Path:
@@ -54,7 +55,10 @@ def add_papers(papers: list[dict], collection: str = "default", notes: str = "")
                 "paper_id": paper.get("paper_id", ""),
                 "doi": doi,
                 "venue": paper.get("venue", ""),
-                "abstract": (paper.get("abstract") or "")[:300],
+                # Retain enough evidence for useful local search, later FTS,
+                # and vault export. The old 300-character cut often ended
+                # before a paper's actual method or finding appeared.
+                "abstract": (paper.get("abstract") or "")[:4000],
                 "url": paper.get("url", ""),
                 "pdf_path": paper.get("pdf_path", ""),
                 "added_at": datetime.now().isoformat(),
@@ -64,6 +68,35 @@ def add_papers(papers: list[dict], collection: str = "default", notes: str = "")
             added += 1
 
     return {"added": added, "total": len(existing), "collection": collection}
+
+
+def attach_pdf(title: str, pdf_path: str, collection: str = "downloads") -> bool:
+    """Attach a stable local PDF path to an existing paper record."""
+    path = _kb_path(collection)
+    target = _norm(title)
+    if not target or not path.exists():
+        return False
+
+    updated = False
+    output = []
+    for line in path.read_text().splitlines():
+        if not line.strip():
+            continue
+        try:
+            paper = json.loads(line)
+        except json.JSONDecodeError:
+            output.append(line)
+            continue
+        if _norm(paper.get("title", "")) == target and paper.get("pdf_path") != pdf_path:
+            paper["pdf_path"] = pdf_path
+            updated = True
+        output.append(json.dumps(paper, default=str))
+
+    if updated:
+        temporary = path.with_suffix(".jsonl.tmp")
+        temporary.write_text("\n".join(output) + "\n")
+        temporary.replace(path)
+    return updated
 
 
 def list_papers(collection: str = "default", limit: int = 50) -> list[dict]:

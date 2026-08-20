@@ -154,8 +154,6 @@ def build_graph(
         if depth >= max_hops:
             continue
 
-        oa_id = _get_openalex_id(paper)
-
         if direction in ("citations", "both"):
             try:
                 cites = _fetch_related(paper, "citations", citations_per_paper, delay)

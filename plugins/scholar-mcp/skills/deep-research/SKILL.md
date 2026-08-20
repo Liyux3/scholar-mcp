@@ -1,12 +1,12 @@
 ---
 name: deep-research
-description: Conduct long-horizon, evidence-grounded research with Scholar MCP. Use for literature reviews, field maps, recent-frontier analysis, technical landscape studies, claim verification, paper lineage tracing, benchmark comparison, or any investigation that requires primary academic evidence and iterative search.
+description: Conduct long-horizon, evidence-grounded research with OpenInquiry MCP. Use for literature reviews, field maps, recent-frontier analysis, technical landscape studies, claim verification, paper lineage tracing, benchmark comparison, or any investigation that requires primary academic evidence and iterative search.
 license: MIT
 ---
 
 # Deep Research
 
-Build an evolving understanding of the question. Go beyond paper summaries into framing, source judgment, mechanism-level reading, contradiction analysis, and synthesis. Use Scholar MCP as the academic retrieval and citation-tracing specialist.
+Build an evolving understanding of the question. Go beyond paper summaries into framing, source judgment, mechanism-level reading, contradiction analysis, and synthesis. Use OpenInquiry MCP as the academic retrieval and citation-tracing specialist.
 
 ## Operating principles
 
@@ -29,7 +29,7 @@ Build an evolving understanding of the question. Go beyond paper summaries into 
 
 Match the search breadth and artifact size to the request. Keep focused verification bounded; give technical reviews enough breadth to establish the field structure.
 
-## Scholar MCP tool routing
+## OpenInquiry MCP tool routing
 
 | Need | Tool and approach |
 |---|---|

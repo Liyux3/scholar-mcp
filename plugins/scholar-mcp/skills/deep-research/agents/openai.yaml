@@ -1,13 +1,13 @@
 interface:
   display_name: "Deep Research"
   short_description: "Map literature, verify claims, and trace evidence"
-  default_prompt: "Use $deep-research to map this research field with Scholar MCP."
+  default_prompt: "Use $deep-research to map this research field with OpenInquiry MCP."
 
 dependencies:
   tools:
     - type: "mcp"
       value: "scholar"
-      description: "Scholar MCP academic search and citation tools"
+      description: "OpenInquiry MCP academic search and citation tools"
       transport: "stdio"
 
 policy:

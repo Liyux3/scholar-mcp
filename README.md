@@ -1,4 +1,4 @@
-# scholar-mcp
+# OpenInquiry MCP
 
 <!-- mcp-name: io.github.liyux3/scholar-mcp -->
 
@@ -6,7 +6,8 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-Federated academic search for MCP clients. Scholar MCP searches up to 17 retrieval channels across
+OpenInquiry MCP is a federated academic search and evidence workspace distributed as the
+`scholar-mcp` package. It searches up to 17 retrieval channels across
 15 source families, reranks the merged evidence, traverses citations, and reads open-access papers.
 The default interface stays compact: six orthogonal tools plus a Deep Research skill.
 
@@ -56,7 +57,7 @@ portable plugin is `plugins/scholar-mcp`; `server.json` is the MCP Registry dist
 | `recommend_papers` | Semantic neighbors, co-citation peers, and bibliographic kin |
 | `search_authors` | Author profiles, affiliations, paper counts, and h-index |
 | `read_paper` | Temporarily fetch a paper, extract text, then clean the PDF |
-| `download_paper` | Persist a PDF through the open-access fallback chain |
+| `download_paper` | Persist and index a PDF through the open-access fallback chain |
 
 `scholar://status` reports active sources and runtime capabilities as an MCP resource. Set
 `SCHOLAR_MCP_EXTENSIONS=knowledge_base` to expose the optional persistent collection tool.
@@ -76,7 +77,8 @@ field maps and multi-hop citation lineages from these primitives, keeping each e
 ## Paper access
 
 `read_paper` uses a temporary directory and leaves no retained PDF. `download_paper` persists the file
-when a user wants an artifact. Both share one fallback chain:
+under `~/.scholar-mcp/papers` by default and indexes its metadata in the `downloads` collection. That
+collection can later be searched or exported as a linked vault. Both tools share one fallback chain:
 
 1. Semantic Scholar and arXiv open access
 2. CORE and PubMed Central
@@ -90,6 +92,7 @@ All credentials are optional and stay in the MCP process environment.
 
 | Variable | Purpose |
 |---|---|
+| `SCHOLAR_DATA_DIR` | Shared data root; default `~/.scholar-mcp` |
 | `S2_API_KEY` | Semantic Scholar rate limits and snippets |
 | `OPENALEX_API_KEYS` | Comma-separated OpenAlex keys |
 | `SCOPUS_API_KEY` | Scopus search |
@@ -99,7 +102,7 @@ All credentials are optional and stay in the MCP process environment.
 | `DASHSCOPE_API_KEY` | Qwen reranker; FlashRank is the local fallback |
 | `OPENALEX_EMAIL` | OpenAlex polite pool and Unpaywall |
 | `SCHOLAR_SOURCE_BUDGET_S` | Search fan-out budget; default `8` seconds |
-| `SCHOLAR_DOWNLOAD_DIR` | Persistent PDF directory |
+| `SCHOLAR_DOWNLOAD_DIR` | Persistent PDF directory; default `<data>/papers` |
 | `SCHOLAR_MCP_EXTENSIONS` | Optional tools, currently `knowledge_base` |
 | `SCIHUB_ENABLED` | Local opt-in fallback; default `false` |
 

@@ -49,6 +49,18 @@ def _lookup_title(paper_id: str) -> str:
     return "" if paper is None else str(paper.get("title") or "")
 
 
+def _best_paper_id(paper: dict) -> str:
+    """Return an identifier that can be passed back to info/download tools."""
+    external = paper.get("external_ids") or {}
+    if external.get("DOI"):
+        return str(external["DOI"])
+    if external.get("ArXiv") or external.get("ArXivId"):
+        return f"ARXIV:{external.get('ArXiv') or external.get('ArXivId')}"
+    if external.get("OpenAlex"):
+        return str(external["OpenAlex"])
+    return str(paper.get("paper_id") or "")
+
+
 # Seeds expanded from. Each costs a fan-out per channel, so this is the main
 # lever on how much traffic expansion generates.
 EXPANSION_SEEDS = 3
@@ -194,6 +206,9 @@ def _format_paper(p: dict) -> dict:
     }
     if doi:
         out["doi"] = doi
+    paper_id = _best_paper_id(p)
+    if paper_id:
+        out["id"] = paper_id
     if p.get("url"):
         out["url"] = p["url"]
     if p.get("tldr"):
@@ -213,6 +228,9 @@ def _format_compact(p: dict) -> dict:
     doi = (p.get("external_ids") or {}).get("DOI", "")
     if doi:
         out["doi"] = doi
+    paper_id = _best_paper_id(p)
+    if paper_id:
+        out["id"] = paper_id
     return out
 
 
@@ -523,12 +541,17 @@ def search_authors(query: str, limit: int = 5) -> str:
     idempotentHint=True,
     openWorldHint=True,
 ))
-def download_paper(paper_id: str, save_dir: str = "") -> str:
+def download_paper(
+    paper_id: str,
+    save_dir: str = "",
+    collection: str = "downloads",
+) -> str:
     """Resolve and download one paper PDF.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
         save_dir: Directory to save PDF (default: configured download directory)
+        collection: Knowledge-base collection to index the PDF in. Empty disables indexing.
     """
     save_path = save_dir or config.DOWNLOAD_DIR
     paper_info_data = _find_paper(paper_id)
@@ -536,6 +559,24 @@ def download_paper(paper_id: str, save_dir: str = "") -> str:
         return _yaml({"error": f"Could not find paper '{paper_id}'"})
 
     dl_result = pdf_utils.download_paper(paper_info_data, save_path)
+    if dl_result.get("success") and dl_result.get("file_path") and collection:
+        from . import knowledge_base as kb
+
+        paper_info_data["pdf_path"] = dl_result["file_path"]
+        indexed = kb.add_papers(
+            [paper_info_data], collection=collection
+        )
+        path_updated = False
+        if indexed["added"] == 0:
+            path_updated = kb.attach_pdf(
+                paper_info_data.get("title", ""),
+                dl_result["file_path"],
+                collection=collection,
+            )
+        dl_result["collection"] = collection
+        dl_result["indexed"] = True
+        dl_result["newly_indexed"] = indexed["added"] > 0
+        dl_result["path_updated"] = path_updated
     return _yaml(dl_result)
 
 

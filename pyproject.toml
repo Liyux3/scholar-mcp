@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "scholar-mcp"
 version = "0.8.0"
-description = "Multi-source academic search, citation traversal, and deep research over MCP"
+description = "OpenInquiry MCP: multi-source academic search, citation traversal, and deep research"
 authors = [{ name = "Yuxian Li" }]
 readme = "README.md"
 license = "MIT"

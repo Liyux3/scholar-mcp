@@ -1,6 +1,6 @@
-# scholar-mcp Architecture
+# OpenInquiry MCP Architecture
 
-MCP server for academic literature search. Queries 13 sources in parallel,
+MCP server for academic literature search. Queries up to 17 retrieval channels in parallel,
 fuses and reranks the union, and optionally expands the pool by walking the
 citation graph of the top results.
 
@@ -8,7 +8,7 @@ citation graph of the top results.
 
 ```
 scholar_mcp/
-  server.py       — FastMCP server, 10 tools, the shared _pipeline
+  server.py       — FastMCP server, six core tools, the shared _pipeline
   sources.py      — source registry, parallel dispatch, per-source query routing
   relevance.py    — query compression, dedup, rerank, final ranking
   expansion.py    — expansion channels, one function each, registered in a table
@@ -16,9 +16,9 @@ scholar_mcp/
   graph.py        — citation graph construction, PageRank, pivot detection
   discovery.py    — field-landscape assembly for discover_field
   knowledge_base.py — JSONL persistence at ~/.scholar-mcp/kb/
-  vault.py        — Obsidian export of saved papers
+  vault.py        — Obsidian export of saved papers and local PDF links
   cache.py        — response cache, 5 min TTL
-  pdf_utils.py    — download chain across preprint servers, pypdf extraction
+  pdf_utils.py    — cached downloads under ~/.scholar-mcp/papers, pypdf extraction
   config.py       — env var configuration
   *_client.py     — one module per API, all returning the same paper dict
 ```
@@ -64,9 +64,10 @@ the ~6 word target and the per-source optima.
 
 | Route | Sources |
 |-------|---------|
-| raw | openalex_semantic, arxivgg_semantic, exa |
+| raw | openalex_semantic, arxivgg_semantic, s2_snippet, openreview, exa |
 | short (~8 words) | semantic_scholar |
-| compressed (~6 words) | openalex, arxiv, crossref, scopus, doaj, pubmed, europepmc, dblp, inspirehep, core, google_scholar |
+| compressed (~6 words) | openalex, doaj, pubmed, europepmc, dblp, inspirehep, core, google_scholar |
+| source-specific | Scopus 2 words, arXiv 10 words, Crossref 12 words |
 
 ### Ranking
 
@@ -91,13 +92,15 @@ Priority determines ordering in `all_sources()`, not fallback sequence.
 | semantic_scholar | 90 | short | 1 req/s with key; value is citations and recommendations more than search |
 | exa | 85 | raw | needs EXA_API_KEY, disabled by default |
 | openalex | 80 | compressed | primary coverage source |
+| s2_snippet | 78 | raw | passage-level Semantic Scholar search |
 | openalex_semantic | 75 | raw | carries a large share of ground-truth hits |
-| scopus | 75 | compressed | needs SCOPUS_API_KEY; free tier caps pages at 25 |
-| arxiv | 70 | compressed | 3s between calls, official limit |
+| scopus | 75 | 2 words | needs SCOPUS_API_KEY; free tier caps pages at 25 |
+| arxiv | 70 | 10 words | 3s between calls, official limit |
+| openreview | 68 | raw | optional authenticated conference search |
 | arxivgg_semantic | 65 | raw | 644K arXiv papers with embeddings, no auth |
 | pubmed | 40 | compressed | biomedical |
 | europepmc | 35 | compressed | biomedical, European repositories |
-| crossref | 30 | compressed | metadata matching, strong on exact titles |
+| crossref | 30 | 12 words | metadata matching, strong on exact titles |
 | dblp | 25 | compressed | CS bibliography, intermittent 500s |
 | doaj | 20 | compressed | open-access journals only |
 | inspirehep | 15 | compressed | physics |
@@ -110,14 +113,14 @@ Priority determines ordering in `all_sources()`, not fallback sequence.
 |------|---------|
 | search_papers | Multi-source search with expansion, the main entry point |
 | paper_info | Paper detail, citations, references; `include` selects which |
-| recommend_papers | S2 SPECTER2 similarity |
+| recommend_papers | Similarity, co-citation peers, or bibliographic kin |
 | search_authors | Author lookup with h-index |
-| build_paper_graph | Citation graph with PageRank and pivot detection |
-| discover_field | Surveys, foundations, and recent work for a topic |
-| knowledge_base | Save, list, and search the persistent JSONL store |
-| read_paper | Download PDF and extract text |
-| search_openreview | Conference submissions and reviews |
-| scholar_status | Version, active sources, KB collections |
+| download_paper | Persist a PDF and index it in a collection |
+| read_paper | Temporarily fetch and extract a PDF |
+
+`scholar://status` is a resource. `knowledge_base` is an opt-in extension;
+field maps and graph exploration are composed by the Deep Research skill from
+the six core primitives.
 
 ## Expansion
 
@@ -139,13 +142,13 @@ same code that runs in production.
 | citations | what cites the seed, towards descendants | 2 requests |
 | title_search | a full re-search from the seed's title | one fan-out |
 | recommendations | SPECTER2 embedding neighbours | 1 request |
+| peers | co-cited intellectual neighbours | 2 requests |
 | frequent_terms | terms common to all seeds, run once globally | one fan-out |
 
-`peers` and `kin` (co-citation and bibliographic coupling) are registered in
-`OPTIONAL_CHANNELS` and off by default. They are the only relations that cross
-field boundaries, since shared references imply shared method even when the
-vocabulary differs, but each costs seconds and a batch of metered OpenAlex
-requests. They are available on demand through `recommend_papers`.
+`kin` (bibliographic coupling) is the optional expansion channel. It crosses
+field boundaries through shared references, but costs far more requests than
+the default channels. Both `peers` and `kin` remain available directly through
+`recommend_papers`.
 
 Papers scored in both reranking passes have the two blended, weighted by
 `PASS_BLEND`. Papers that arrive during expansion are scored once and keep
@@ -254,7 +257,7 @@ visible in the report.
 `parallel_search` enforces a wall-clock budget (`SOURCE_BUDGET_S`, default 8s,
 env `SCHOLAR_SOURCE_BUDGET_S`). Sources still running when it expires are
 reported as timed out and dropped. Without it the slowest source sets the
-latency for all thirteen.
+latency for the whole fleet.
 
 The dominant cost is the reranker, and it depends heavily on which one runs.
 DashScope handles 300 documents in about 1.8s; the FlashRank fallback takes
@@ -283,8 +286,8 @@ overlap.
 ## Integration
 
 Entry point `scholar_mcp.server:main`, installed as the `scholar-mcp`
-console script. Registration needs an entry in `~/.claude/.mcp.json` and a
-marketplace entry under `~/.claude/plugins/marketplaces/custom-mcps/scholar/`.
+console script. Any stdio MCP client can launch it with `uvx scholar-mcp`;
+the repository also ships Claude, Codex, and Agent Plugins manifests.
 
 Code changes require restarting the MCP server; a stale process will keep
 serving the old module.

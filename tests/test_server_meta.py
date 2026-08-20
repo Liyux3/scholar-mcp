@@ -5,6 +5,7 @@ the caller's context, and its contents are a recurring disclosure risk.
 """
 
 import asyncio
+import yaml
 
 from scholar_mcp import __version__, server
 
@@ -111,6 +112,42 @@ class TestKnowledgeBaseDiscoverability:
         ])
         assert "other_collections" not in server.knowledge_base(action="list")
 
+
+class TestFollowUpIdentifiers:
+    def test_search_result_exposes_downloadable_id(self):
+        formatted = server._format_paper({
+            "title": "An arXiv Paper",
+            "external_ids": {"ArXiv": "2401.01234"},
+        })
+        assert formatted["id"] == "ARXIV:2401.01234"
+
+
+class TestDownloadIndexing:
+    def test_successful_download_enters_download_collection(self, monkeypatch):
+        from scholar_mcp import knowledge_base as kb
+
+        paper = {"title": "Saved", "external_ids": {"DOI": "10.1/saved"}}
+        captured = {}
+        monkeypatch.setattr(server, "_find_paper", lambda paper_id: paper)
+        monkeypatch.setattr(
+            server.pdf_utils,
+            "download_paper",
+            lambda *args: {"success": True, "file_path": "/tmp/saved.pdf", "source": "cache"},
+        )
+
+        def add_papers(papers, collection):
+            captured["paper"] = papers[0]
+            captured["collection"] = collection
+            return {"added": 1}
+
+        monkeypatch.setattr(kb, "add_papers", add_papers)
+
+        result = yaml.safe_load(server.download_paper("10.1/saved"))
+
+        assert result["indexed"] is True
+        assert result["newly_indexed"] is True
+        assert captured["collection"] == "downloads"
+        assert captured["paper"]["pdf_path"] == "/tmp/saved.pdf"
 
 class TestPublishedToolMetadata:
     def test_server_version_matches_package(self):

@@ -13,7 +13,7 @@ from scholar_mcp import sources
 @pytest.fixture
 def isolated_registry(monkeypatch):
     """Swap in an empty registry so tests do not depend on, or disturb, the
-    14 real sources registered at import time.
+    17 real sources registered at import time.
     """
     monkeypatch.setattr(sources, "_registry", {})
     return sources
@@ -85,20 +85,31 @@ class TestQueryRouting:
         assert short_seen == ["eight words"]
         assert kw_seen == ["kw six words here"]
 
+    def test_keyword_budget_is_source_specific(self, isolated_registry):
+        src, seen = _recording_source("wide_keyword", keyword_words=4)
+        sources.register(src)
+
+        sources.parallel_search(
+            "shared compressed query",
+            raw_query="alpha beta gamma delta epsilon zeta",
+        )
+
+        assert seen == ["alpha beta gamma delta"]
+
 
 class TestSourceAvailability:
     def test_keyless_source_is_available(self, isolated_registry):
-        assert sources.Source(name="free", search=lambda q, l: []).available()
+        assert sources.Source(name="free", search=lambda q, limit: []).available()
 
     def test_keyed_source_hidden_without_key(self, isolated_registry):
-        src = sources.Source(name="paid", search=lambda q, l: [],
+        src = sources.Source(name="paid", search=lambda q, limit: [],
                              requires_key=True, key_available=lambda: False)
         sources.register(src)
         assert not src.available()
         assert sources.search_sources() == []
 
     def test_keyed_source_visible_with_key(self, isolated_registry):
-        src = sources.Source(name="paid", search=lambda q, l: [],
+        src = sources.Source(name="paid", search=lambda q, limit: [],
                              requires_key=True, key_available=lambda: True)
         sources.register(src)
         assert [s.name for s in sources.search_sources()] == ["paid"]
@@ -106,8 +117,8 @@ class TestSourceAvailability:
 
 class TestParallelSearch:
     def test_reports_status_per_source(self, isolated_registry):
-        sources.register(sources.Source(name="ok", search=lambda q, l, **kw: [{"title": "x"}]))
-        sources.register(sources.Source(name="empty", search=lambda q, l, **kw: []))
+        sources.register(sources.Source(name="ok", search=lambda q, limit, **kw: [{"title": "x"}]))
+        sources.register(sources.Source(name="empty", search=lambda q, limit, **kw: []))
 
         by_name = {r.source: r for r in sources.parallel_search("q")}
         assert by_name["ok"].status == "ok"
@@ -119,7 +130,7 @@ class TestParallelSearch:
             raise RuntimeError("upstream is down")
 
         sources.register(sources.Source(name="broken", search=boom))
-        sources.register(sources.Source(name="healthy", search=lambda q, l, **kw: [{"title": "x"}]))
+        sources.register(sources.Source(name="healthy", search=lambda q, limit, **kw: [{"title": "x"}]))
 
         by_name = {r.source: r for r in sources.parallel_search("q")}
         assert by_name["broken"].status == "error"
@@ -127,7 +138,7 @@ class TestParallelSearch:
         assert by_name["healthy"].status == "ok"
 
     def test_records_latency(self, isolated_registry):
-        sources.register(sources.Source(name="ok", search=lambda q, l, **kw: [{"title": "x"}]))
+        sources.register(sources.Source(name="ok", search=lambda q, limit, **kw: [{"title": "x"}]))
         assert sources.parallel_search("q")[0].latency_ms >= 0
 
     def test_empty_registry_returns_empty(self, isolated_registry):
@@ -158,6 +169,10 @@ class TestRegisteredDefaults:
             assert src is not None, f"{name} is no longer registered"
             assert src.query_style == sources.QUERY_COMPRESSED
 
+    def test_measured_keyword_budgets_are_registered(self):
+        assert sources.get("arxiv").keyword_words == 10
+        assert sources.get("crossref").keyword_words == 12
+
     def test_semantic_property_tracks_query_style(self):
         assert sources.get("openalex_semantic").semantic is True
         assert sources.get("openalex").semantic is False
@@ -176,7 +191,7 @@ class TestFanOutBudget:
             return [{"title": "late"}]
 
         sources.register(sources.Source(name="slow", search=slow))
-        sources.register(sources.Source(name="fast", search=lambda q, l, **kw: [{"title": "quick"}]))
+        sources.register(sources.Source(name="fast", search=lambda q, limit, **kw: [{"title": "quick"}]))
 
         t0 = time.monotonic()
         results = sources.parallel_search("q", budget_s=0.5)
@@ -193,8 +208,8 @@ class TestFanOutBudget:
         """
         import time
 
-        sources.register(sources.Source(name="a", search=lambda q, l, **kw: [{"title": "x"}]))
-        sources.register(sources.Source(name="b", search=lambda q, l, **kw: (time.sleep(5), [])[1]))
+        sources.register(sources.Source(name="a", search=lambda q, limit, **kw: [{"title": "x"}]))
+        sources.register(sources.Source(name="b", search=lambda q, limit, **kw: (time.sleep(5), [])[1]))
 
         reported = {r.source for r in sources.parallel_search("q", budget_s=0.5)}
         assert reported == {"a", "b"}
@@ -204,7 +219,7 @@ class TestFanOutBudget:
         monkeypatch.setattr(config, "SOURCE_BUDGET_S", 0.3)
 
         import time
-        sources.register(sources.Source(name="slow", search=lambda q, l, **kw: (time.sleep(5), [])[1]))
+        sources.register(sources.Source(name="slow", search=lambda q, limit, **kw: (time.sleep(5), [])[1]))
 
         t0 = time.monotonic()
         results = sources.parallel_search("q")
@@ -319,6 +334,11 @@ class TestKeylessFleetScaling:
 
     def test_full_fleet_is_unchanged(self):
         assert sources._scale_limit(100, sources.FULL_FLEET) == 100
+
+    def test_full_fleet_matches_registry(self):
+        assert sources.FULL_FLEET == len(
+            [source for source in sources.all_sources() if source.search]
+        )
 
     def test_scales_up_as_sources_disappear(self):
         assert sources._scale_limit(100, 4) > sources._scale_limit(100, 8) > 100

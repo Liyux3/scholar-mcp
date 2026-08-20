@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Callable
 
-from . import config
+from . import config, relevance
 
 
 @dataclass
@@ -45,6 +45,10 @@ class Source:
     # Optional probe for sources whose semantic mode can degrade at runtime.
     # Returning False makes the registry route compressed queries instead.
     semantic_available: Callable | None = None
+    # Some keyword endpoints have a measured source-specific optimum. When
+    # set, derive that many terms from the original question instead of using
+    # the shared six-word compromise.
+    keyword_words: int | None = None
 
     @property
     def semantic(self) -> bool:
@@ -87,7 +91,7 @@ def reference_sources() -> list[Source]:
 
 # Source count a full, keyed install fans out to. Fewer than this means keys
 # are missing and the remaining sources should carry more of the pool.
-FULL_FLEET = 14
+FULL_FLEET = 17
 MAX_SCALED_LIMIT = 300
 
 
@@ -151,6 +155,10 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
             style = QUERY_COMPRESSED
         if style == QUERY_RAW:
             return raw_query or query
+        if s.keyword_words:
+            base = raw_query or query
+            words = relevance.extract_keywords(base, max_keywords=s.keyword_words)
+            return " ".join(words) or query
         if style == QUERY_SHORT and short_query:
             return short_query
         return query
@@ -272,6 +280,7 @@ def _register_defaults():
         search=lambda q, limit, **kw: arxiv_client.search_papers(q, max_results=limit),
         priority=70,
         domains=["computer science", "physics", "mathematics", "statistics"],
+        keyword_words=10,
     ))
 
     register(Source(
@@ -293,6 +302,7 @@ def _register_defaults():
         search=lambda q, limit, **kw: crossref_client.search_papers(q, limit=limit),
         priority=30,
         domains=["all"],
+        keyword_words=12,
     ))
 
     register(Source(

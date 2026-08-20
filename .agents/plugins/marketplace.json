@@ -1,7 +1,7 @@
 {
   "name": "scholar-mcp",
   "interface": {
-    "displayName": "Scholar MCP"
+    "displayName": "OpenInquiry MCP"
   },
   "plugins": [
     {

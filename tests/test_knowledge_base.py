@@ -1,6 +1,5 @@
 """Tests for persistent knowledge base."""
 
-import os
 import tempfile
 from scholar_mcp import knowledge_base as kb
 
@@ -94,5 +93,30 @@ def test_pdf_path():
         kb.add_papers(papers, collection="test")
         listed = kb.list_papers("test")
         assert listed[0]["pdf_path"] == "/tmp/paper.pdf"
+
+    _with_tmp_dir(_test)
+
+
+def test_keeps_abstract_evidence_beyond_preview_length():
+    def _test():
+        abstract = "method evidence " * 100
+        kb.add_papers([{"title": "Detailed", "abstract": abstract}], collection="test")
+        stored = kb.list_papers("test")[0]["abstract"]
+        assert len(stored) > 300
+        assert stored == abstract[:4000]
+
+    _with_tmp_dir(_test)
+
+
+def test_attach_pdf_updates_an_existing_record():
+    def _test():
+        kb.add_papers(
+            [{"title": "Downloaded", "pdf_path": "./downloads/old.pdf"}],
+            collection="downloads",
+        )
+        assert kb.attach_pdf(
+            "Downloaded", "/tmp/library/new.pdf", collection="downloads"
+        )
+        assert kb.list_papers("downloads")[0]["pdf_path"] == "/tmp/library/new.pdf"
 
     _with_tmp_dir(_test)

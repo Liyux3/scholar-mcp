@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "scholar-mcp",
-      "description": "Multi-source academic search and evidence-grounded deep research.",
+      "description": "OpenInquiry MCP for multi-source academic search and evidence-grounded deep research.",
       "version": "0.8.0",
       "source": "./plugins/scholar-mcp"
     }

@@ -13,7 +13,18 @@ OPENREVIEW_PASSWORD: str | None = os.environ.get("OPENREVIEW_PASSWORD") or None
 DASHSCOPE_API_KEY: str | None = os.environ.get("DASHSCOPE_API_KEY") or None
 EXA_API_KEY: str | None = os.environ.get("EXA_API_KEY") or None
 SCOPUS_API_KEY: str | None = os.environ.get("SCOPUS_API_KEY") or None
-DOWNLOAD_DIR: str = os.environ.get("SCHOLAR_DOWNLOAD_DIR", "./downloads")
+DATA_DIR: str = os.path.expanduser(
+    os.environ.get("SCHOLAR_DATA_DIR", "~/.scholar-mcp")
+)
+DOWNLOAD_DIR: str = os.path.expanduser(
+    os.environ.get("SCHOLAR_DOWNLOAD_DIR", os.path.join(DATA_DIR, "papers"))
+)
+KB_DIR: str = os.path.expanduser(
+    os.environ.get("SCHOLAR_KB_DIR", os.path.join(DATA_DIR, "kb"))
+)
+VAULT_DIR: str = os.path.expanduser(
+    os.environ.get("SCHOLAR_VAULT_DIR", os.path.join(DATA_DIR, "vault"))
+)
 S2_TIMEOUT: int = int(os.environ.get("S2_TIMEOUT", "30"))
 # Wall-clock budget for the whole parallel source fan-out. Sources still
 # answering when it expires are dropped and reported as timed out, so one slow

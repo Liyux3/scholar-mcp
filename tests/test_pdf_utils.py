@@ -7,6 +7,32 @@ import tempfile
 from scholar_mcp import pdf_utils
 
 
+def test_title_only_papers_get_distinct_stable_filenames():
+    first = pdf_utils._pdf_filename({"title": "A Study of Retrieval"})
+    second = pdf_utils._pdf_filename({"title": "A Study of Ranking"})
+
+    assert first != second
+    assert first.endswith(".pdf")
+    assert "unknown" not in first
+
+
+def test_existing_pdf_is_reused(monkeypatch, tmp_path):
+    paper = {"title": "Cached", "external_ids": {"DOI": "10.1/cache"}}
+    path = tmp_path / pdf_utils._pdf_filename(paper)
+    path.write_bytes(b"%PDF-1.7 cached")
+    monkeypatch.setattr(
+        pdf_utils,
+        "_try_download",
+        lambda *args, **kwargs: pytest.fail("cache should avoid the network"),
+    )
+
+    result = pdf_utils.download_paper(paper, str(tmp_path))
+
+    assert result["success"] is True
+    assert result["source"] == "cache"
+    assert result["file_path"] == str(path)
+
+
 @pytest.mark.integration
 def test_download_from_arxiv():
     paper_info = {
