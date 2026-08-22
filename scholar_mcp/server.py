@@ -377,7 +377,7 @@ def search_papers(
         min_citations: Minimum citation count filter (default 0)
         open_access_only: Only return papers with free PDF access
         sort: Sort results by "citations" (most cited first) or "date" (newest first). Default: relevance.
-        intent: Ranking preference. "foundational" for seminal papers, "recent" for latest work, "survey" for reviews, "method" for specific techniques. Default: balanced relevance.
+        intent: Ranking preference. "foundational" for seminal papers, "recent" for latest work, "survey" for reviews, "method" for specific techniques, "dataset" for datasets and benchmarks. Default: balanced relevance.
         debug: Include per-source latency, provenance, and internal ranking diagnostics.
     """
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None

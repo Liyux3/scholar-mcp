@@ -83,11 +83,14 @@ at α=0.05 a 100-citation paper gains roughly 23%, which is enough to break
 ties but was measured as enough to displace low-citation ground truth when
 set higher.
 
-### Intent-conditioned ranking
+### Intent-aware ranking
 
-The current formula uses one set of weights for every question. That is a
-useful baseline, but the same metadata means different things under different
-research intents:
+Intent awareness already exists in two places: `intent` selects a dedicated
+Qwen reranker instruction, and expansion changes its citation floor for
+foundational, survey, and method searches. The remaining fixed layer is
+`rank_final`: it applies one set of metadata-fusion weights to every question,
+even though the same metadata means different things under different research
+intents:
 
 | Intent | Signal that should gain weight | Signal that should lose weight |
 |---|---|---|
@@ -96,7 +99,7 @@ research intents:
 | dataset or benchmark | exact entity/title match, full-text passages | popularity |
 | survey or field map | review type, breadth, references | one narrow semantic match |
 
-An intent-conditioned calibrator keeps the retrieval architecture unchanged.
+An intent-conditioned final calibrator keeps the retrieval architecture unchanged.
 It learns to map the Qwen score plus citation, recency, provenance, document
 type, and expansion features onto a comparable relevance probability for each
 intent. The important constraint is held-out evaluation across LitSearch,
@@ -189,9 +192,11 @@ according to the evidence already available:
 - a source returning 429 or timing out should stop receiving expansion work
   until its health window recovers.
 
-This is a budgeting change, not a smaller search system. It aims to preserve or
-improve recall while preventing one expensive query from degrading every query
-that follows it.
+This is a budgeting change, not a smaller search system. Its expected primary
+gain is sustained recall, latency, and rate-limit stability. A direct R@5 gain
+is plausible when saved requests are reassigned to higher-value channels, but
+it has not been measured yet and should be gated by paired channel-ablation
+evaluation.
 
 ## Runtime boundary
 

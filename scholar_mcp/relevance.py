@@ -489,6 +489,7 @@ INTENT_INSTRUCTS = {
     "recent": "Given a scientific literature search query, retrieve the most relevant research papers. Among equally relevant papers, prefer more recent publications with novel contributions.",
     "survey": "Given a scientific literature search query, retrieve the most relevant research papers. Prefer survey, review, and tutorial papers that provide comprehensive overviews.",
     "method": "Given a scientific literature search query, retrieve the most relevant research papers. Prefer papers that propose specific methods or techniques directly addressing the query.",
+    "dataset": "Given a scientific literature search query, retrieve the most relevant research papers. Prefer papers that introduce, document, or evaluate the requested dataset or benchmark, with exact task and resource identity over general popularity.",
     "": "Given a scientific literature search query, retrieve the most relevant research papers whose methods, findings, or contributions directly address the query topic.",
 }
 
