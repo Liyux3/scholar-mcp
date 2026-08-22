@@ -5,6 +5,7 @@ the caller's context, and its contents are a recurring disclosure risk.
 """
 
 import asyncio
+
 import yaml
 
 from scholar_mcp import __version__, server
@@ -16,34 +17,39 @@ def _report(source, status="ok", count=100, latency_ms=1000, error=None):
 
 
 class TestMetaBlock:
-    def test_healthy_sources_are_summarised(self):
+    def test_healthy_sources_collapse_to_coverage(self):
         meta = server._meta_block([_report("openalex", count=100),
                                    _report("arxiv", count=42)])
-        assert meta["sources_used"] == ["openalex (100)", "arxiv (42)"]
+        assert meta["source_coverage"] == "2/2"
         assert "sources_unavailable" not in meta
+        assert "source_reports" not in meta
 
-    def test_sorted_by_yield(self):
-        meta = server._meta_block([_report("a", count=5), _report("b", count=90)])
-        assert meta["sources_used"] == ["b (90)", "a (5)"]
+    def test_debug_includes_stable_per_source_reports(self):
+        meta = server._meta_block(
+            [_report("b", count=90), _report("a", count=5)], debug=True
+        )
+        assert [report["source"] for report in meta["source_reports"]] == ["a", "b"]
+        assert meta["source_reports"][0]["count"] == 5
 
     def test_failures_are_expanded(self):
         meta = server._meta_block([
             _report("openalex"),
             _report("dblp", status="error", count=0, error="HTTPStatusError: 503"),
         ])
-        assert meta["sources_used"] == ["openalex (100)"]
+        assert meta["source_coverage"] == "1/2"
         assert len(meta["sources_unavailable"]) == 1
         assert meta["sources_unavailable"][0]["source"] == "dblp"
         assert "503" in meta["sources_unavailable"][0]["error"]
 
-    def test_empty_status_counts_as_unavailable(self):
-        """A source returning nothing is worth surfacing; it may be a corpus
-        mismatch, but it may also be a defect, which is how a broken Scopus
-        client went unnoticed for two months.
-        """
+    def test_empty_status_is_quiet_outside_debug(self):
+        """An empty corpus match is ordinary; diagnostics can still inspect it."""
         meta = server._meta_block([_report("doaj", status="empty", count=0)])
-        assert meta["sources_used"] == []
-        assert meta["sources_unavailable"][0]["source"] == "doaj"
+        assert meta["source_coverage"] == "0/1"
+        assert "sources_unavailable" not in meta
+        debug = server._meta_block(
+            [_report("doaj", status="empty", count=0)], debug=True
+        )
+        assert debug["source_reports"][0]["status"] == "empty"
 
     def test_extra_fields_pass_through(self):
         assert server._meta_block([_report("a")], total=7)["total"] == 7
@@ -121,6 +127,77 @@ class TestFollowUpIdentifiers:
         })
         assert formatted["id"] == "ARXIV:2401.01234"
 
+    def test_default_result_hides_internal_ranking_metadata(self):
+        paper = {
+            "title": "A Paper",
+            "source": "openalex+arxiv",
+            "_final_score": 0.93,
+            "_source_ranks": {"openalex": 1, "arxiv": 2},
+        }
+        assert "score" not in server._format_paper(paper)
+        assert "sources" not in server._format_paper(paper)
+        debug = server._format_paper(paper, debug=True)
+        assert debug["score"] == 0.93
+        assert debug["sources"] == ["arxiv", "openalex"]
+
+
+class TestPaperInfoInput:
+    def test_rejects_unknown_sections(self):
+        out = yaml.safe_load(server.paper_info("paper", include="detail,unknown"))
+        assert out["error"] == "Invalid include selection."
+        assert out["unknown"] == ["unknown"]
+
+
+class TestResearchTools:
+    def test_graph_requires_resolved_seeds(self, monkeypatch):
+        monkeypatch.setattr(server, "_resolve_graph_seed", lambda value: None)
+        out = yaml.safe_load(server.build_paper_graph("missing-id"))
+        assert out["error"] == "No graph seeds could be resolved."
+        assert out["unresolved"] == ["missing-id"]
+
+    def test_graph_returns_seed_resolution_and_analytics(self, monkeypatch):
+        seed = {
+            "title": "Seed Paper",
+            "paper_id": "seed",
+            "external_ids": {"DOI": "10.1234/seed"},
+        }
+        monkeypatch.setattr(server, "_resolve_graph_seed", lambda value: seed)
+        monkeypatch.setattr(server.graph, "build_graph", lambda *args, **kwargs: {
+            "summary": "Graph summary",
+            "mermaid": "graph TD",
+            "nodes": [],
+            "edges": [],
+            "stats": {"total_nodes": 1},
+            "analytics": {"pagerank": {}},
+        })
+        out = yaml.safe_load(server.build_paper_graph("10.1234/seed"))
+        assert out["seeds"] == [{"id": "10.1234/seed", "title": "Seed Paper"}]
+        assert "analytics" in out
+
+    def test_paper_library_update_keeps_notes_when_only_tags_change(self, monkeypatch):
+        from scholar_mcp import knowledge_base as kb
+
+        captured = {}
+
+        def update(identifier, collection, notes=None, tags=None):
+            captured.update(identifier=identifier, collection=collection, notes=notes, tags=tags)
+            return True
+
+        monkeypatch.setattr(kb, "update_paper", update)
+        out = yaml.safe_load(server.paper_library(
+            action="update",
+            paper_ids="10.1234/paper",
+            collection="reading",
+            tags="rag, method",
+        ))
+        assert out["updated"] is True
+        assert captured == {
+            "identifier": "10.1234/paper",
+            "collection": "reading",
+            "notes": None,
+            "tags": ["rag", "method"],
+        }
+
 
 class TestDownloadIndexing:
     def test_successful_download_enters_download_collection(self, monkeypatch):
@@ -172,7 +249,16 @@ class TestPublishedToolMetadata:
         assert tools["download_paper"].annotations.readOnlyHint is False
         assert tools["read_paper"].annotations.readOnlyHint is True
         assert all(tool.annotations.destructiveHint is False for tool in tools.values())
+        assert tools["search_papers"].output_schema == {
+            "type": "object",
+            "additionalProperties": True,
+        }
 
     def test_status_is_a_resource(self):
         resources = asyncio.run(server.mcp.list_resources())
         assert [str(resource.uri) for resource in resources] == ["scholar://status"]
+
+    def test_yaml_adapter_preserves_text_and_structured_data(self):
+        result = server._yaml_tool_result("results:\n- title: Example\n")
+        assert result.content[0].text.startswith("results:")
+        assert result.structured_content == {"results": [{"title": "Example"}]}

@@ -1,6 +1,7 @@
 """Tests for persistent knowledge base."""
 
 import tempfile
+
 from scholar_mcp import knowledge_base as kb
 
 
@@ -53,6 +54,68 @@ def test_search():
         results = kb.search_kb("attention", "test")
         assert len(results) == 1
         assert "Transformer" in results[0]["title"]
+
+    _with_tmp_dir(_test)
+
+
+def test_search_prefers_multi_term_title_matches():
+    def _test():
+        kb.add_papers([
+            {
+                "title": "Retrieval Augmented Generation for Knowledge Tasks",
+                "abstract": "A method that combines retrieval with language generation.",
+            },
+            {
+                "title": "Points of Interest for Leisure Walks",
+                "abstract": "Natural language generation for walking descriptions.",
+            },
+        ], collection="test")
+        results = kb.search_kb("retrieval generation", "test")
+        assert results[0]["title"].startswith("Retrieval Augmented")
+
+    _with_tmp_dir(_test)
+
+
+def test_add_upserts_missing_metadata_without_duplication():
+    def _test():
+        kb.add_papers([{
+            "title": "A Paper",
+            "external_ids": {"DOI": "10.1234/paper"},
+            "year": None,
+        }], collection="test")
+        result = kb.add_papers([{
+            "title": "A Paper",
+            "external_ids": {"DOI": "https://doi.org/10.1234/PAPER"},
+            "year": 2025,
+            "venue": "ICLR",
+            "pdf_path": "/tmp/paper.pdf",
+        }], collection="test")
+        assert result["added"] == 0
+        assert result["updated"] == 1
+        papers = kb.list_papers("test")
+        assert len(papers) == 1
+        assert papers[0]["year"] == 2025
+        assert papers[0]["venue"] == "ICLR"
+        assert papers[0]["pdf_path"] == "/tmp/paper.pdf"
+
+    _with_tmp_dir(_test)
+
+
+def test_get_update_and_remove_by_doi():
+    def _test():
+        kb.add_papers([{
+            "title": "Persistent Paper",
+            "external_ids": {"DOI": "10.1234/persistent"},
+        }], collection="test")
+        assert kb.get_paper("DOI:10.1234/persistent", "test")["title"] == "Persistent Paper"
+        assert kb.update_paper(
+            "10.1234/persistent", "test", notes="Read carefully", tags=["rag", "method"]
+        )
+        updated = kb.get_paper("Persistent Paper", "test")
+        assert updated["notes"] == "Read carefully"
+        assert updated["tags"] == ["rag", "method"]
+        assert kb.remove_paper("10.1234/persistent", "test")
+        assert kb.get_paper("Persistent Paper", "test") is None
 
     _with_tmp_dir(_test)
 

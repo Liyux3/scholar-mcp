@@ -151,6 +151,7 @@ class TestFrequentTermsChannel:
 class TestExpand:
     def test_runs_each_channel_for_each_seed(self, monkeypatch):
         calls = []
+        monkeypatch.setattr(expansion, "GLOBAL_CHANNELS", {})
         monkeypatch.setattr(expansion, "CHANNELS", {
             "a": lambda seed, ctx: calls.append(("a", seed["title"])) or [_paper("from-a")],
             "b": lambda seed, ctx: calls.append(("b", seed["title"])) or [],
@@ -165,6 +166,7 @@ class TestExpand:
         """Attribution is the point: flattening happens in the caller, so an
         evaluation harness can see which channel produced what.
         """
+        monkeypatch.setattr(expansion, "GLOBAL_CHANNELS", {})
         monkeypatch.setattr(expansion, "CHANNELS", {
             "refs": lambda seed, ctx: [_paper("ref-paper")],
             "cites": lambda seed, ctx: [_paper("cite-paper")],
@@ -178,6 +180,7 @@ class TestExpand:
         def boom(seed, ctx):
             raise RuntimeError("API down")
 
+        monkeypatch.setattr(expansion, "GLOBAL_CHANNELS", {})
         monkeypatch.setattr(expansion, "CHANNELS", {
             "broken": boom,
             "working": lambda seed, ctx: [_paper("survived")],
@@ -191,15 +194,15 @@ class TestExpand:
         calls = []
         monkeypatch.setattr(expansion, "CHANNELS", {})
         monkeypatch.setattr(expansion, "GLOBAL_CHANNELS", {
-            "terms": lambda ctx: calls.append(len(ctx.seeds)) or [_paper("global")],
+            "title_search": lambda ctx: calls.append(len(ctx.seeds)) or [_paper("global")],
         })
 
-        out = expansion.expand([_paper(title="s1"), _paper(title="s2")],
-                               channels=["terms"])
+        out = expansion.expand([_paper(title="s1"), _paper(title="s2")])
         assert calls == [2]
-        assert len(out["terms"]) == 1
+        assert len(out["title_search"]) == 1
 
     def test_optional_channels_are_off_by_default(self, monkeypatch):
+        monkeypatch.setattr(expansion, "GLOBAL_CHANNELS", {})
         monkeypatch.setattr(expansion, "OPTIONAL_CHANNELS", {
             "peers": lambda seed, ctx: pytest.fail("should not run by default"),
         })
@@ -221,6 +224,7 @@ class TestExpand:
 
     def test_per_seed_limit_reaches_the_channel(self, monkeypatch):
         seen = {}
+        monkeypatch.setattr(expansion, "GLOBAL_CHANNELS", {})
 
         def channel(seed, ctx):
             seen["limit"] = ctx.per_seed_limit

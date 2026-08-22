@@ -1,4 +1,4 @@
-# OpenInquiry MCP Architecture
+# scholar-mcp Architecture
 
 MCP server for academic literature search. Queries up to 17 retrieval channels in parallel,
 fuses and reranks the union, and optionally expands the pool by walking the
@@ -14,8 +14,8 @@ scholar_mcp/
   expansion.py    — expansion channels, one function each, registered in a table
   traversal.py    — co-citation and bibliographic coupling
   graph.py        — citation graph construction, PageRank, pivot detection
-  discovery.py    — field-landscape assembly for discover_field
-  knowledge_base.py — JSONL persistence at ~/.scholar-mcp/kb/
+  discovery.py    — legacy field-landscape assembly retained for compatibility
+  knowledge_base.py — Paper Library JSONL persistence and FTS5 search
   vault.py        — Obsidian export of saved papers and local PDF links
   cache.py        — response cache, 5 min TTL
   pdf_utils.py    — cached downloads under ~/.scholar-mcp/papers, pypdf extraction
@@ -83,6 +83,26 @@ at α=0.05 a 100-citation paper gains roughly 23%, which is enough to break
 ties but was measured as enough to displace low-citation ground truth when
 set higher.
 
+### Intent-conditioned ranking
+
+The current formula uses one set of weights for every question. That is a
+useful baseline, but the same metadata means different things under different
+research intents:
+
+| Intent | Signal that should gain weight | Signal that should lose weight |
+|---|---|---|
+| foundational work | citations, source agreement, references | recency |
+| recent frontier | recency, semantic score, citing work | raw citation count |
+| dataset or benchmark | exact entity/title match, full-text passages | popularity |
+| survey or field map | review type, breadth, references | one narrow semantic match |
+
+An intent-conditioned calibrator keeps the retrieval architecture unchanged.
+It learns to map the Qwen score plus citation, recency, provenance, document
+type, and expansion features onto a comparable relevance probability for each
+intent. The important constraint is held-out evaluation across LitSearch,
+SAGE, and PaSa; fitting one formula to one 50-query slice would merely move the
+overfitting into a newer model.
+
 ## Sources
 
 Priority determines ordering in `all_sources()`, not fallback sequence.
@@ -118,9 +138,9 @@ Priority determines ordering in `all_sources()`, not fallback sequence.
 | download_paper | Persist a PDF and index it in a collection |
 | read_paper | Temporarily fetch and extract a PDF |
 
-`scholar://status` is a resource. `knowledge_base` is an opt-in extension;
-field maps and graph exploration are composed by the Deep Research skill from
-the six core primitives.
+`scholar://status` is a resource. The `research` profile adds
+`build_paper_graph` and `paper_library`; field discovery is composed by the
+Deep Research skill from the six core primitives and those two research tools.
 
 ## Expansion
 
@@ -155,6 +175,39 @@ Papers scored in both reranking passes have the two blended, weighted by
 that score. Blending a missing first-pass score as zero, which is what an
 earlier version did, applied a flat 20% penalty to every expanded paper for no
 reason other than arriving late.
+
+### Adaptive expansion target
+
+The current quality path always expands the top three seeds through the same
+default channels. The next scheduler should allocate the same capabilities
+according to the evidence already available:
+
+- an exact, high-confidence paper lookup may need no expansion;
+- an ambiguous query with weak source agreement may expand three to five seeds;
+- a foundational query should spend more budget on references and co-citation peers;
+- a recent-work query should favor citing papers and semantic recommendations;
+- a source returning 429 or timing out should stop receiving expansion work
+  until its health window recovers.
+
+This is a budgeting change, not a smaller search system. It aims to preserve or
+improve recall while preventing one expensive query from degrading every query
+that follows it.
+
+## Runtime boundary
+
+The MCP and orchestration layer should remain Python for now. The workload is
+dominated by external HTTP calls and remote reranking; canonical merge, local
+FTS, and graph analytics are small CPU costs by comparison. Rewriting those
+paths in Rust would add a second build and packaging surface without addressing
+the dominant latency or failure modes.
+
+The next runtime upgrade, if sustained-load measurements justify it, is an
+async HTTP scheduler with cancellable requests, per-source concurrency, and
+health-aware backoff. Rust becomes attractive only when profiling shows a real
+CPU or memory boundary—for example, millions of local papers, a heavy local
+listwise ranker, or a multi-tenant service where Python scheduling itself is
+measurably dominant. That component can then sit behind the existing Python MCP
+surface rather than forcing a full rewrite.
 
 ## Citations
 
@@ -259,6 +312,13 @@ env `SCHOLAR_SOURCE_BUDGET_S`). Sources still running when it expires are
 reported as timed out and dropped. Without it the slowest source sets the
 latency for the whole fleet.
 
+All search calls share one bounded executor. Timed-out pending calls are
+cancelled, while already-running calls finish inside that fixed bound. This
+matters during expansion: creating a fresh executor for every seed allowed
+stragglers to accumulate until a sustained benchmark exhausted the machine's
+request capacity. Seed-title searches now run sequentially, with each title's
+source fan-out still parallel.
+
 The dominant cost is the reranker, and it depends heavily on which one runs.
 DashScope handles 300 documents in about 1.8s; the FlashRank fallback takes
 12-17s for 100-300 documents, and the pipeline reranks twice per search
@@ -268,9 +328,9 @@ a quality one.
 
 Expansion issues most of the HTTP traffic: about 67 of the ~80 requests per
 search, of which `title_search` alone is 39 (a full fan-out for each of the
-top three papers). At that volume several APIs start returning 429. Reducing
-it is open work and needs recall measurements first, since the channels
-overlap.
+top three papers). Scheduling prevents those three fan-outs from bursting at
+once; intent-aware channel budgets remain the next latency and rate-limit
+improvement because the channels overlap.
 
 ## Rate limits
 

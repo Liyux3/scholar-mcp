@@ -4,10 +4,10 @@ Builds paper relationship graphs via multi-hop citation/reference traversal.
 Primarily uses OpenAlex for citation data (impact-ranked, generous rate limits).
 """
 
-import heapq
-import time
-from . import relevance
-from . import sources
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+
+from . import relevance, sources
 
 
 def _expansion_priority(paper: dict) -> float:
@@ -16,7 +16,6 @@ def _expansion_priority(paper: dict) -> float:
     year = paper.get("year")
     if not year or not cites:
         return float(cites)
-    from datetime import datetime
     age = max(datetime.now().year - year, 1)
     return cites + (cites / age) * 2
 
@@ -44,7 +43,7 @@ def _get_openalex_id(paper: dict) -> str | None:
 def _paper_to_node(paper: dict, depth: int) -> dict:
     """Convert paper dict to graph node."""
     return {
-        "id": paper.get("paper_id") or _get_openalex_id(paper) or "",
+        "id": relevance.best_paper_id(paper) or _get_openalex_id(paper) or "",
         "title": paper.get("title", ""),
         "year": paper.get("year"),
         "citation_count": paper.get("citation_count", 0),
@@ -65,7 +64,7 @@ def _get_any_id(paper: dict) -> str:
     return paper.get("paper_id", "")
 
 
-def _fetch_related(paper: dict, relation: str, limit: int, delay: float) -> list[dict]:
+def _fetch_related(paper: dict, relation: str, limit: int, delay: float = 0) -> list[dict]:
     """Fetch citations or references from all capable sources in parallel."""
     paper_id = _get_any_id(paper)
     if not paper_id:
@@ -81,24 +80,32 @@ def _fetch_related(paper: dict, relation: str, limit: int, delay: float) -> list
         source_results = sources.parallel_references(paper_id, limit=limit)
 
     all_results = []
-    seen_titles = set()
     for sr in source_results:
-        for r in sr.results:
-            nt = relevance._normalize_title(r.get("title", ""))
-            if nt and nt not in seen_titles:
-                seen_titles.add(nt)
-                all_results.append(r)
+        relevance.tag_source_ranks(sr.results, sr.source, facet=relation)
+        all_results.extend(sr.results)
 
-    time.sleep(delay)
-    return all_results[:limit]
+    deduplicated = relevance.deduplicate(all_results)
+    deduplicated.sort(
+        key=lambda paper: (
+            relevance.physical_source_count(paper),
+            paper.get("citation_count") or 0,
+            _expansion_priority(paper),
+        ),
+        reverse=True,
+    )
+    return deduplicated[:limit]
 
 
 def _matches_topic(paper: dict, topic_keywords: list[str]) -> bool:
-    """Check if paper title/abstract contains any of the topic keywords."""
+    """Require enough topic evidence to prevent one generic word from drifting."""
     if not topic_keywords:
         return True
-    text = ((paper.get("title") or "") + " " + (paper.get("abstract") or "")).lower()
-    return any(kw in text for kw in topic_keywords)
+    title = (paper.get("title") or "").casefold()
+    text = f"{title} {(paper.get('abstract') or '').casefold()}"
+    title_hits = sum(1 for keyword in topic_keywords if keyword in title)
+    total_hits = sum(1 for keyword in topic_keywords if keyword in text)
+    required = 1 if len(topic_keywords) <= 2 else 2
+    return title_hits >= 1 or total_hits >= required
 
 
 def build_graph(
@@ -122,7 +129,7 @@ def build_graph(
         min_citations: skip papers below this citation count
         citations_per_paper: max citations to fetch per paper
         references_per_paper: max references to fetch per paper
-        delay: seconds between API calls
+        delay: retained for call compatibility; source clients own rate limiting
         topic_filter: space-separated keywords to filter expanded papers (only keep relevant ones)
 
     Returns:
@@ -133,8 +140,8 @@ def build_graph(
     nodes = {}
     edges = []
     seen_titles = set()
-    heap = []
-    counter = 0
+    title_to_id = {}
+    frontier = []
 
     for p in seed_papers:
         nt = relevance._normalize_title(p.get("title", ""))
@@ -144,75 +151,59 @@ def build_graph(
         node = _paper_to_node(p, depth=0)
         node_id = node["id"] or nt
         nodes[node_id] = node
-        prio = _expansion_priority(p)
-        heapq.heappush(heap, (-prio, counter, p, node_id, 0))
-        counter += 1
+        title_to_id[nt] = node_id
+        frontier.append((p, node_id))
 
-    while heap and len(nodes) < max_papers:
-        _, _, paper, parent_id, depth = heapq.heappop(heap)
+    relations = []
+    if direction in ("citations", "both"):
+        relations.append(("citations", citations_per_paper))
+    if direction in ("references", "both"):
+        relations.append(("references", references_per_paper))
 
-        if depth >= max_hops:
-            continue
+    for depth in range(max_hops):
+        if not frontier or len(nodes) >= max_papers:
+            break
+        frontier.sort(key=lambda item: _expansion_priority(item[0]), reverse=True)
+        jobs = {}
+        with ThreadPoolExecutor(max_workers=min(max(len(frontier) * len(relations), 1), 8)) as pool:
+            for paper, parent_id in frontier:
+                for relation, relation_limit in relations:
+                    jobs[(parent_id, relation)] = pool.submit(
+                        _fetch_related, paper, relation, relation_limit, delay
+                    )
+            fetched = {}
+            for key, future in jobs.items():
+                try:
+                    fetched[key] = future.result()
+                except Exception:
+                    fetched[key] = []
 
-        if direction in ("citations", "both"):
-            try:
-                cites = _fetch_related(paper, "citations", citations_per_paper, delay)
-                for c in cites:
-                    if len(nodes) >= max_papers:
-                        break
-                    if min_citations > 0 and (c.get("citation_count", 0) or 0) < min_citations:
+        next_frontier = []
+        for paper, parent_id in frontier:
+            for relation, _ in relations:
+                for related in fetched.get((parent_id, relation), []):
+                    if min_citations > 0 and (related.get("citation_count") or 0) < min_citations:
                         continue
-                    if not _matches_topic(c, topic_keywords):
+                    if not _matches_topic(related, topic_keywords):
                         continue
-                    ct = relevance._normalize_title(c.get("title", ""))
-                    if not ct or ct in seen_titles:
-                        cid = None
-                        for nid, n in nodes.items():
-                            if relevance._normalize_title(n["title"]) == ct:
-                                cid = nid
-                                break
-                        if cid:
-                            edges.append({"source": cid, "target": parent_id, "type": "cites"})
+                    normalized_title = relevance._normalize_title(related.get("title", ""))
+                    if not normalized_title:
                         continue
-                    seen_titles.add(ct)
-                    node = _paper_to_node(c, depth=depth + 1)
-                    cid = node["id"] or ct
-                    nodes[cid] = node
-                    edges.append({"source": cid, "target": parent_id, "type": "cites"})
-                    heapq.heappush(heap, (-_expansion_priority(c), counter, c, cid, depth + 1))
-                    counter += 1
-            except Exception:
-                pass
-
-        if direction in ("references", "both"):
-            try:
-                refs = _fetch_related(paper, "references", references_per_paper, delay)
-                for r in refs:
-                    if len(nodes) >= max_papers:
-                        break
-                    if min_citations > 0 and (r.get("citation_count", 0) or 0) < min_citations:
-                        continue
-                    if not _matches_topic(r, topic_keywords):
-                        continue
-                    rt = relevance._normalize_title(r.get("title", ""))
-                    if not rt or rt in seen_titles:
-                        rid = None
-                        for nid, n in nodes.items():
-                            if relevance._normalize_title(n["title"]) == rt:
-                                rid = nid
-                                break
-                        if rid:
-                            edges.append({"source": parent_id, "target": rid, "type": "cites"})
-                        continue
-                    seen_titles.add(rt)
-                    node = _paper_to_node(r, depth=depth + 1)
-                    rid = node["id"] or rt
-                    nodes[rid] = node
-                    edges.append({"source": parent_id, "target": rid, "type": "cites"})
-                    heapq.heappush(heap, (-_expansion_priority(r), counter, r, rid, depth + 1))
-                    counter += 1
-            except Exception:
-                pass
+                    related_id = title_to_id.get(normalized_title)
+                    if related_id is None:
+                        if len(nodes) >= max_papers:
+                            continue
+                        node = _paper_to_node(related, depth=depth + 1)
+                        related_id = node["id"] or normalized_title
+                        nodes[related_id] = node
+                        title_to_id[normalized_title] = related_id
+                        seen_titles.add(normalized_title)
+                        next_frontier.append((related, related_id))
+                    if relation == "citations":
+                        edges.append({"source": related_id, "target": parent_id, "type": "cites"})
+                    else:
+                        edges.append({"source": parent_id, "target": related_id, "type": "cites"})
+        frontier = next_frontier
 
     unique_edges = []
     edge_set = set()
@@ -240,6 +231,7 @@ def build_graph(
         "nodes": node_list,
         "edges": unique_edges,
         "stats": stats,
+        "analytics": analytics,
     }
 
 

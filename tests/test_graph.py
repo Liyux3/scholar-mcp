@@ -1,6 +1,6 @@
 """Tests for citation graph building and analytics."""
 
-from scholar_mcp import graph
+from scholar_mcp import graph, sources
 
 
 def _make_paper(title, paper_id="", year=2024, citation_count=0, source="test"):
@@ -40,6 +40,14 @@ def test_matches_topic():
     assert graph._matches_topic(paper, ["attention", "transformer"])
     assert not graph._matches_topic(paper, ["neural"])
     assert graph._matches_topic(paper, [])
+
+
+def test_topic_filter_rejects_one_generic_match_in_long_topic():
+    paper = _make_paper("Points of Interest for Leisure Walks")
+    paper["abstract"] = "Natural language generation for walking descriptions."
+    assert not graph._matches_topic(
+        paper, ["retrieval", "augmented", "generation"]
+    )
 
 
 def test_short_label():
@@ -97,6 +105,65 @@ def test_analyze_pagerank():
 def test_analyze_empty():
     assert graph._analyze([], []) == {}
     assert graph._analyze([{"id": "a"}], []) == {}
+
+
+def test_fetch_related_fuses_sources_before_truncating(monkeypatch):
+    duplicate_a = _make_paper("Shared Work", paper_id="a", citation_count=10, source="s2")
+    duplicate_b = _make_paper("Shared Work", paper_id="b", citation_count=100, source="openalex")
+    singleton = _make_paper("Single Source", paper_id="c", citation_count=500, source="s2")
+    monkeypatch.setattr(
+        graph.sources,
+        "parallel_citations",
+        lambda *args, **kwargs: [
+            sources.SourceResult("s2", "ok", [duplicate_a, singleton], 1),
+            sources.SourceResult("openalex", "ok", [duplicate_b], 1),
+        ],
+    )
+
+    related = graph._fetch_related(_make_paper("Seed", paper_id="seed"), "citations", 1)
+
+    assert [paper["title"] for paper in related] == ["Shared Work"]
+    assert related[0]["citation_count"] == 100
+    assert related[0]["_source_count"] == 2
+
+
+def test_build_graph_returns_structured_analytics(monkeypatch):
+    seeds = [
+        _make_paper("Retrieval Augmented Generation", paper_id="seed-a", citation_count=500),
+        _make_paper("Corrective Retrieval Generation", paper_id="seed-b", citation_count=200),
+    ]
+
+    def related(paper, relation, limit, delay=0):
+        if relation == "citations":
+            return [_make_paper(
+                f"Retrieval Generation Followup {paper['paper_id']}",
+                paper_id=f"cite-{paper['paper_id']}",
+                citation_count=50,
+            )]
+        return [_make_paper(
+            "Retrieval Foundations",
+            paper_id="foundation",
+            citation_count=1000,
+        )]
+
+    monkeypatch.setattr(graph, "_fetch_related", related)
+    result = graph.build_graph(
+        seeds,
+        max_hops=1,
+        max_papers=10,
+        direction="both",
+        topic_filter="retrieval augmented generation",
+    )
+
+    assert result["stats"] == {
+        "total_nodes": 5,
+        "total_edges": 4,
+        "max_depth": 1,
+        "seed_count": 2,
+    }
+    assert "pagerank" in result["analytics"]
+    assert len(result["nodes"]) == 5
+    assert len(result["edges"]) == 4
 
 
 def test_mermaid_pivot_styling():

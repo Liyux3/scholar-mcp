@@ -1,0 +1,346 @@
+{
+  "benchmark": "LitSearch inline_acl",
+  "run_label": "best_matched_run",
+  "queries": 50,
+  "collected_at": "2026-05-12",
+  "matching": "normalized title equality or containment above 20 characters",
+  "systems": {
+    "scholar_expansion": {
+      "R@5": 0.62,
+      "R@10": 0.68,
+      "R@20": 0.7,
+      "MRR": 0.44221941055087755,
+      "Hit@20": 0.7,
+      "n": 50
+    },
+    "exa_research_paper": {
+      "R@5": 0.52,
+      "R@10": 0.58,
+      "R@20": 0.64,
+      "MRR": 0.4345940170940171,
+      "Hit@20": 0.64,
+      "n": 50
+    },
+    "scholar_first_pass": {
+      "R@5": 0.44,
+      "R@10": 0.56,
+      "R@20": 0.64,
+      "MRR": 0.3345036809595633,
+      "Hit@20": 0.64,
+      "n": 50
+    }
+  },
+  "paired_r5": {
+    "both": 22,
+    "scholar_only": 9,
+    "exa_only": 4,
+    "neither": 15
+  },
+  "source_cache_sha256": {
+    "scholar_expansion": "5d0b6d160e29e7072a1b12f482c1da35c98edad4a683efa6d7f7f3d51934ee98",
+    "exa_research_paper": "07aefc9c6da89465329a066e2d0f1d98453cf8abfb7d87048c314bca73b93f91",
+    "scholar_first_pass": "11faf5bea97bc3d7be1bd3ca20d9aa49e98dac86c79d5d471eeaa09d1e2d6d9b"
+  },
+  "per_query": [
+    {
+      "query_index": 0,
+      "scholar_expansion_rank": 57,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 1,
+      "scholar_expansion_rank": 2,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 4
+    },
+    {
+      "query_index": 2,
+      "scholar_expansion_rank": 1,
+      "exa_rank": null,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 3,
+      "scholar_expansion_rank": null,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 4,
+      "scholar_expansion_rank": 10,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 5,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 9,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 6,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 4,
+      "scholar_first_pass_rank": 2
+    },
+    {
+      "query_index": 7,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 8,
+      "scholar_expansion_rank": 9,
+      "exa_rank": null,
+      "scholar_first_pass_rank": 21
+    },
+    {
+      "query_index": 9,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 4,
+      "scholar_first_pass_rank": 10
+    },
+    {
+      "query_index": 10,
+      "scholar_expansion_rank": null,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 11,
+      "scholar_expansion_rank": 3,
+      "exa_rank": null,
+      "scholar_first_pass_rank": 6
+    },
+    {
+      "query_index": 12,
+      "scholar_expansion_rank": 2,
+      "exa_rank": 2,
+      "scholar_first_pass_rank": 3
+    },
+    {
+      "query_index": 13,
+      "scholar_expansion_rank": 7,
+      "exa_rank": null,
+      "scholar_first_pass_rank": 18
+    },
+    {
+      "query_index": 14,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 2,
+      "scholar_first_pass_rank": 4
+    },
+    {
+      "query_index": 15,
+      "scholar_expansion_rank": 4,
+      "exa_rank": 4,
+      "scholar_first_pass_rank": 14
+    },
+    {
+      "query_index": 16,
+      "scholar_expansion_rank": 2,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 17,
+      "scholar_expansion_rank": null,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 18,
+      "scholar_expansion_rank": null,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 19,
+      "scholar_expansion_rank": 3,
+      "exa_rank": 13,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 20,
+      "scholar_expansion_rank": 4,
+      "exa_rank": 6,
+      "scholar_first_pass_rank": 6
+    },
+    {
+      "query_index": 21,
+      "scholar_expansion_rank": 3,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 7
+    },
+    {
+      "query_index": 22,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 23,
+      "scholar_expansion_rank": 5,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 24,
+      "scholar_expansion_rank": null,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 25,
+      "scholar_expansion_rank": 3,
+      "exa_rank": 2,
+      "scholar_first_pass_rank": 2
+    },
+    {
+      "query_index": 26,
+      "scholar_expansion_rank": 2,
+      "exa_rank": 16,
+      "scholar_first_pass_rank": 16
+    },
+    {
+      "query_index": 27,
+      "scholar_expansion_rank": 4,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 28,
+      "scholar_expansion_rank": 12,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 29,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 16,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 30,
+      "scholar_expansion_rank": null,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 31,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 32,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 2
+    },
+    {
+      "query_index": 33,
+      "scholar_expansion_rank": null,
+      "exa_rank": 6,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 34,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 35,
+      "scholar_expansion_rank": 2,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 36,
+      "scholar_expansion_rank": 55,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 37,
+      "scholar_expansion_rank": 2,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 4
+    },
+    {
+      "query_index": 38,
+      "scholar_expansion_rank": null,
+      "exa_rank": 2,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 39,
+      "scholar_expansion_rank": 47,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 9
+    },
+    {
+      "query_index": 40,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 2
+    },
+    {
+      "query_index": 41,
+      "scholar_expansion_rank": null,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    },
+    {
+      "query_index": 42,
+      "scholar_expansion_rank": 3,
+      "exa_rank": 3,
+      "scholar_first_pass_rank": 1
+    },
+    {
+      "query_index": 43,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 2
+    },
+    {
+      "query_index": 44,
+      "scholar_expansion_rank": null,
+      "exa_rank": null,
+      "scholar_first_pass_rank": 34
+    },
+    {
+      "query_index": 45,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 2
+    },
+    {
+      "query_index": 46,
+      "scholar_expansion_rank": null,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 2
+    },
+    {
+      "query_index": 47,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 9
+    },
+    {
+      "query_index": 48,
+      "scholar_expansion_rank": 1,
+      "exa_rank": 1,
+      "scholar_first_pass_rank": 13
+    },
+    {
+      "query_index": 49,
+      "scholar_expansion_rank": null,
+      "exa_rank": null,
+      "scholar_first_pass_rank": null
+    }
+  ]
+}

@@ -64,6 +64,14 @@ class Source:
 
 _registry: dict[str, Source] = {}
 
+# Search fan-out is called recursively by citation expansion. A fresh executor
+# per call let timed-out workers outlive their request; over a long benchmark,
+# those abandoned pools accumulated until every source timed out together.
+# One bounded process-wide pool preserves the wall-clock budget without
+# allowing background work to grow without bound.
+SEARCH_WORKERS = 32
+_search_pool = ThreadPoolExecutor(max_workers=SEARCH_WORKERS)
+
 
 def register(source: Source):
     _registry[source.name] = source
@@ -164,15 +172,11 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
         return query
 
     results = []
-    # Not a context manager: on timeout we must return without waiting for
-    # stragglers, and ThreadPoolExecutor.__exit__ joins every worker. The
-    # abandoned threads finish into nothing and are reclaimed normally.
-    pool = ThreadPoolExecutor(max_workers=min(len(sources), 12))
+    futures = {
+        _search_pool.submit(_timed_call, s.name, s.search, _pick_query(s), limit, **kwargs): s.name
+        for s in sources
+    }
     try:
-        futures = {
-            pool.submit(_timed_call, s.name, s.search, _pick_query(s), limit, **kwargs): s.name
-            for s in sources
-        }
         for future in as_completed(futures, timeout=budget_s):
             results.append(future.result())
     except TimeoutError:
@@ -185,7 +189,12 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
                     f"exceeded {budget_s:.0f}s fan-out budget",
                 ))
     finally:
-        pool.shutdown(wait=False)
+        # Pending work has no value after the request budget expires. Running
+        # calls keep their client-level timeout, but remain inside the shared
+        # bound instead of creating another detached executor per request.
+        for future in futures:
+            if not future.done():
+                future.cancel()
     return results
 
 
@@ -229,12 +238,24 @@ def parallel_references(paper_id: str, limit: int = 20) -> list[SourceResult]:
 
 
 def _register_defaults():
-    from . import s2_client, arxiv_client, openalex_client, crossref_client
-    from . import core_client, pubmed_client
-    from . import europepmc_client, dblp_client, inspirehep_client
-    from . import scholar_client
-    from . import exa_client, scopus_client, arxivgg_client, doaj_client
-    from . import s2_snippet_client, openreview_client
+    from . import (
+        arxiv_client,
+        arxivgg_client,
+        core_client,
+        crossref_client,
+        dblp_client,
+        doaj_client,
+        europepmc_client,
+        exa_client,
+        inspirehep_client,
+        openalex_client,
+        openreview_client,
+        pubmed_client,
+        s2_client,
+        s2_snippet_client,
+        scholar_client,
+        scopus_client,
+    )
 
     register(Source(
         name="semantic_scholar",

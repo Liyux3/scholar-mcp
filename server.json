@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.liyux3/scholar-mcp",
-  "title": "OpenInquiry MCP",
+  "title": "Scholar MCP",
   "description": "Federated academic search, citation traversal, persistent PDF download, and temporary reading.",
   "repository": {
     "url": "https://github.com/Liyux3/scholar-mcp",

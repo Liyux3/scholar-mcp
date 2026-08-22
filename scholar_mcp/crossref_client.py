@@ -1,6 +1,7 @@
 """Crossref API client. 150M+ works, no API key, no rate limit with polite pool."""
 
 import httpx
+
 from . import config
 
 BASE_URL = "https://api.crossref.org/works"
@@ -59,7 +60,7 @@ def format_paper(item: dict) -> dict | None:
         elif len(parts) >= 1:
             pub_date = f"{parts[0]:04d}-01-01"
 
-    return {
+    paper = {
         "paper_id": f"cr_{doi}" if doi else f"cr_{title[:30]}",
         "title": title,
         "authors": authors,
@@ -77,6 +78,17 @@ def format_paper(item: dict) -> dict | None:
         "url": url,
         "source": "crossref",
     }
+    updates = item.get("update-to") or []
+    if updates:
+        paper["updates"] = [
+            {
+                key: update[key]
+                for key in ("DOI", "type", "label", "source", "updated")
+                if update.get(key) not in (None, "")
+            }
+            for update in updates
+        ]
+    return paper
 
 
 def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:

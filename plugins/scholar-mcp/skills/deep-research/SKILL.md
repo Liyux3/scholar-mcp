@@ -1,12 +1,12 @@
 ---
 name: deep-research
-description: Conduct long-horizon, evidence-grounded research with OpenInquiry MCP. Use for literature reviews, field maps, recent-frontier analysis, technical landscape studies, claim verification, paper lineage tracing, benchmark comparison, or any investigation that requires primary academic evidence and iterative search.
+description: Conduct long-horizon, evidence-grounded research with Scholar MCP. Use for literature reviews, field maps, recent-frontier analysis, technical landscape studies, claim verification, paper lineage tracing, benchmark comparison, or any investigation that requires primary academic evidence and iterative search.
 license: Apache-2.0
 ---
 
 # Deep Research
 
-Build an evolving understanding of the question. Go beyond paper summaries into framing, source judgment, mechanism-level reading, contradiction analysis, and synthesis. Use OpenInquiry MCP as the academic retrieval and citation-tracing specialist.
+Build an evolving understanding of the question. Go beyond paper summaries into framing, source judgment, mechanism-level reading, contradiction analysis, and synthesis. Use Scholar MCP as the academic retrieval and citation-tracing specialist.
 
 ## Operating principles
 
@@ -29,7 +29,7 @@ Build an evolving understanding of the question. Go beyond paper summaries into 
 
 Match the search breadth and artifact size to the request. Keep focused verification bounded; give technical reviews enough breadth to establish the field structure.
 
-## OpenInquiry MCP tool routing
+## Scholar MCP tool routing
 
 | Need | Tool and approach |
 |---|---|
@@ -42,12 +42,25 @@ Match the search breadth and artifact size to the request. Keep focused verifica
 | Recover descendants | Use `paper_info` with `citations`. |
 | Recover intellectual peers | Use `relation=peers` for co-citation. |
 | Find methodological kin | Use `relation=kin` for bibliographic coupling across vocabulary boundaries. |
-| Trace a lineage | Iteratively inspect citations and references, recording edges and opening bridge or pivot papers as they emerge. |
+| Build a bounded lineage | Resolve stable seed IDs, then use `build_paper_graph`; inspect analytics and open bridge or pivot papers. |
 | Read primary evidence | Use `read_paper` for temporary online reading. Use `download_paper` only when the PDF should remain on disk. |
+| Curate durable evidence | Use `paper_library` to save selected papers, search collections, update notes/tags, or export a vault. |
 
-`search_papers` routes raw, short, and compressed queries to different source types. Preserve the natural-language question and let the source adapters choose their query form. Read `_meta.sources_used` and `_meta.sources_unavailable`; distinguish low recall from throttling, timeout, missing optional credentials, and a genuinely empty result.
+`search_papers` routes raw, short, and compressed queries to different source types. Preserve the natural-language question and let the source adapters choose their query form. Read `_meta.source_coverage`, `_meta.reranker`, and `_meta.sources_unavailable`; distinguish low recall from throttling, timeout, missing optional credentials, and a genuinely empty result. Use `debug=true` only when source-level yield, latency, or ranking provenance changes the diagnosis.
 
-Graph building and field discovery are research workflows. Keep their evolving state in the evidence ledger and compose them from search, paper inspection, and the three non-overlapping recommendation relations. This keeps every retrieval step visible and lets the investigation choose its own depth.
+## Dynamic field discovery
+
+Treat field discovery as an evolving research workflow rather than one fixed query or citation threshold.
+
+1. Search the natural-language question with balanced, survey, foundational, and recent intents where each view is relevant.
+2. Build a small query portfolio around distinct mechanisms, datasets, evaluation settings, and counter-positions learned from the first results. Keep mechanisms separate instead of joining every term into one over-constrained query.
+3. Inspect candidate papers through stable IDs. Record why each paper matters, what it changes, and what evidence could disconfirm it.
+4. Follow references, citations, similar papers, co-citation peers, and bibliographic kin selectively. Stop a branch when it drifts from the question or repeats known structure.
+5. Build citation graphs only after the seeds are resolved and relevant. Use the graph to expose bridges and lineages, then inspect the papers behind those positions.
+6. Save only selected evidence to `paper_library`. Apply collections, notes, and tags deliberately; field mapping never auto-saves the raw candidate pool.
+7. Stop when major branches are stable, further searches yield diminishing novelty, and open disagreements are explicit.
+
+Keep the evolving state in the evidence ledger. This preserves every decision-relevant retrieval step while letting the investigation adapt its breadth and depth.
 
 Keep optional API credentials inside the MCP runtime. Redact them from prompts, reports, logs, command arguments, and generated files. When an optional key is absent, continue with the available coverage and report the affected source briefly.
 

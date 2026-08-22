@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "scholar-mcp"
 version = "0.8.0"
-description = "OpenInquiry MCP: multi-source academic search, citation traversal, and deep research"
+description = "Scholar MCP: multi-source academic search, citation traversal, and deep research"
 authors = [{ name = "Yuxian Li" }]
 readme = "README.md"
 license = "Apache-2.0"
@@ -44,7 +44,7 @@ compression = [
 ]
 # Reranker fallback, used whenever the DashScope API is unavailable.
 rerank = ["flashrank>=0.2.10"]
-dev = ["pytest>=8.0.0"]
+dev = ["pytest>=8.0.0", "pillow>=11.0"]
 
 [project.urls]
 Homepage = "https://github.com/Liyux3/scholar-mcp"

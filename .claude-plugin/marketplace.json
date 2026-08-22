@@ -1,12 +1,13 @@
 {
   "name": "scholar-mcp",
+  "description": "A focused marketplace for Scholar MCP, academic retrieval, and evidence-grounded research workflows.",
   "owner": {
     "name": "Yuxian Li"
   },
   "plugins": [
     {
       "name": "scholar-mcp",
-      "description": "OpenInquiry MCP for multi-source academic search and evidence-grounded deep research.",
+      "description": "Scholar MCP for multi-source academic search and evidence-grounded deep research.",
       "version": "0.8.0",
       "source": "./plugins/scholar-mcp"
     }

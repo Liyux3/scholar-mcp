@@ -87,6 +87,70 @@ def test_deduplicate_by_title():
     assert len(result) == 2
 
 
+def test_deduplicate_merges_cross_source_identity_and_metadata():
+    papers = [
+        {
+            "title": "Corrective Retrieval Augmented Generation",
+            "paper_id": "CorpusId:123",
+            "authors": ["A. Author"],
+            "year": None,
+            "venue": "",
+            "external_ids": {"CorpusId": "123"},
+            "source": "semantic_scholar",
+            "_source_ranks": {"semantic_scholar": 0},
+        },
+        {
+            "title": "Corrective Retrieval-Augmented Generation",
+            "paper_id": "2401.15884",
+            "authors": ["A. Author", "B. Author"],
+            "year": 2024,
+            "venue": "arXiv",
+            "publication_date": "2024-01-28",
+            "external_ids": {"ArXiv": "2401.15884v2"},
+            "open_access_url": "https://arxiv.org/pdf/2401.15884.pdf",
+            "source": "arxiv",
+            "_source_ranks": {"arxiv": 2},
+        },
+    ]
+
+    merged = relevance.deduplicate(papers)
+
+    assert len(merged) == 1
+    paper = merged[0]
+    assert paper["year"] == 2024
+    assert paper["venue"] == "arXiv"
+    assert paper["publication_date"] == "2024-01-28"
+    assert paper["external_ids"]["CorpusId"] == "123"
+    assert paper["external_ids"]["ArXiv"] == "2401.15884v2"
+    assert paper["canonical_id"] == "ARXIV:2401.15884"
+    assert paper["_source_count"] == 2
+
+
+def test_deduplicate_uses_identifier_aliases_when_titles_differ():
+    papers = [
+        {"title": "Short conference title", "external_ids": {"DOI": "https://doi.org/10.1234/ABC"}},
+        {"title": "A longer publisher title", "paper_id": "doi:10.1234/abc", "external_ids": {}},
+    ]
+    assert len(relevance.deduplicate(papers)) == 1
+
+
+def test_deduplicate_keeps_same_title_from_different_years_separate():
+    papers = [
+        {"title": "Annual Review of Robotics", "year": 2019, "external_ids": {}},
+        {"title": "Annual Review of Robotics", "year": 2025, "external_ids": {}},
+    ]
+    assert len(relevance.deduplicate(papers)) == 2
+
+
+def test_best_paper_id_normalizes_common_identifiers():
+    assert relevance.best_paper_id({
+        "external_ids": {"DOI": "https://doi.org/10.1000/XYZ"}
+    }) == "10.1000/xyz"
+    assert relevance.best_paper_id({
+        "external_ids": {"ArXiv": "2401.15884v3"}
+    }) == "ARXIV:2401.15884"
+
+
 def test_filter_by_fields_keeps_matching():
     papers = [
         {"title": "Neural Networks", "abstract": "Deep learning model", "fields_of_study": ["Computer Science"]},

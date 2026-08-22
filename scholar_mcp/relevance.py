@@ -3,7 +3,9 @@
 import math
 import re
 import sys
+import time
 from datetime import datetime
+from html import unescape
 
 from . import config
 
@@ -20,7 +22,7 @@ STOPWORDS = frozenset({
     "both", "few", "more", "most", "other", "some", "such", "only",
     "own", "same", "also", "using", "based", "via", "etc",
     "us", "we", "our", "me", "my", "your", "they", "their", "them",
-    "let", "like", "new", "make", "get", "use", "way", "does",
+    "let", "like", "new", "make", "get", "use", "way",
     "show", "know", "take", "come", "see", "look", "find", "give",
     "tell", "think", "say", "try", "ask", "seem", "help", "keep",
     "really", "actually", "still", "even", "much", "well",
@@ -206,8 +208,101 @@ def _restore_contrast(original: str, compressed: str) -> str:
 
 def _normalize_title(title: str) -> str:
     """Lowercase, strip punctuation, collapse whitespace for dedup matching."""
-    t = re.sub(r"[^\w\s]", "", title.lower())
+    # Punctuation is a word boundary, not nothing: deleting the hyphen in
+    # "retrieval-augmented" creates "retrievalaugmented" and prevents the
+    # same title without a hyphen from deduplicating.
+    t = re.sub(r"[^\w\s]", " ", unescape(title or "").lower())
     return re.sub(r"\s+", " ", t).strip()
+
+
+_EXTERNAL_ID_ALIASES = {
+    "ArXivId": "ArXiv",
+    "CorpusID": "CorpusId",
+    "S2CorpusId": "CorpusId",
+    "PMCID": "PubMedCentral",
+    "PMC": "PubMedCentral",
+}
+
+
+def _normalized_identifier(kind: str, value: object) -> str:
+    """Normalize one identifier for equality without changing display values."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    lowered = text.casefold()
+    if kind == "DOI":
+        for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
+            if lowered.startswith(prefix):
+                lowered = lowered[len(prefix):]
+                break
+        return lowered
+    if kind == "ArXiv":
+        lowered = re.sub(r"^(?:arxiv:|https?://arxiv\.org/(?:abs|pdf)/)", "", lowered)
+        lowered = lowered.removesuffix(".pdf")
+        return re.sub(r"v\d+$", "", lowered)
+    if kind == "OpenAlex":
+        return lowered.rsplit("/", 1)[-1]
+    return lowered
+
+
+def _external_ids(paper: dict) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    raw = paper.get("external_ids") or {}
+    if isinstance(raw, dict):
+        for original_kind, value in raw.items():
+            kind = _EXTERNAL_ID_ALIASES.get(str(original_kind), str(original_kind))
+            if value not in (None, "") and kind not in normalized:
+                normalized[kind] = str(value).strip()
+
+    paper_id = str(paper.get("paper_id") or "").strip()
+    lowered = paper_id.casefold()
+    if paper_id:
+        if re.match(r"^(?:https?://doi\.org/|doi:)?10\.\d{4,9}/", lowered):
+            normalized.setdefault("DOI", paper_id)
+        elif lowered.startswith(
+            ("arxiv:", "https://arxiv.org/abs/", "https://arxiv.org/pdf/")
+        ) or re.fullmatch(r"\d{4}\.\d{4,5}(?:v\d+)?", paper_id):
+            normalized.setdefault("ArXiv", paper_id)
+        elif lowered.startswith(("https://openalex.org/w", "w")) and re.search(r"w\d+$", lowered):
+            normalized.setdefault("OpenAlex", paper_id)
+        elif lowered.startswith("corpusid:"):
+            normalized.setdefault("CorpusId", paper_id.split(":", 1)[1])
+    return normalized
+
+
+def paper_identity_keys(paper: dict, include_title: bool = True) -> set[str]:
+    """Return stable cross-source identity keys for a paper."""
+    keys = {
+        f"{kind.casefold()}:{normalized}"
+        for kind, value in _external_ids(paper).items()
+        if (normalized := _normalized_identifier(kind, value))
+    }
+    paper_id = str(paper.get("paper_id") or "").strip()
+    if paper_id and not keys:
+        keys.add(f"paper_id:{paper_id.casefold()}")
+    if include_title:
+        title = _normalize_title(paper.get("title", ""))
+        if len(title) > 10:
+            keys.add(f"title:{title}")
+    return keys
+
+
+def best_paper_id(paper: dict) -> str:
+    """Choose an identifier callers can feed back into Scholar MCP."""
+    ids = _external_ids(paper)
+    if ids.get("DOI"):
+        return _normalized_identifier("DOI", ids["DOI"])
+    if ids.get("ArXiv"):
+        return f"ARXIV:{_normalized_identifier('ArXiv', ids['ArXiv'])}"
+    if ids.get("OpenAlex"):
+        return _normalized_identifier("OpenAlex", ids["OpenAlex"]).upper()
+    if ids.get("CorpusId"):
+        return f"CorpusId:{ids['CorpusId']}"
+    if ids.get("PubMed"):
+        return f"PMID:{ids['PubMed']}"
+    if ids.get("OpenReview"):
+        return f"OpenReview:{ids['OpenReview']}"
+    return str(paper.get("paper_id") or "")
 
 
 def tag_source_ranks(papers: list[dict], source_name: str, facet: str = "") -> list[dict]:
@@ -246,6 +341,17 @@ def _merge_two(a: dict, b: dict) -> dict:
     Track source count and per-source ranks for RRF.
     """
     merged = dict(a)
+    a_ids = _external_ids(merged)
+    b_ids = _external_ids(b)
+    merged["external_ids"] = {**b_ids, **a_ids}
+
+    for field in ("year", "publication_date", "paper_id", "url", "pdf_path"):
+        if not merged.get(field) and b.get(field):
+            merged[field] = b[field]
+    if (not merged.get("venue") or str(merged.get("venue")).casefold() == "arxiv") and b.get("venue"):
+        merged["venue"] = b["venue"]
+    if not merged.get("title") and b.get("title"):
+        merged["title"] = b["title"]
     b_abs = b.get("abstract") or ""
     if len(b_abs) > len(merged.get("abstract") or ""):
         merged["abstract"] = b_abs
@@ -259,21 +365,39 @@ def _merge_two(a: dict, b: dict) -> dict:
         merged["fields_of_study"] = list(a_topics | b_topics)
     if not merged.get("open_access_url") and b.get("open_access_url"):
         merged["open_access_url"] = b["open_access_url"]
-        merged["is_open_access"] = True
+    merged["is_open_access"] = bool(
+        merged.get("is_open_access") or b.get("is_open_access")
+        or merged.get("open_access_url")
+    )
     if not merged.get("tldr") and b.get("tldr"):
         merged["tldr"] = b["tldr"]
+    updates = []
+    seen_updates = set()
+    for update in (merged.get("updates") or []) + (b.get("updates") or []):
+        key = (str(update.get("DOI") or "").casefold(), str(update.get("type") or "").casefold())
+        if key not in seen_updates:
+            seen_updates.add(key)
+            updates.append(update)
+    if updates:
+        merged["updates"] = updates
     a_sources = set((merged.get("source") or "").split("+")) - {""}
     b_sources = set((b.get("source") or "").split("+")) - {""}
     all_sources = a_sources | b_sources
     merged["source"] = "+".join(sorted(all_sources))
     a_ranks = merged.get("_source_ranks") or {}
     b_ranks = b.get("_source_ranks") or {}
-    merged["_source_ranks"] = {**a_ranks, **b_ranks}
+    channels = set(a_ranks) | set(b_ranks)
+    merged["_source_ranks"] = {
+        channel: min(rank for rank in (a_ranks.get(channel), b_ranks.get(channel)) if rank is not None)
+        for channel in channels
+    }
     merged["_physical_sources"] = (
-        (merged.get("_physical_sources") or set()) | (b.get("_physical_sources") or set())
-        or all_sources
+        (merged.get("_physical_sources") or set())
+        | (b.get("_physical_sources") or set())
+        | all_sources
     )
     merged["_source_count"] = len(merged["_physical_sources"])
+    merged["canonical_id"] = best_paper_id(merged)
     return merged
 
 
@@ -285,44 +409,55 @@ def deduplicate(papers: list[dict]) -> list[dict]:
         if "_source_count" not in p:
             p["_source_count"] = 1
 
-    by_doi: dict[str, dict] = {}
-    by_title: dict[str, dict] = {}
-    unique = []
+    groups: list[dict | None] = []
+    key_to_group: dict[str, int] = {}
 
-    for p in papers:
-        doi = (p.get("external_ids") or {}).get("DOI", "")
-        if doi:
-            doi_lower = doi.lower()
-            if doi_lower in by_doi:
-                by_doi[doi_lower] = _merge_two(by_doi[doi_lower], p)
-                continue
-            by_doi[doi_lower] = p
+    def compatible_title_match(existing: dict, candidate: dict) -> bool:
+        a_year, b_year = existing.get("year"), candidate.get("year")
+        try:
+            return not (a_year and b_year and abs(int(a_year) - int(b_year)) > 1)
+        except (TypeError, ValueError):
+            return True
 
-        norm_title = _normalize_title(p.get("title", ""))
-        if norm_title and len(norm_title) > 10:
-            if norm_title in by_title:
-                by_title[norm_title] = _merge_two(by_title[norm_title], p)
-                continue
-            by_title[norm_title] = p
+    for paper in papers:
+        keys = paper_identity_keys(paper)
+        identifier_keys = {key for key in keys if not key.startswith("title:")}
+        matched = {key_to_group[key] for key in identifier_keys if key in key_to_group}
+        if not matched:
+            for key in keys - identifier_keys:
+                if key in key_to_group:
+                    group = key_to_group[key]
+                    existing = groups[group]
+                    if existing is not None and compatible_title_match(existing, paper):
+                        matched.add(group)
 
-        unique.append(p)
-
-    seen_ids = set()
-    result = []
-    for p in unique:
-        doi = (p.get("external_ids") or {}).get("DOI", "")
-        if doi:
-            merged = by_doi.get(doi.lower(), p)
-            pid = doi.lower()
+        if not matched:
+            group_index = len(groups)
+            merged = dict(paper)
+            merged["external_ids"] = _external_ids(merged)
+            merged.setdefault("_physical_sources", set((merged.get("source") or "").split("+")) - {""})
+            merged["_source_count"] = physical_source_count(merged)
+            merged["canonical_id"] = best_paper_id(merged)
+            groups.append(merged)
         else:
-            nt = _normalize_title(p.get("title", ""))
-            merged = by_title.get(nt, p)
-            pid = nt
-        if pid not in seen_ids:
-            seen_ids.add(pid)
-            result.append(merged)
+            group_index = min(matched)
+            merged = groups[group_index] or {}
+            for other_index in sorted(matched - {group_index}):
+                other = groups[other_index]
+                if other is not None:
+                    merged = _merge_two(merged, other)
+                    groups[other_index] = None
+            merged = _merge_two(merged, paper)
+            groups[group_index] = merged
+            if len(matched) > 1:
+                for key, index in list(key_to_group.items()):
+                    if index in matched:
+                        key_to_group[key] = group_index
 
-    return result
+        for key in paper_identity_keys(merged):
+            key_to_group[key] = group_index
+
+    return [paper for paper in groups if paper is not None]
 
 
 _flashrank_ranker = None
@@ -359,6 +494,17 @@ INTENT_INSTRUCTS = {
 
 
 _dashscope_warning_shown = False
+_reranker_state = {
+    "provider": None,
+    "dashscope_configured": bool(config.DASHSCOPE_API_KEY),
+    "fallback_reason": None,
+    "latency_ms": None,
+}
+
+
+def reranker_status() -> dict:
+    """Return safe runtime state for status/debug output."""
+    return dict(_reranker_state)
 
 
 def _warn_dashscope_down(reason: str) -> None:
@@ -381,6 +527,12 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = 
     """Rerank via DashScope qwen3-rerank API. Returns None on failure."""
     api_key = config.DASHSCOPE_API_KEY
     if not api_key:
+        _reranker_state.update(
+            provider=None,
+            dashscope_configured=False,
+            fallback_reason="not configured",
+            latency_ms=None,
+        )
         return None
 
     documents = []
@@ -399,6 +551,7 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = 
 
     instruct = INTENT_INSTRUCTS.get(intent, INTENT_INSTRUCTS[""])
 
+    started = time.monotonic()
     try:
         import httpx
         resp = httpx.post(
@@ -422,10 +575,24 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = 
             score = float(item["relevance_score"])
             paper = papers[idx]
             paper["_rerank_score"] = score
+            paper["_reranker_provider"] = "dashscope"
             reranked.append(paper)
+        _reranker_state.update(
+            provider="dashscope",
+            dashscope_configured=True,
+            fallback_reason=None,
+            latency_ms=round((time.monotonic() - started) * 1000),
+        )
         return reranked
     except Exception as e:
-        _warn_dashscope_down(_dashscope_reason(e))
+        reason = _dashscope_reason(e)
+        _reranker_state.update(
+            provider=None,
+            dashscope_configured=True,
+            fallback_reason=reason,
+            latency_ms=round((time.monotonic() - started) * 1000),
+        )
+        _warn_dashscope_down(reason)
         return None
 
 
@@ -441,11 +608,17 @@ def _dashscope_reason(exc: Exception) -> str:
 
 def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
     """Rerank via FlashRank MiniLM (ONNX). Fallback when DashScope unavailable."""
+    started = time.monotonic()
     try:
         from flashrank import Ranker, RerankRequest
     except ImportError:
         for p in papers:
             p["_rerank_score"] = 0.5
+            p["_reranker_provider"] = "unavailable"
+        _reranker_state.update(
+            provider="unavailable",
+            latency_ms=round((time.monotonic() - started) * 1000),
+        )
         return papers[:top_n]
 
     global _flashrank_ranker
@@ -466,7 +639,12 @@ def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
     for item in ranked[:top_n]:
         paper = papers[item["id"]]
         paper["_rerank_score"] = float(item["score"])
+        paper["_reranker_provider"] = "flashrank"
         reranked.append(paper)
+    _reranker_state.update(
+        provider="flashrank",
+        latency_ms=round((time.monotonic() - started) * 1000),
+    )
     return reranked
 
 

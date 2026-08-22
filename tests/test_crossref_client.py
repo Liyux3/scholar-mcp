@@ -46,6 +46,23 @@ def test_format_paper_no_title():
     assert result is None
 
 
+def test_format_paper_preserves_retraction_updates():
+    item = {
+        "DOI": "10.1234/retracted",
+        "title": ["A Retracted Paper"],
+        "update-to": [{
+            "DOI": "10.1234/notice",
+            "type": "retraction",
+            "label": "Retraction",
+            "source": "retraction-watch",
+            "updated": {"date-time": "2026-01-01T00:00:00Z"},
+        }],
+    }
+    result = crossref_client.format_paper(item)
+    assert result["updates"][0]["type"] == "retraction"
+    assert result["updates"][0]["source"] == "retraction-watch"
+
+
 def test_output_format_matches_s2():
     item = {
         "DOI": "10.1234/test",

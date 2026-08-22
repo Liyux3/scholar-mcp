@@ -23,10 +23,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
-from . import relevance
-from . import s2_client
-from . import sources
-from . import traversal
+from . import relevance, s2_client, sources, traversal
 
 
 @dataclass
@@ -100,6 +97,19 @@ def title_search(seed: dict, ctx: ExpansionContext) -> list[dict]:
         raw_query=title,
         short_query=relevance.optimize_query_short(title),
     ) for p in sr.results]
+
+
+def title_search_all(ctx: ExpansionContext) -> list[dict]:
+    """Search every seed title without bursting every source at once.
+
+    Source fan-out remains parallel for each title. Seeds run in sequence so
+    arXiv, Semantic Scholar, and OpenAlex see one expansion request at a time
+    instead of three concurrent full-fleet requests.
+    """
+    papers = []
+    for seed in ctx.seeds:
+        papers.extend(title_search(seed, ctx))
+    return papers
 
 
 def recommendations(seed: dict, ctx: ExpansionContext) -> list[dict]:
@@ -176,7 +186,6 @@ def frequent_terms(ctx: ExpansionContext) -> list[dict]:
 CHANNELS = {
     "references": references,
     "citations": citations,
-    "title_search": title_search,
     "recommendations": recommendations,
     # Recovers as efficiently as references at the same cost, and is the only
     # default channel that does not follow an edge from the seed, so it can
@@ -186,6 +195,7 @@ CHANNELS = {
 
 # Channels that read all seeds at once and run a single time.
 GLOBAL_CHANNELS = {
+    "title_search": title_search_all,
     "frequent_terms": frequent_terms,
 }
 
@@ -211,7 +221,14 @@ def expand(seeds: list[dict], intent: str = "", per_seed_limit: int = 20,
 
     ctx = ExpansionContext(intent=intent, per_seed_limit=per_seed_limit, seeds=seeds)
     available = {**CHANNELS, **OPTIONAL_CHANNELS}
-    names = channels if channels is not None else list(CHANNELS)
+    if channels is not None:
+        names = channels
+    else:
+        # Build this dynamically so channel registries remain composable in
+        # tests and extensions. frequent_terms stays opt-in.
+        names = [*CHANNELS]
+        if "title_search" in GLOBAL_CHANNELS:
+            names.append("title_search")
 
     results: dict[str, list[dict]] = {name: [] for name in names}
     jobs = []

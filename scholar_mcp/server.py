@@ -1,18 +1,27 @@
+import asyncio
 import os
 import re
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
+
 import yaml
 from fastmcp import FastMCP
-from mcp.types import ToolAnnotations
-from . import __version__
-from . import config
-from . import s2_client
-from . import openalex_client
-from . import pdf_utils
-from . import relevance
-from . import expansion
-from . import sources
-from . import traversal
+from fastmcp.tools.tool import ToolResult
+from mcp.types import TextContent, ToolAnnotations
+
+from . import (
+    __version__,
+    config,
+    expansion,
+    graph,
+    openalex_client,
+    pdf_utils,
+    relevance,
+    s2_client,
+    sources,
+    traversal,
+)
 
 mcp = FastMCP(
     "scholar-mcp",
@@ -47,18 +56,6 @@ def _lookup_title(paper_id: str) -> str:
     """
     paper = _find_paper(paper_id)
     return "" if paper is None else str(paper.get("title") or "")
-
-
-def _best_paper_id(paper: dict) -> str:
-    """Return an identifier that can be passed back to info/download tools."""
-    external = paper.get("external_ids") or {}
-    if external.get("DOI"):
-        return str(external["DOI"])
-    if external.get("ArXiv") or external.get("ArXivId"):
-        return f"ARXIV:{external.get('ArXiv') or external.get('ArXivId')}"
-    if external.get("OpenAlex"):
-        return str(external["OpenAlex"])
-    return str(paper.get("paper_id") or "")
 
 
 # Seeds expanded from. Each costs a fan-out per channel, so this is the main
@@ -115,7 +112,8 @@ def _pipeline(
         expand_min_pool: skip expansion when fewer results than this came back,
             since seeds picked from a thin pool are unlikely to be good ones
         expand_limit: how many papers each channel fetches per seed
-        expand_channels: channel names to run; None means expansion.CHANNELS
+        expand_channels: channel names to run; None means the per-seed channels
+            plus the global title-search channel
         **kwargs: passed to source search (year, fields_of_study, etc.)
     Returns:
         (ranked_papers, source_reports)
@@ -191,7 +189,7 @@ def _pipeline(
     return all_papers[:limit], source_reports
 
 
-def _format_paper(p: dict) -> dict:
+def _format_paper(p: dict, *, detailed: bool = False, debug: bool = False) -> dict:
     doi = (p.get("external_ids") or {}).get("DOI", "")
     abstract = p.get("abstract") or ""
     if len(abstract) > 300:
@@ -206,15 +204,33 @@ def _format_paper(p: dict) -> dict:
     }
     if doi:
         out["doi"] = doi
-    paper_id = _best_paper_id(p)
+    paper_id = relevance.best_paper_id(p)
     if paper_id:
         out["id"] = paper_id
     if p.get("url"):
         out["url"] = p["url"]
     if p.get("tldr"):
         out["tldr"] = p["tldr"]
-    if p.get("_final_score"):
+    if p.get("is_open_access") or p.get("open_access_url"):
+        out["open_access"] = True
+    if detailed:
+        if p.get("publication_date"):
+            out["publication_date"] = p["publication_date"]
+        identifiers = p.get("external_ids") or {}
+        if identifiers:
+            out["identifiers"] = identifiers
+        if p.get("open_access_url"):
+            out["pdf_url"] = p["open_access_url"]
+        if p.get("fields_of_study"):
+            out["fields_of_study"] = p["fields_of_study"]
+        if p.get("updates"):
+            out["updates"] = p["updates"]
+    if debug and p.get("source"):
+        out["sources"] = sorted(set(str(p["source"]).split("+")))
+    if debug and p.get("_final_score"):
         out["score"] = round(p["_final_score"], 2)
+    if debug and p.get("_source_ranks"):
+        out["source_ranks"] = p["_source_ranks"]
     return out
 
 
@@ -228,7 +244,7 @@ def _format_compact(p: dict) -> dict:
     doi = (p.get("external_ids") or {}).get("DOI", "")
     if doi:
         out["doi"] = doi
-    paper_id = _best_paper_id(p)
+    paper_id = relevance.best_paper_id(p)
     if paper_id:
         out["id"] = paper_id
     return out
@@ -268,6 +284,16 @@ def _yaml(data: dict) -> str:
     return yaml.dump(data, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
 
+def _yaml_tool_result(text: str) -> ToolResult:
+    """Add structured MCP data while preserving the established YAML text."""
+    parsed = yaml.safe_load(text)
+    structured = parsed if isinstance(parsed, dict) else {"items": parsed}
+    return ToolResult(
+        content=[TextContent(type="text", text=text)],
+        structured_content=structured,
+    )
+
+
 ERROR_MAX_CHARS = 160
 
 
@@ -287,26 +313,33 @@ def _clean_error(message: str) -> str:
     return message
 
 
-def _meta_block(source_reports: list[dict], **extra) -> dict:
-    """Summarise which sources answered, expanding only the ones that did not.
+def _meta_block(source_reports: list[dict], *, debug: bool = False, **extra) -> dict:
+    """Keep normal output compact while preserving actionable degradation.
 
-    Listing all 13 in full costs ~60 lines of the caller's context per search,
-    almost all of it `error: null`. Healthy sources are reduced to
-    "name (count)"; anything not ok keeps its status, latency and a trimmed
-    error, since that is the case worth reading.
+    Healthy and genuinely empty sources collapse into one coverage ratio.
+    Errors and timeouts remain visible. Full yields and latency are opt-in
+    diagnostics because repeating them on every search burns context without
+    helping the next research decision.
     """
     healthy = [r for r in source_reports if r["status"] == "ok"]
-    degraded = [r for r in source_reports if r["status"] != "ok"]
-
-    meta = {
-        "sources_used": [f"{r['source']} ({r['count']})" for r in
-                         sorted(healthy, key=lambda r: -r["count"])],
-    }
+    degraded = [r for r in source_reports if r["status"] in {"error", "timeout", "blocked"}]
+    meta = {"source_coverage": f"{len(healthy)}/{len(source_reports)}"}
     if degraded:
         meta["sources_unavailable"] = [
             {"source": r["source"], "status": r["status"],
              "error": _clean_error(r.get("error") or "")}
             for r in degraded
+        ]
+    if debug:
+        meta["source_reports"] = [
+            {
+                "source": r["source"],
+                "status": r["status"],
+                "count": r["count"],
+                "latency_ms": r["latency_ms"],
+                **({"error": _clean_error(r.get("error") or "")} if r.get("error") else {}),
+            }
+            for r in sorted(source_reports, key=lambda r: r["source"])
         ]
     return {**meta, **extra}
 
@@ -329,6 +362,7 @@ def search_papers(
     open_access_only: bool = False,
     sort: str = "",
     intent: str = "",
+    debug: bool = False,
 ) -> str:
     """Search for academic papers across multiple sources (Semantic Scholar, arXiv, OpenAlex).
     Results are ranked using LLM-based reranking for better relevance.
@@ -344,6 +378,7 @@ def search_papers(
         open_access_only: Only return papers with free PDF access
         sort: Sort results by "citations" (most cited first) or "date" (newest first). Default: relevance.
         intent: Ranking preference. "foundational" for seminal papers, "recent" for latest work, "survey" for reviews, "method" for specific techniques. Default: balanced relevance.
+        debug: Include per-source latency, provenance, and internal ranking diagnostics.
     """
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
     type_list = [t.strip() for t in paper_types.split(",") if t.strip()] if paper_types else None
@@ -386,11 +421,21 @@ def search_papers(
     results = results[:limit]
 
     if not results:
-        return _yaml({"error": "No relevant results found.", "_meta": _meta_block(reports)})
+        return _yaml({"error": "No relevant results found.", "_meta": _meta_block(reports, debug=debug)})
+
+    reranker = relevance.reranker_status()
+    reranker_meta = {"provider": reranker.get("provider") or "unavailable"}
+    if reranker_meta["provider"] != "dashscope" and reranker.get("fallback_reason"):
+        reranker_meta["fallback_reason"] = reranker["fallback_reason"]
 
     return _yaml({
-        "results": [_format_paper(p) for p in results],
-        "_meta": _meta_block(reports, total=len(results)),
+        "results": [_format_paper(p, debug=debug) for p in results],
+        "_meta": _meta_block(
+            reports,
+            debug=debug,
+            total=len(results),
+            reranker=reranker_meta,
+        ),
     })
 
 
@@ -413,27 +458,41 @@ def paper_info(
         include: Comma-separated: "detail", "citations", "references" (default: "detail")
         limit: Max citations/references to return (default 20)
     """
-    parts = [p.strip() for p in include.split(",")]
+    allowed = {"detail", "citations", "references"}
+    parts = list(dict.fromkeys(p.strip() for p in include.split(",") if p.strip()))
+    unknown = sorted(set(parts) - allowed)
+    if not parts or unknown:
+        return _yaml({
+            "error": "Invalid include selection.",
+            "unknown": unknown,
+            "allowed": sorted(allowed),
+        })
+
+    limit = min(max(limit, 1), 100)
     output = {}
+    resolved = _find_paper(paper_id) if {"detail", "citations"} & set(parts) else None
+    if "detail" in parts and resolved:
+        output["paper"] = _format_paper(resolved, detailed=True)
 
-    if "detail" in parts:
-        result = _find_paper(paper_id)
-        if result:
-            output["paper"] = _format_paper(result)
+    jobs = {}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        if "citations" in parts:
+            title = str((resolved or {}).get("title") or "")
+            jobs["citations"] = pool.submit(
+                _pipeline, "citations", paper_id, limit, paper_title=title
+            )
+        if "references" in parts:
+            jobs["references"] = pool.submit(
+                _pipeline, "references", paper_id, limit
+            )
+        relation_results = {name: job.result() for name, job in jobs.items()}
 
-    if "citations" in parts:
-        # OpenAlex needs a title to resolve arXiv ids. Fetch one if the caller
-        # did not ask for detail, otherwise citations for arXiv papers come
-        # from S2 alone and arrive ordered by recency rather than impact.
-        title = (output.get("paper") or {}).get("title", "")
-        if not title:
-            title = _lookup_title(paper_id)
-        cites, reports = _pipeline("citations", paper_id, limit, paper_title=title)
+    if "citations" in relation_results:
+        cites, reports = relation_results["citations"]
         output["citations"] = [_format_compact(p) for p in cites]
         output["_citations_meta"] = _meta_block(reports, total=len(cites))
-
-    if "references" in parts:
-        refs, reports = _pipeline("references", paper_id, limit)
+    if "references" in relation_results:
+        refs, reports = relation_results["references"]
         output["references"] = [_format_compact(p) for p in refs]
         output["_references_meta"] = _meta_block(reports, total=len(refs))
 
@@ -607,24 +666,102 @@ def read_paper(paper_id: str, max_pages: int = 0) -> str:
             return _yaml({"error": f"PDF text extraction failed: {error}"})
 
 
-def knowledge_base(
+def _resolve_graph_seed(value: str) -> dict | None:
+    """Resolve an explicit ID, or an exact title as a compatibility fallback."""
+    paper = _find_paper(value)
+    if paper:
+        return paper
+    if " " not in value.strip():
+        return None
+    query = value.strip()
+    candidates, _ = _pipeline(
+        "search",
+        relevance.optimize_query(query),
+        5,
+        rerank_query=query,
+        raw_query=query,
+        expand_citations=False,
+    )
+    normalized = relevance._normalize_title(query)
+    return next(
+        (paper for paper in candidates
+         if relevance._normalize_title(paper.get("title", "")) == normalized),
+        None,
+    )
+
+
+def build_paper_graph(
+    paper_ids: str,
+    max_hops: int = 1,
+    max_papers: int = 30,
+    direction: str = "both",
+    min_citations: int = 0,
+    topic_filter: str = "",
+) -> str:
+    """Build a reproducible citation graph from explicit paper identifiers.
+
+    Args:
+        paper_ids: Comma-separated DOI, arXiv, OpenAlex, S2, or exact-title seeds.
+        max_hops: Citation/reference depth, 1-3.
+        max_papers: Maximum graph nodes, 5-100.
+        direction: "citations", "references", or "both".
+        min_citations: Optional citation floor for expanded nodes.
+        topic_filter: Optional topic phrase used to control graph drift.
+    """
+    if direction not in {"citations", "references", "both"}:
+        return _yaml({"error": "direction must be citations, references, or both"})
+    requested = list(dict.fromkeys(value.strip() for value in paper_ids.split(",") if value.strip()))
+    if not requested:
+        return _yaml({"error": "No paper identifiers provided."})
+    seeds, unresolved = [], []
+    for value in requested:
+        paper = _resolve_graph_seed(value)
+        if paper:
+            seeds.append(paper)
+        else:
+            unresolved.append(value)
+    if not seeds:
+        return _yaml({"error": "No graph seeds could be resolved.", "unresolved": unresolved})
+
+    result = graph.build_graph(
+        seeds,
+        max_hops=min(max(max_hops, 1), 3),
+        max_papers=min(max(max_papers, 5), 100),
+        direction=direction,
+        min_citations=max(min_citations, 0),
+        topic_filter=topic_filter,
+    )
+    result["seeds"] = [
+        {"id": relevance.best_paper_id(paper), "title": paper.get("title", "")}
+        for paper in seeds
+    ]
+    if unresolved:
+        result["unresolved"] = unresolved
+    return _yaml(result)
+
+
+def paper_library(
     action: str = "list",
+    paper_ids: str = "",
     paper_titles: str = "",
     collection: str = "default",
     query: str = "",
     notes: str = "",
+    tags: str = "",
     limit: int = 20,
     link_citations: bool = False,
 ) -> str:
-    """Manage saved papers in the knowledge base.
+    """Manage a local paper library with collections, notes, PDFs, and export.
 
     Args:
-        action: "save", "list", "search", "collections", or "export"
+        action: save/add, get, list, search, update, remove, collections, or export
             ("export" writes an Obsidian-compatible markdown vault)
-        paper_titles: Comma-separated paper titles or DOIs (for action="save")
+        paper_ids: Comma-separated stable identifiers for save/get/update/remove
+        paper_titles: Exact-title compatibility fallback for save
         collection: Collection name (default: "default")
         query: Search query (for action="search")
-        notes: Notes to attach to saved papers (for action="save")
+        notes: Notes for save/update
+        tags: Comma-separated tags for save/update
         limit: Maximum papers to return
         link_citations: for action="export", resolve each paper's reference
             list so notes link along real citations. Costs one request per
@@ -634,6 +771,12 @@ def knowledge_base(
     """
     from . import knowledge_base as kb
     from . import vault
+
+    action = action.strip().casefold()
+    identifiers = list(dict.fromkeys(
+        value.strip() for value in (paper_ids or paper_titles).split(",") if value.strip()
+    ))
+    tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
     if action == "collections":
         return _yaml({"collections": kb.list_collections()})
@@ -648,29 +791,71 @@ def knowledge_base(
         return _yaml(vault.export_collection(papers, collection,
                                              link_citations=link_citations))
 
-    if action == "save":
-        titles = [t.strip() for t in paper_titles.split(",") if t.strip()]
-        if not titles:
-            return _yaml({"error": "No paper titles provided"})
+    if action in {"save", "add"}:
+        if not identifiers:
+            return _yaml({"error": "No paper identifiers provided."})
         papers_to_save = []
-        for title in titles:
-            results, _ = _pipeline("search", title, 1)
-            if results:
-                papers_to_save.append(results[0])
+        unresolved = []
+        for identifier in identifiers:
+            paper = _resolve_graph_seed(identifier)
+            if paper:
+                paper["tags"] = tag_list
+                papers_to_save.append(paper)
+            else:
+                unresolved.append(identifier)
         if not papers_to_save:
-            return _yaml({"error": "Could not find any of the specified papers"})
+            return _yaml({"error": "Could not resolve any requested papers.", "unresolved": unresolved})
         result = kb.add_papers(papers_to_save, collection=collection, notes=notes)
+        if unresolved:
+            result["unresolved"] = unresolved
         return _yaml(result)
+
+    if action == "get":
+        if len(identifiers) != 1:
+            return _yaml({"error": "get requires exactly one paper identifier."})
+        paper = kb.get_paper(identifiers[0], collection=collection)
+        return _yaml({"paper": paper} if paper else {"error": "Paper not found."})
+
+    if action == "update":
+        if len(identifiers) != 1:
+            return _yaml({"error": "update requires exactly one paper identifier."})
+        updated = kb.update_paper(
+            identifiers[0],
+            collection=collection,
+            notes=notes if notes else None,
+            tags=tag_list if tags else None,
+        )
+        return _yaml({"updated": updated, "collection": collection})
+
+    if action == "remove":
+        if len(identifiers) != 1:
+            return _yaml({"error": "remove requires exactly one paper identifier."})
+        removed = kb.remove_paper(identifiers[0], collection=collection)
+        return _yaml({"removed": removed, "collection": collection})
 
     if action == "search" and query:
         papers = kb.search_kb(query, collection=collection, limit=limit)
-    else:
+    elif action == "list":
         papers = kb.list_papers(collection=collection, limit=limit)
+    else:
+        return _yaml({"error": f"Unknown library action '{action}'."})
 
     output = {
         "collection": collection,
         "total": len(papers),
-        "papers": [{"title": p.get("title", ""), "year": p.get("year"), "citations": p.get("citation_count", 0), "notes": p.get("notes", "")} for p in papers],
+        "papers": [
+            {
+                "id": p.get("canonical_id") or p.get("doi") or p.get("paper_id"),
+                "title": p.get("title", ""),
+                "year": p.get("year"),
+                "venue": p.get("venue", ""),
+                "citations": p.get("citation_count", 0),
+                "tags": p.get("tags", []),
+                "notes": p.get("notes", ""),
+                **({"pdf_path": p["pdf_path"]} if p.get("pdf_path") else {}),
+            }
+            for p in papers
+        ],
     }
 
     # Point an empty collection listing toward populated sibling collections.
@@ -683,6 +868,27 @@ def knowledge_base(
             ]
 
     return _yaml(output)
+
+
+def knowledge_base(
+    action: str = "list",
+    paper_titles: str = "",
+    collection: str = "default",
+    query: str = "",
+    notes: str = "",
+    limit: int = 20,
+    link_citations: bool = False,
+) -> str:
+    """Compatibility alias for the earlier knowledge_base tool name."""
+    return paper_library(
+        action=action,
+        paper_titles=paper_titles,
+        collection=collection,
+        query=query,
+        notes=notes,
+        limit=limit,
+        link_citations=link_citations,
+    )
 
 
 @mcp.resource("scholar://status")
@@ -711,7 +917,7 @@ def scholar_status() -> str:
         "search_sources": available,
         "citation_sources": cite_sources,
         "s2_key": bool(config.get_s2_api_key()),
-        "reranker": "dashscope" if config.DASHSCOPE_API_KEY else "flashrank",
+        "reranker": relevance.reranker_status(),
         "cache_enabled": True,
     })
 
@@ -722,12 +928,32 @@ def _register_extensions() -> None:
         for value in os.environ.get("SCHOLAR_MCP_EXTENSIONS", "").split(",")
         if value.strip()
     }
-    if "knowledge_base" in enabled:
+    if "research" in enabled or "graph" in enabled:
         mcp.tool(
             annotations=ToolAnnotations(
-                title="Manage a local paper collection",
-                readOnlyHint=False,
+                title="Build a citation graph",
+                readOnlyHint=True,
                 destructiveHint=False,
+                idempotentHint=True,
+                openWorldHint=True,
+            )
+        )(build_paper_graph)
+    if "research" in enabled or "paper_library" in enabled:
+        mcp.tool(
+            annotations=ToolAnnotations(
+                title="Manage a local paper library",
+                readOnlyHint=False,
+                destructiveHint=True,
+                idempotentHint=False,
+                openWorldHint=True,
+            )
+        )(paper_library)
+    if "knowledge_base" in enabled and "research" not in enabled:
+        mcp.tool(
+            annotations=ToolAnnotations(
+                title="Manage a local paper collection (legacy)",
+                readOnlyHint=False,
+                destructiveHint=True,
                 idempotentHint=False,
                 openWorldHint=False,
             )
@@ -735,6 +961,40 @@ def _register_extensions() -> None:
 
 
 _register_extensions()
+
+
+def _register_structured_yaml_adapters() -> None:
+    """Upgrade YAML tools at the MCP boundary without changing direct calls."""
+    functions = {
+        "search_papers": search_papers,
+        "paper_info": paper_info,
+        "recommend_papers": recommend_papers,
+        "search_authors": search_authors,
+        "download_paper": download_paper,
+        "build_paper_graph": build_paper_graph,
+        "paper_library": paper_library,
+        "knowledge_base": knowledge_base,
+    }
+    for name, function in functions.items():
+        existing = asyncio.run(mcp.get_tool(name))
+        if existing is None:
+            continue
+
+        @wraps(function)
+        def adapter(*args, __function=function, **kwargs):
+            return _yaml_tool_result(__function(*args, **kwargs))
+
+        mcp.local_provider.remove_tool(name)
+        mcp.tool(
+            name=name,
+            title=existing.title,
+            description=existing.description,
+            annotations=existing.annotations,
+            output_schema={"type": "object", "additionalProperties": True},
+        )(adapter)
+
+
+_register_structured_yaml_adapters()
 
 
 def main():
