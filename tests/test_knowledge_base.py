@@ -1,8 +1,11 @@
 """Tests for persistent knowledge base."""
 
+import json
 import tempfile
+from pathlib import Path
 
 from scholar_mcp import knowledge_base as kb
+from scholar_mcp.library_connectors import publish_notion, sync_zotero
 
 
 def _with_tmp_dir(fn):
@@ -181,5 +184,41 @@ def test_attach_pdf_updates_an_existing_record():
             "Downloaded", "/tmp/library/new.pdf", collection="downloads"
         )
         assert kb.list_papers("downloads")[0]["pdf_path"] == "/tmp/library/new.pdf"
+
+    _with_tmp_dir(_test)
+
+
+def test_legacy_jsonl_migrates_into_sqlite_and_remains_a_snapshot():
+    def _test():
+        root = Path(kb.DEFAULT_KB_DIR)
+        root.mkdir(parents=True, exist_ok=True)
+        legacy = root / "legacy.jsonl"
+        legacy.write_text(
+            json.dumps({"title": "Migrated Paper", "notes": "legacy note"}) + "\n",
+            encoding="utf-8",
+        )
+        assert kb.list_papers("legacy")[0]["title"] == "Migrated Paper"
+        assert (root / "library.sqlite3").exists()
+        kb.update_paper("Migrated Paper", "legacy", notes="updated note")
+        snapshot = json.loads(legacy.read_text().strip())
+        assert snapshot["notes"] == "updated note"
+
+    _with_tmp_dir(_test)
+
+
+def test_persistent_fts_and_connector_dry_runs():
+    def _test():
+        kb.add_papers(
+            [{"title": "Persistent Retrieval", "abstract": "evidence graph search"}],
+            collection="research",
+        )
+        store = kb.get_store()
+        assert store.search_records(
+            "research", '"evidence"', ["evidence"], 5
+        )[0]["title"] == "Persistent Retrieval"
+        zotero = sync_zotero(store, "research")
+        notion = publish_notion(store, "research")
+        assert zotero["create"] == 1 and not zotero["apply"]
+        assert notion["create"] == 1 and not notion["apply"]
 
     _with_tmp_dir(_test)

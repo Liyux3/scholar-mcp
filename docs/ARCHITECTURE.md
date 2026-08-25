@@ -15,7 +15,10 @@ scholar_mcp/
   traversal.py    — co-citation and bibliographic coupling
   graph.py        — citation graph construction, PageRank, pivot detection
   discovery.py    — legacy field-landscape assembly retained for compatibility
-  knowledge_base.py — Paper Library JSONL persistence and FTS5 search
+  knowledge_base.py — stable Paper Library API over the SQLite store
+  library_store.py  — SQLite authority, FTS5, JSONL migration/snapshots, sync state
+  library_connectors.py — Obsidian, Zotero, and Notion adapters
+  cli.py          — MCP entry point plus library connector commands
   vault.py        — Obsidian export of saved papers and local PDF links
   cache.py        — response cache, 5 min TTL
   pdf_utils.py    — cached downloads under ~/.scholar-mcp/papers, pypdf extraction

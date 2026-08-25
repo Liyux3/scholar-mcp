@@ -52,7 +52,7 @@ Repository = "https://github.com/Liyux3/scholar-mcp"
 Issues = "https://github.com/Liyux3/scholar-mcp/issues"
 
 [project.scripts]
-scholar-mcp = "scholar_mcp.server:main"
+scholar-mcp = "scholar_mcp.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["scholar_mcp*"]

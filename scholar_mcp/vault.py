@@ -1,9 +1,9 @@
 """Obsidian-compatible markdown vault export for saved papers.
 
-The JSONL knowledge base is good for querying and bad for everything else: it
-cannot be browsed, annotated, or linked, and a human cannot open it. A vault
-of markdown files is the opposite, and the two are cheap to maintain in
-parallel since the JSONL stays the source of truth.
+The SQLite research library is good for querying and transactions, while a
+human-facing vault needs browsable Markdown, annotations, and links. The vault
+is a projection: SQLite stays authoritative and JSONL remains a compatibility
+snapshot.
 
 The design borrows three ideas from GitNexus's code-graph schema, which solves
 the same problem for source code:
@@ -48,9 +48,9 @@ _UNSAFE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _WHITESPACE = re.compile(r"\s+")
 
 
-def vault_dir(collection: str = "default") -> Path:
+def vault_dir(collection: str = "default", base_dir: str | Path | None = None) -> Path:
     safe = _slug(collection) or "default"
-    return Path(DEFAULT_VAULT_DIR) / safe
+    return Path(base_dir or DEFAULT_VAULT_DIR) / safe
 
 
 def note_name(title: str) -> str:
@@ -163,9 +163,10 @@ NOTES_MARKER = "## Notes"
 
 
 def write_note(paper: dict, collection: str = "default",
-               relations: dict[str, list[dict]] | None = None) -> Path:
+               relations: dict[str, list[dict]] | None = None,
+               base_dir: str | Path | None = None) -> Path:
     """Write or refresh a paper's note, preserving anything under ## Notes."""
-    directory = vault_dir(collection)
+    directory = vault_dir(collection, base_dir)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{note_name(paper.get('title', ''))}.md"
 
@@ -178,13 +179,14 @@ def write_note(paper: dict, collection: str = "default",
     return path
 
 
-def write_index(papers: list[dict], collection: str = "default") -> Path:
+def write_index(papers: list[dict], collection: str = "default",
+                base_dir: str | Path | None = None) -> Path:
     """Write a collection index, sorted by citation count.
 
     A flat list is the honest default view: any richer grouping (by subfield,
     by method lineage) needs clustering the vault does not have yet.
     """
-    directory = vault_dir(collection)
+    directory = vault_dir(collection, base_dir)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "_index.md"
 
@@ -324,7 +326,8 @@ def build_citation_relations(papers: list[dict], max_workers: int = 8) -> dict:
 def export_collection(papers: list[dict], collection: str = "default",
                       relations_by_title: dict[str, dict] | None = None,
                       link_internally: bool = True,
-                      link_citations: bool = False) -> dict:
+                      link_citations: bool = False,
+                      base_dir: str | Path | None = None) -> dict:
     """Export a whole collection to markdown. Returns a summary.
 
     link_internally adds relations readable from stored metadata, at no
@@ -355,13 +358,13 @@ def export_collection(papers: list[dict], collection: str = "default",
         if not title:
             continue
         relations = relations_by_title.get(title)
-        write_note(paper, collection, relations)
+        write_note(paper, collection, relations, base_dir=base_dir)
         written += 1
         edges += sum(len(v) for v in (relations or {}).values())
-    write_index(papers, collection)
+    write_index(papers, collection, base_dir=base_dir)
     return {
         "collection": collection,
         "notes_written": written,
         "links_written": edges,
-        "vault_path": str(vault_dir(collection)),
+        "vault_path": str(vault_dir(collection, base_dir)),
     }

@@ -198,6 +198,40 @@ class TestResearchTools:
             "tags": ["rag", "method"],
         }
 
+    def test_paper_library_save_refreshes_configured_obsidian_projection(
+        self, monkeypatch, tmp_path
+    ):
+        from scholar_mcp import knowledge_base as kb
+
+        paper = {
+            "title": "Projected Paper",
+            "paper_id": "projected",
+            "authors": [],
+        }
+        monkeypatch.setenv("SCHOLAR_OBSIDIAN_VAULT", str(tmp_path))
+        monkeypatch.setattr(server, "_resolve_graph_seed", lambda value: paper)
+        monkeypatch.setattr(
+            kb,
+            "add_papers",
+            lambda papers, collection, notes="": {
+                "added": 1,
+                "updated": 0,
+                "total": 1,
+                "collection": collection,
+            },
+        )
+        monkeypatch.setattr(kb, "list_papers", lambda collection, limit: [paper])
+
+        out = yaml.safe_load(
+            server.paper_library(
+                action="save",
+                paper_ids="projected",
+                collection="reading",
+            )
+        )
+        assert out["obsidian"]["notes_written"] == 1
+        assert (tmp_path / "reading" / "Projected Paper.md").exists()
+
 
 class TestDownloadIndexing:
     def test_successful_download_enters_download_collection(self, monkeypatch):

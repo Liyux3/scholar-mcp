@@ -636,6 +636,15 @@ def download_paper(
         dl_result["indexed"] = True
         dl_result["newly_indexed"] = indexed["added"] > 0
         dl_result["path_updated"] = path_updated
+        obsidian_target = os.environ.get("SCHOLAR_OBSIDIAN_VAULT")
+        if obsidian_target:
+            from . import vault
+
+            dl_result["obsidian"] = vault.export_collection(
+                kb.list_papers(collection=collection, limit=10000),
+                collection,
+                base_dir=obsidian_target,
+            )
     return _yaml(dl_result)
 
 
@@ -772,6 +781,17 @@ def paper_library(
     from . import knowledge_base as kb
     from . import vault
 
+    def refresh_obsidian() -> dict | None:
+        target = os.environ.get("SCHOLAR_OBSIDIAN_VAULT")
+        if not target:
+            return None
+        papers = kb.list_papers(collection=collection, limit=10000)
+        return vault.export_collection(
+            papers,
+            collection,
+            base_dir=target,
+        )
+
     action = action.strip().casefold()
     identifiers = list(dict.fromkeys(
         value.strip() for value in (paper_ids or paper_titles).split(",") if value.strip()
@@ -782,14 +802,18 @@ def paper_library(
         return _yaml({"collections": kb.list_collections()})
 
     if action == "export":
-        # Markdown mirror of the JSONL store. The JSONL stays authoritative;
+        # Markdown projection of the SQLite library. SQLite stays authoritative;
         # the vault exists so the collection can be browsed, annotated and
         # linked in Obsidian, and walked by following wikilinks.
         papers = kb.list_papers(collection=collection, limit=10000)
         if not papers:
             return _yaml({"error": f"Collection '{collection}' is empty"})
-        return _yaml(vault.export_collection(papers, collection,
-                                             link_citations=link_citations))
+        return _yaml(vault.export_collection(
+            papers,
+            collection,
+            link_citations=link_citations,
+            base_dir=os.environ.get("SCHOLAR_OBSIDIAN_VAULT"),
+        ))
 
     if action in {"save", "add"}:
         if not identifiers:
@@ -808,6 +832,9 @@ def paper_library(
         result = kb.add_papers(papers_to_save, collection=collection, notes=notes)
         if unresolved:
             result["unresolved"] = unresolved
+        projection = refresh_obsidian()
+        if projection:
+            result["obsidian"] = projection
         return _yaml(result)
 
     if action == "get":
@@ -825,13 +852,23 @@ def paper_library(
             notes=notes if notes else None,
             tags=tag_list if tags else None,
         )
-        return _yaml({"updated": updated, "collection": collection})
+        result = {"updated": updated, "collection": collection}
+        if updated:
+            projection = refresh_obsidian()
+            if projection:
+                result["obsidian"] = projection
+        return _yaml(result)
 
     if action == "remove":
         if len(identifiers) != 1:
             return _yaml({"error": "remove requires exactly one paper identifier."})
         removed = kb.remove_paper(identifiers[0], collection=collection)
-        return _yaml({"removed": removed, "collection": collection})
+        result = {"removed": removed, "collection": collection}
+        if removed:
+            projection = refresh_obsidian()
+            if projection:
+                result["obsidian"] = projection
+        return _yaml(result)
 
     if action == "search" and query:
         papers = kb.search_kb(query, collection=collection, limit=limit)

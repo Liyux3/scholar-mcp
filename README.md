@@ -8,30 +8,36 @@
   </picture>
 </p>
 
-<h3 align="center">Research beyond the first result.</h3>
+<h3 align="center">Go deeper.</h3>
 
 <p align="center">
-  Multi-source academic retrieval, citation expansion, paper reading, graphs, and a durable research library — one MCP.
+  Find the paper. Follow the evidence. Build the field.
 </p>
 
 <p align="center">
   <a href="https://pypi.org/project/scholar-mcp"><img src="https://img.shields.io/pypi/v/scholar-mcp.svg?style=flat-square" alt="PyPI"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10+-496F93.svg?style=flat-square" alt="Python 3.10+"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2F7D78.svg?style=flat-square" alt="Apache 2.0"></a>
-  <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-C7943E.svg?style=flat-square" alt="MCP compatible"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10+-53665B.svg?style=flat-square" alt="Python 3.10+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-3D5946.svg?style=flat-square" alt="Apache 2.0"></a>
+  <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-8C714C.svg?style=flat-square" alt="MCP compatible"></a>
 </p>
 
-Scholar MCP gives a research agent one evidence path from an open-ended question to the papers that answer it. It searches semantic, keyword, full-text, domain, and citation channels in parallel; resolves duplicate identities; reranks the evidence; then follows the references and related work that a first-pass search leaves behind.
+Scholar MCP turns a research question into a connected body of evidence. It recovers papers from vague descriptions, reaches the work one hop beyond search, opens the primary text, maps the lineage, and carries the selected field into a library that grows with every session.
+
+`Natural-language discovery` · `Citation expansion` · `Primary evidence` · `Field maps` · `Zotero · Obsidian · Notion connectors`
 
 ## Quick demo
 
 ![Scholar MCP quick demo](docs/assets/quick-demo.gif)
 
-The 12-second flow shows the full difference: Scholar preserves intent per source, merges duplicate records into canonical papers, follows the literature beyond the first-pass results, then turns selected work into primary evidence, a citation graph, and durable research memory.
+One continuous agent flow: `search_papers` → `build_paper_graph` → `paper_info` + `read_paper` → `paper_library` → library connectors.
 
 ## How it works
 
 ![Scholar MCP retrieval pipeline](docs/assets/retrieval-pipeline.svg)
+
+![Scholar MCP runtime architecture](docs/assets/runtime-architecture.svg)
+
+Agents call typed MCP tools over stdio or Streamable HTTP. Scholar returns concise text and structured data, while a persistent SQLite library drives FTS5 search, PDF attachments, JSONL snapshots, and Obsidian, Zotero, and Notion connectors.
 
 ## Quick start
 
@@ -54,7 +60,7 @@ Claude Desktop or any stdio MCP client:
 }
 ```
 
-The direct server exposes the compact core profile. Python 3.10+ and [uv](https://docs.astral.sh/uv/) are required; basic use works without credentials, while optional keys improve coverage and rate limits.
+The direct server exposes the compact core profile. Python 3.10+ and [uv](https://docs.astral.sh/uv/) are required. Optional source keys unlock deeper coverage and higher throughput.
 
 The repository also ships a research plugin with citation graphs, a local paper library, and the Deep Research skill:
 
@@ -76,7 +82,7 @@ The same plugin directory follows the Agent Plugins standard for Cursor, Pi, and
 |---|---|---|
 | Core | `search_papers` | Multi-source retrieval, filters, reranking, and citation expansion |
 | Core | `paper_info` | Paper detail, citations, and references through one selective call |
-| Core | `recommend_papers` | Semantic neighbors, co-citation peers, and bibliographic kin |
+| Core | `recommend_papers` | Related work through semantic and citation connections |
 | Core | `search_authors` | Author profiles, affiliations, paper counts, and h-index |
 | Core | `read_paper` | Temporarily fetch and read primary evidence |
 | Core | `download_paper` | Persist a PDF and index it in a collection |
@@ -85,7 +91,7 @@ The same plugin directory follows the Agent Plugins standard for Cursor, Pi, and
 
 `scholar://status` reports source availability and the actual reranker used without occupying the tool surface. Tool responses retain concise YAML text and also expose structured MCP data.
 
-Field discovery is a dynamic workflow in the bundled Deep Research skill. It iterates over search, paper inspection, graph traversal, and curated library writes instead of running one fixed citation threshold over an unreviewed candidate pool.
+The bundled Deep Research skill turns search, paper inspection, graph traversal, and selected library writes into a living field map.
 
 ## Retrieval
 
@@ -99,7 +105,7 @@ Field discovery is a dynamic workflow in the bundled Deep Research skill. It ite
 | Domain and repository | DBLP, INSPIRE-HEP, DOAJ, CORE | CS, physics, open journals, and repositories |
 | Web fallback | Google Scholar | Best effort; blocking is reported as degradation |
 
-Keyword APIs receive measured source-specific query budgets. Semantic endpoints retain the original question. Sources answer in parallel, and one source failing reduces coverage without failing the request.
+Keyword APIs receive measured source-specific query budgets. Semantic endpoints keep the original question. Every source contributes independently to one canonical evidence pool.
 
 Results are canonicalized across DOI, arXiv, Semantic Scholar, OpenAlex, PubMed, and OpenReview identities. Duplicate records contribute complementary metadata and independent source evidence instead of appearing several times.
 
@@ -109,7 +115,7 @@ DashScope `qwen3-rerank` is the primary reranker when configured; FlashRank is t
 
 ![LitSearch quality comparison](docs/assets/litsearch-quality.svg)
 
-In its best matched 50-query LitSearch inline-ACL run, the full Scholar pipeline beats the Exa research-paper baseline by **10 points at R@5** and **6 points at R@20**.
+Scholar leads the Exa research-paper baseline by **10 points at R@5** and **6 points at R@20** on matched LitSearch.
 
 | System | R@5 | R@10 | R@20 | MRR |
 |---|---:|---:|---:|---:|
@@ -130,18 +136,33 @@ The comparison uses the same 50 LitSearch inline-ACL queries, the same ground-tr
 
 ![Real paper-library graph](docs/assets/paper-library-graph.svg)
 
-This graph is rendered from a real local collection rather than a mock network. Graph construction resolves stable seeds, fetches citation and reference neighborhoods in parallel, merges duplicate identities, reports analytics as structured data, and keeps topic drift bounded.
+Rendered from a live local collection, the graph reveals foundations, bridges, and the papers that move a field forward. Stable identities and parallel citation traversal keep the map connected as it grows.
 
-The paper library keeps existing JSONL collections compatible and builds a lightweight SQLite FTS5 index in memory for ranked local search. It supports stable identifiers, metadata upserts, notes, tags, PDF paths, removal, and Obsidian-compatible Markdown export.
+The paper library uses one persistent SQLite authority with WAL transactions and FTS5 search. Existing JSONL collections migrate automatically and remain available as compatibility snapshots. Stable identifiers, notes, tags, PDF paths, connector IDs, and sync revisions stay attached to the same canonical record.
 
 Default data layout:
 
 ```text
 ~/.scholar-mcp/
 ├── papers/    persistent PDFs
-├── kb/        JSONL collections
-└── vault/     Markdown projections and wikilinks
+├── kb/
+│   ├── library.sqlite3    authority + FTS5 + sync state
+│   └── *.jsonl            compatibility snapshots
+└── vault/                 Markdown projections and wikilinks
 ```
+
+### Library connectors
+
+```bash
+# No login: write directly into an Obsidian vault
+scholar-mcp library export obsidian --collection rag --path /path/to/vault
+
+# Dry-run by default; add --apply for external writes
+scholar-mcp library sync zotero --collection rag
+scholar-mcp library publish notion --collection rag
+```
+
+[Obsidian](https://help.obsidian.md/Files+and+folders/Manage+vaults) is a live Markdown projection. [Zotero](https://www.zotero.org/support/dev/web_api/v3/write_requests) manages bibliographic items, collections, tags, and notes. [Notion](https://developers.notion.com/reference/post-page) receives a one-way reading-list view. External connectors keep their IDs, versions, and content hashes in SQLite, so unchanged papers do not publish twice.
 
 ## Paper access
 
@@ -162,6 +183,8 @@ All credentials are optional and remain in the MCP process environment.
 | Variable | Purpose |
 |---|---|
 | `SCHOLAR_DATA_DIR` | Shared data root; default `~/.scholar-mcp` |
+| `SCHOLAR_KB_DIR` | SQLite library and JSONL snapshot directory |
+| `SCHOLAR_OBSIDIAN_VAULT` | Obsidian projection root; no authentication required |
 | `S2_API_KEY` / `S2_API_KEYS` | Semantic Scholar search, snippets, graph, and rate limits |
 | `OPENALEX_API_KEY` / `OPENALEX_API_KEYS` | OpenAlex search, semantic search, and graph calls |
 | `OPENALEX_EMAIL` | OpenAlex polite pool and Unpaywall |
@@ -173,6 +196,9 @@ All credentials are optional and remain in the MCP process environment.
 | `SCHOLAR_SOURCE_BUDGET_S` | Initial source fan-out budget; default 8 seconds |
 | `SCHOLAR_DOWNLOAD_DIR` | Persistent PDF directory; default `<data>/papers` |
 | `SCHOLAR_MCP_EXTENSIONS` | Use `research` for graph and paper-library tools |
+| `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` | Zotero Web API or authorized local API connector |
+| `ZOTERO_LIBRARY_TYPE`, `ZOTERO_API_BASE` | Optional Zotero library type and endpoint override |
+| `NOTION_API_KEY`, `NOTION_DATA_SOURCE_ID` | Notion one-way publisher |
 
 Errors returned to the model redact request URLs and credentials.
 
