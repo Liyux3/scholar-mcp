@@ -26,7 +26,7 @@ startCommand:
       }
       return {
         command: 'uvx',
-        args: ['--from', 'scholar-mcp==0.8.1', 'scholar-mcp'],
+        args: ['--from', 'scholar-mcp==0.8.2', 'scholar-mcp'],
         env,
       };
     }

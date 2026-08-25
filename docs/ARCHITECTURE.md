@@ -143,6 +143,11 @@ PDF resolution is also a registry capability. CORE, Europe PMC, DOAJ, OpenAIRE, 
 and Zenodo resolve candidates concurrently; the shared downloader then validates and
 atomically stores them in source-priority order.
 
+Repository fallbacks use bounded speculative work: candidate URLs are resolved in
+parallel, then a four-worker pool reads only the first kilobyte of each URL. Confirmed
+PDFs move to the front while unresolved candidates remain ordered fallbacks. Full payload
+download stays serial, so the common path transfers one PDF without sacrificing coverage.
+
 ## Tools
 
 | Tool | Purpose |

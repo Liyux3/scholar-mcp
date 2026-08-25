@@ -2,6 +2,7 @@ import os
 import re
 import hashlib
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import httpx
@@ -12,7 +13,11 @@ from . import sources
 DOWNLOAD_TIMEOUT = 60
 DOWNLOAD_CHUNK_SIZE = 256 * 1024
 PDF_HEADER_SCAN_BYTES = 1024
+PDF_PROBE_TIMEOUT = 12
+PDF_PROBE_BUDGET = 15
+PDF_PROBE_WORKERS = 4
 USER_AGENT = "scholar-mcp/0.1.0 (academic research tool)"
+_pdf_probe_pool = ThreadPoolExecutor(max_workers=PDF_PROBE_WORKERS)
 
 # Institutional proxy. Off unless a session cookie is configured.
 DEFAULT_PROXY_BASE = "https://eproxy.lib.hku.hk"
@@ -117,6 +122,57 @@ def _try_download(url: str, save_path: str, filename: str) -> str | None:
         return None
     finally:
         staging.unlink(missing_ok=True)
+
+
+def _probe_pdf(url: str) -> bool:
+    """Read only the PDF prefix so dead candidates do not serialize latency."""
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "application/pdf,*/*;q=0.8",
+        "Range": f"bytes=0-{PDF_HEADER_SCAN_BYTES - 1}",
+    }
+    try:
+        with httpx.Client(timeout=PDF_PROBE_TIMEOUT, follow_redirects=True) as client:
+            with client.stream("GET", url, headers=headers) as response:
+                response.raise_for_status()
+                prefix = bytearray()
+                for chunk in response.iter_bytes(chunk_size=PDF_HEADER_SCAN_BYTES):
+                    prefix.extend(chunk[: PDF_HEADER_SCAN_BYTES - len(prefix)])
+                    if len(prefix) >= PDF_HEADER_SCAN_BYTES:
+                        break
+        return b"%PDF-" in prefix
+    except (httpx.HTTPError, OSError):
+        return False
+
+
+def _prioritize_pdf_candidates(
+    candidates: list[tuple[str, str]],
+    budget_s: float = PDF_PROBE_BUDGET,
+) -> list[tuple[str, str]]:
+    """Probe candidates concurrently, retaining source-priority ordering.
+
+    Confirmed PDFs move to the front. Candidates that reject range requests or
+    time out remain as ordered fallbacks, so probing improves latency without
+    reducing the original resolution coverage.
+    """
+    if len(candidates) < 2:
+        return candidates
+    futures = {_pdf_probe_pool.submit(_probe_pdf, url): url for _, url in candidates}
+    confirmed = set()
+    try:
+        for future in as_completed(futures, timeout=budget_s):
+            if future.result():
+                confirmed.add(futures[future])
+    except TimeoutError:
+        pass
+    finally:
+        for future in futures:
+            if not future.done():
+                future.cancel()
+    return (
+        [candidate for candidate in candidates if candidate[1] in confirmed]
+        + [candidate for candidate in candidates if candidate[1] not in confirmed]
+    )
 
 
 SCIHUB_MIRRORS = ["https://sci-hub.mksa.top", "https://sci-hub.se", "https://sci-hub.st"]
@@ -330,7 +386,8 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
 
     # 5. Registered OA repositories. Resolution happens in parallel; every
     # candidate is streamed through the same PDF validation and atomic write.
-    for source_name, candidate_url in sources.resolve_pdf_candidates(paper_info):
+    repository_candidates = sources.resolve_pdf_candidates(paper_info)
+    for source_name, candidate_url in _prioritize_pdf_candidates(repository_candidates):
         result = _try_download(candidate_url, save_path, filename)
         if result:
             return {"success": True, "file_path": result, "source": source_name,

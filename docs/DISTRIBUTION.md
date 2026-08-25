@@ -23,6 +23,9 @@ The release workflow verifies version parity, runs tests and Ruff, builds the pa
 validates distributions, installs the wheel in an isolated environment, performs a real
 MCP handshake, publishes PyPI, then publishes the official Registry entry.
 
+Public PyPI latest is v0.8.1. The local v0.8.2 candidate adds bounded parallel PDF
+candidate probes and remains staged with the public Git history.
+
 ## Client install paths
 
 | Client / harness | Install path |

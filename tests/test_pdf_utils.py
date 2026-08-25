@@ -158,6 +158,11 @@ def test_registered_repository_candidate_uses_shared_download_path(monkeypatch, 
     )
     monkeypatch.setattr(
         pdf_utils,
+        "_prioritize_pdf_candidates",
+        lambda candidates: candidates,
+    )
+    monkeypatch.setattr(
+        pdf_utils,
         "_try_download",
         lambda url, save_path, filename: str(tmp_path / filename),
     )
@@ -166,6 +171,23 @@ def test_registered_repository_candidate_uses_shared_download_path(monkeypatch, 
 
     assert result["success"] is True
     assert result["source"] == "hal"
+
+
+def test_repository_probes_move_confirmed_pdfs_forward_without_dropping_fallbacks(monkeypatch):
+    candidates = [
+        ("openaire", "https://example.test/landing"),
+        ("hal", "https://example.test/paper.pdf"),
+        ("zenodo", "https://example.test/archive.pdf"),
+    ]
+    monkeypatch.setattr(
+        pdf_utils,
+        "_probe_pdf",
+        lambda url: url.endswith(".pdf"),
+    )
+
+    ordered = pdf_utils._prioritize_pdf_candidates(candidates)
+
+    assert ordered == [candidates[1], candidates[2], candidates[0]]
 
 
 @pytest.mark.integration

@@ -304,7 +304,7 @@ class TestReadPagination:
 
 class TestPublishedToolMetadata:
     def test_server_version_matches_package(self):
-        assert __version__ == "0.8.1"
+        assert __version__ == "0.8.2"
         assert server.mcp.version == __version__
 
     def test_every_tool_declares_behavior_annotations(self):
