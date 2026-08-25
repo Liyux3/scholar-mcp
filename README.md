@@ -23,7 +23,7 @@
 
 Scholar MCP turns a research question into a connected body of evidence. It recovers papers from vague descriptions, reaches the work one hop beyond search, opens the primary text, maps the lineage, and carries the selected field into a library that grows with every session.
 
-`Natural-language discovery` · `Citation expansion` · `Primary evidence` · `Field maps` · `Zotero · Obsidian · Notion connectors`
+`Natural-language discovery` · `Related-work discovery` · `Primary evidence` · `Field maps` · `Zotero · Obsidian · Notion connectors`
 
 ## Quick demo
 
@@ -80,7 +80,7 @@ The same plugin directory follows the Agent Plugins standard for Cursor, Pi, and
 
 | Profile | Tool | Responsibility |
 |---|---|---|
-| Core | `search_papers` | Multi-source retrieval, filters, reranking, and citation expansion |
+| Core | `search_papers` | Multi-source retrieval, filters, reranking, and citation discovery |
 | Core | `paper_info` | Paper detail, citations, and references through one selective call |
 | Core | `recommend_papers` | Related work through semantic and citation connections |
 | Core | `search_authors` | Author profiles, affiliations, paper counts, and h-index |
@@ -119,16 +119,16 @@ Scholar leads the Exa research-paper baseline by **10 points at R@5** and **6 po
 
 | System | R@5 | R@10 | R@20 | MRR |
 |---|---:|---:|---:|---:|
-| **Scholar + expansion** | **0.62** | **0.68** | **0.70** | **0.442** |
+| **Scholar** | **0.62** | **0.68** | **0.70** | **0.442** |
 | Exa `research paper` | 0.52 | 0.58 | 0.64 | 0.435 |
-| Scholar first pass | 0.44 | 0.56 | 0.64 | 0.335 |
+| BM25 `title + abstract` | 0.46 | 0.46 | 0.56 | 0.335 |
 
-Expansion is where Scholar earns the lead: nine queries were R@5 hits only for Scholar, while four were hits only for Exa.
+Scholar recovered nine R@5 hits that Exa missed; Exa recovered four that Scholar missed.
 
 <details>
 <summary>Benchmark protocol</summary>
 
-The comparison uses the same 50 LitSearch inline-ACL queries, the same ground-truth titles, and the same title matcher. Exa ran with category `research paper` and 20 returned results. Scholar used source-specific routing, Qwen reranking, and citation expansion. The cached best run was collected on 12 May 2026; scripts and scoring utilities live under `eval/`, with the paired result summary in [`docs/benchmarks/litsearch-inline-acl-50.json`](docs/benchmarks/litsearch-inline-acl-50.json).
+The comparison uses the same first 50 LitSearch inline-ACL queries, ground-truth titles, title matcher, and top-20 cutoff. Exa ran with category `research paper`. Scholar used its standard retrieval pipeline with Qwen reranking. BM25 follows the official LitSearch title+abstract implementation: lowercase tokenization, English stopword removal, Porter stemming, and `BM25Okapi` over the 64K-paper corpus. The Scholar/Exa run was collected on 12 May 2026; BM25 was reproduced on 25 August 2026. The frozen summary is in [`docs/benchmarks/litsearch-inline-acl-50.json`](docs/benchmarks/litsearch-inline-acl-50.json), with [raw BM25 results](eval/results/bm25_title_abstract_inline_acl_50.jsonl) and their [hash manifest](eval/results/bm25_title_abstract_inline_acl_50.summary.json).
 
 </details>
 
@@ -212,6 +212,8 @@ uv run pytest
 ```
 
 Unit tests are the default. Live API tests are marked `integration` so routine validation stays deterministic.
+
+README visuals follow the reusable [presentation system](docs/PRESENTATION_SYSTEM.md), including narrative, layout, motion, and release checks.
 
 Local and Docker clients use stdio by default. Set `SCHOLAR_MCP_TRANSPORT=http` for Streamable HTTP; the default endpoint is `/mcp`.
 

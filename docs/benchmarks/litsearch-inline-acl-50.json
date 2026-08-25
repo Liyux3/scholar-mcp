@@ -2,7 +2,10 @@
   "benchmark": "LitSearch inline_acl",
   "run_label": "best_matched_run",
   "queries": 50,
+  "query_sha256": "4fc95642d8fb232f2bf978faf4475501d7cc901cdbdb5541946c48942db34a6d",
   "collected_at": "2026-05-12",
+  "bm25_collected_at": "2026-08-25",
+  "bm25_index": "LitSearch title+abstract",
   "matching": "normalized title equality or containment above 20 characters",
   "systems": {
     "scholar_expansion": {
@@ -19,6 +22,14 @@
       "R@20": 0.64,
       "MRR": 0.4345940170940171,
       "Hit@20": 0.64,
+      "n": 50
+    },
+    "bm25_title_abstract": {
+      "R@5": 0.46,
+      "R@10": 0.46,
+      "R@20": 0.56,
+      "MRR": 0.33485714285714285,
+      "Hit@20": 0.56,
       "n": 50
     },
     "scholar_first_pass": {
@@ -39,6 +50,7 @@
   "source_cache_sha256": {
     "scholar_expansion": "5d0b6d160e29e7072a1b12f482c1da35c98edad4a683efa6d7f7f3d51934ee98",
     "exa_research_paper": "07aefc9c6da89465329a066e2d0f1d98453cf8abfb7d87048c314bca73b93f91",
+    "bm25_title_abstract": "ce4dee62c5805fbdc2290186882af825fcf5e43d8d83445cab2038bcc3348e26",
     "scholar_first_pass": "11faf5bea97bc3d7be1bd3ca20d9aa49e98dac86c79d5d471eeaa09d1e2d6d9b"
   },
   "per_query": [
