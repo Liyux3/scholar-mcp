@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
+  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbInNjaG9sYXItbWNwIl19fQ=="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
   <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
 </p>
@@ -110,7 +111,7 @@ The bundled Deep Research skill turns search, paper inspection, graph traversal,
 | Broad metadata | OpenAlex, Semantic Scholar, Crossref, optional Scopus | Identity, coverage, citations, and filters |
 | Preprints and conferences | arXiv, OpenReview | Recent work and conference records |
 | Biomedical | PubMed, Europe PMC | Medicine, biology, and full-text repositories |
-| Domain and repository | DBLP, INSPIRE-HEP, DOAJ, CORE | CS, physics, open journals, and repositories |
+| Domain and repository | DBLP, INSPIRE-HEP, DOAJ, CORE, OpenAIRE, HAL | CS, physics, open journals, and repositories |
 | Web fallback | Google Scholar | Best effort; blocking is reported as degradation |
 
 Keyword APIs receive measured source-specific query budgets. Semantic endpoints keep the original question. Every source contributes independently to one canonical evidence pool.
@@ -174,15 +175,17 @@ scholar-mcp library publish notion --collection rag
 
 ## Paper access
 
-`read_paper` uses a temporary directory and leaves no retained PDF. It returns at most 12,000 characters by default with `next_start` continuation metadata; use `return_full_text=true` only when the caller can accept the complete remaining text. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
+`read_paper` uses a temporary directory and leaves no retained PDF. One call returns at most 12,000 characters by default—roughly 2,500–3,500 tokens, usually several pages rather than a complete paper. Paragraph-aware chunks expose `next_start`, so an agent can continue until the full primary text has been read without flooding one context window. Its public input stays small: paper ID, continuation offset, and character budget. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
 
 The shared resolution chain covers:
 
-1. Semantic Scholar and arXiv open access
-2. CORE and PubMed Central
+1. Native open-access records and canonical archives such as arXiv and Europe PMC
+2. Registered repository resolvers: CORE, OpenAIRE, HAL, Zenodo, and DOAJ
 3. bioRxiv, medRxiv, SSRN, ChemRxiv, and other preprint servers
 4. Unpaywall and an optional institutional proxy
 5. an explicit local fallback when enabled
+
+`scholar-mcp sources` prints the live registry-derived capability matrix. Zenodo participates in PDF resolution but stays out of default discovery because its broad publication records add more candidate noise than retrieval value.
 
 ## Configuration
 
@@ -219,7 +222,7 @@ uv sync --extra dev
 uv run pytest
 ```
 
-Unit tests are the default. Live API tests are marked `integration` so routine validation stays deterministic.
+Unit tests are the default. Live API tests are marked `integration` and run separately with `uv run pytest -m integration`; pytest reports them as `deselected` during the deterministic unit run because the marker filter intentionally leaves network-dependent cases out of that invocation.
 
 Connector and feature contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues through the private process in [SECURITY.md](SECURITY.md); citation metadata is available in [CITATION.cff](CITATION.cff).
 

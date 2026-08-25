@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 import tomllib
 from urllib.parse import parse_qs, urlparse
+import base64
 
 import yaml
 
@@ -30,7 +31,12 @@ def test_release_versions_are_synchronized():
     assert _json("plugins/scholar-mcp/.claude-plugin/plugin.json")["version"] == version
     assert _json("plugins/scholar-mcp/plugin.json")["version"] == version
     assert _json(".claude-plugin/marketplace.json")["plugins"][0]["version"] == version
+    cursor = _json(".cursor-plugin/marketplace.json")
+    assert cursor["metadata"]["version"] == version
+    assert cursor["plugins"][0]["version"] == version
     assert yaml.safe_load((ROOT / "CITATION.cff").read_text())["version"] == version
+    smithery = yaml.safe_load((ROOT / "smithery.yaml").read_text())
+    assert f"scholar-mcp=={version}" in smithery["startCommand"]["commandFunction"]
 
     for path in (
         "plugins/scholar-mcp/.mcp.json",
@@ -80,6 +86,14 @@ def test_readme_contains_valid_one_click_install_urls():
         "type": "stdio",
         "command": "uvx",
         "args": ["scholar-mcp"],
+    }
+
+    cursor_match = re.search(r"cursor://anysphere\.cursor-deeplink/mcp/install\?[^\"]+", readme)
+    assert cursor_match is not None
+    cursor = parse_qs(urlparse(cursor_match.group().replace("&amp;", "&")).query)
+    assert cursor["name"] == ["scholar"]
+    assert json.loads(base64.b64decode(cursor["config"][0])) == {
+        "scholar": {"command": "uvx", "args": ["scholar-mcp"]}
     }
 
     kiro_match = re.search(r"https://kiro\.dev/launch/mcp/add\?[^\"]+", readme)

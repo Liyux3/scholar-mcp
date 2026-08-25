@@ -37,6 +37,7 @@ class Source:
     get_citations: Callable | None = None
     get_references: Callable | None = None
     get_paper: Callable | None = None
+    resolve_pdf: Callable | None = None
     priority: int = 50
     domains: list[str] = field(default_factory=lambda: ["all"])
     requires_key: bool = False
@@ -97,10 +98,35 @@ def reference_sources() -> list[Source]:
     return [s for s in all_sources() if s.get_references and s.available()]
 
 
+def pdf_sources() -> list[Source]:
+    return [s for s in all_sources() if s.resolve_pdf and s.available()]
+
+
+def capabilities() -> list[dict]:
+    """Return the registry contract without exposing credentials."""
+    return [
+        {
+            "name": source.name,
+            "available": source.available(),
+            "priority": source.priority,
+            "query_style": source.query_style if source.search else None,
+            "search": source.search is not None,
+            "paper_lookup": source.get_paper is not None,
+            "citations": source.get_citations is not None,
+            "references": source.get_references is not None,
+            "pdf": source.resolve_pdf is not None,
+            "domains": source.domains,
+        }
+        for source in all_sources()
+    ]
+
+
 # Source count a full, keyed install fans out to. Fewer than this means keys
 # are missing and the remaining sources should carry more of the pool.
-FULL_FLEET = 17
+FULL_FLEET = 19
 MAX_SCALED_LIMIT = 300
+PDF_CANDIDATES_PER_SOURCE = 2
+MAX_PDF_CANDIDATES = 8
 
 
 def _scale_limit(limit: int, available: int) -> int:
@@ -165,8 +191,7 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
             return raw_query or query
         if s.keyword_words:
             base = raw_query or query
-            words = relevance.extract_keywords(base, max_keywords=s.keyword_words)
-            return " ".join(words) or query
+            return relevance.keyword_query(base, max_words=s.keyword_words) or query
         if style == QUERY_SHORT and short_query:
             return short_query
         return query
@@ -237,6 +262,54 @@ def parallel_references(paper_id: str, limit: int = 20) -> list[SourceResult]:
     return results
 
 
+def resolve_pdf_candidates(paper: dict, budget_s: float | None = None) -> list[tuple[str, str]]:
+    """Resolve repository PDF candidates through registered sources in parallel.
+
+    Resolution is separate from downloading: providers return candidate URLs,
+    while ``pdf_utils`` performs the same streamed PDF validation for every
+    source. Results retain source priority rather than network completion order.
+    """
+    registered = pdf_sources()
+    if not registered:
+        return []
+    if budget_s is None:
+        budget_s = config.SOURCE_BUDGET_S
+
+    resolved: dict[str, list[str]] = {}
+    futures = {
+        _search_pool.submit(source.resolve_pdf, paper): source
+        for source in registered
+    }
+    try:
+        for future in as_completed(futures, timeout=budget_s):
+            source = futures[future]
+            try:
+                urls = future.result() or []
+            except Exception:
+                urls = []
+            resolved[source.name] = [
+                str(url).strip() for url in urls if str(url).strip()
+            ][:PDF_CANDIDATES_PER_SOURCE]
+    except TimeoutError:
+        pass
+    finally:
+        for future in futures:
+            if not future.done():
+                future.cancel()
+
+    candidates = []
+    seen = set()
+    for source in registered:
+        for url in resolved.get(source.name, []):
+            if url in seen:
+                continue
+            seen.add(url)
+            candidates.append((source.name, url))
+            if len(candidates) >= MAX_PDF_CANDIDATES:
+                return candidates
+    return candidates
+
+
 def _register_defaults():
     from . import (
         arxiv_client,
@@ -249,12 +322,15 @@ def _register_defaults():
         exa_client,
         inspirehep_client,
         openalex_client,
+        openaire_client,
         openreview_client,
         pubmed_client,
         s2_client,
         s2_snippet_client,
         scholar_client,
         scopus_client,
+        hal_client,
+        zenodo_client,
     )
 
     register(Source(
@@ -314,6 +390,7 @@ def _register_defaults():
     register(Source(
         name="europepmc",
         search=lambda q, limit, **kw: europepmc_client.search_papers(q, limit=limit),
+        resolve_pdf=europepmc_client.resolve_pdf,
         priority=35,
         domains=["medicine", "biology", "healthcare", "biochemistry"],
     ))
@@ -343,6 +420,7 @@ def _register_defaults():
     register(Source(
         name="core",
         search=lambda q, limit, **kw: core_client.search_papers(q, limit=limit),
+        resolve_pdf=core_client.resolve_pdf,
         priority=10,
         domains=["all"],
         requires_key=True,
@@ -387,7 +465,33 @@ def _register_defaults():
     register(Source(
         name="doaj",
         search=lambda q, limit, **kw: doaj_client.search_papers(q, limit=limit),
+        resolve_pdf=doaj_client.resolve_pdf,
         priority=20,
+        domains=["all"],
+    ))
+
+    register(Source(
+        name="openaire",
+        search=lambda q, limit, **kw: openaire_client.search_papers(q, limit=limit),
+        resolve_pdf=openaire_client.resolve_pdf,
+        priority=18,
+        domains=["all"],
+        keyword_words=10,
+    ))
+
+    register(Source(
+        name="hal",
+        search=lambda q, limit, **kw: hal_client.search_papers(q, limit=limit),
+        resolve_pdf=hal_client.resolve_pdf,
+        priority=17,
+        domains=["all"],
+        keyword_words=10,
+    ))
+
+    register(Source(
+        name="zenodo",
+        resolve_pdf=zenodo_client.resolve_pdf,
+        priority=12,
         domains=["all"],
     ))
 

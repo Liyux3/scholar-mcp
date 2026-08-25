@@ -13,7 +13,7 @@ from scholar_mcp import sources
 @pytest.fixture
 def isolated_registry(monkeypatch):
     """Swap in an empty registry so tests do not depend on, or disturb, the
-    17 real sources registered at import time.
+    real sources registered at import time.
     """
     monkeypatch.setattr(sources, "_registry", {})
     return sources
@@ -145,6 +145,28 @@ class TestParallelSearch:
         assert sources.parallel_search("q") == []
 
 
+class TestPdfResolution:
+    def test_preserves_registry_priority_and_deduplicates_urls(self, isolated_registry):
+        sources.register(sources.Source(
+            name="secondary",
+            priority=10,
+            resolve_pdf=lambda paper: ["https://example.test/shared.pdf"],
+        ))
+        sources.register(sources.Source(
+            name="primary",
+            priority=90,
+            resolve_pdf=lambda paper: [
+                "https://example.test/primary.pdf",
+                "https://example.test/shared.pdf",
+            ],
+        ))
+
+        assert sources.resolve_pdf_candidates({"title": "paper"}) == [
+            ("primary", "https://example.test/primary.pdf"),
+            ("primary", "https://example.test/shared.pdf"),
+        ]
+
+
 class TestRegisteredDefaults:
     """Guards against a source silently losing its routing during a refactor.
 
@@ -164,7 +186,7 @@ class TestRegisteredDefaults:
 
     def test_keyword_sources_get_compressed_queries(self):
         for name in ("openalex", "arxiv", "crossref", "pubmed", "europepmc",
-                     "dblp", "doaj", "inspirehep"):
+                     "dblp", "doaj", "inspirehep", "openaire", "hal"):
             src = sources.get(name)
             assert src is not None, f"{name} is no longer registered"
             assert src.query_style == sources.QUERY_COMPRESSED
@@ -172,10 +194,21 @@ class TestRegisteredDefaults:
     def test_measured_keyword_budgets_are_registered(self):
         assert sources.get("arxiv").keyword_words == 10
         assert sources.get("crossref").keyword_words == 12
+        assert sources.get("openaire").keyword_words == 10
+        assert sources.get("hal").keyword_words == 10
+        assert sources.get("zenodo").search is None
+        assert sources.get("zenodo").resolve_pdf is not None
 
     def test_semantic_property_tracks_query_style(self):
         assert sources.get("openalex_semantic").semantic is True
         assert sources.get("openalex").semantic is False
+
+    def test_capability_matrix_is_derived_from_registry(self):
+        matrix = {row["name"]: row for row in sources.capabilities()}
+        assert matrix["openaire"]["search"] is True
+        assert matrix["openaire"]["pdf"] is True
+        assert matrix["zenodo"]["search"] is False
+        assert matrix["zenodo"]["pdf"] is True
 
 
 class TestFanOutBudget:

@@ -1,6 +1,6 @@
 # scholar-mcp Architecture
 
-MCP server for academic literature search. Queries up to 17 retrieval channels in parallel,
+MCP server for academic literature search. Queries up to 19 retrieval channels in parallel,
 fuses and reranks the union, and optionally expands the pool by walking the
 citation graph of the top results.
 
@@ -129,9 +129,19 @@ Priority determines ordering in `all_sources()`, not fallback sequence.
 | crossref | 30 | 12 words | metadata matching, strong on exact titles |
 | dblp | 25 | compressed | CS bibliography, intermittent 500s |
 | doaj | 20 | compressed | open-access journals only |
+| openaire | 18 | 10 words | European research graph and repository instances |
+| hal | 17 | 10 words | open archive with source-native files |
 | inspirehep | 15 | compressed | physics |
 | core | 10 | compressed | needs CORE_API_KEY |
 | google_scholar | 5 | compressed | HTML scraping, last resort |
+
+Zenodo is registered as a PDF resolver rather than a default search source. Its file
+API is strong, while its broad `publication` type includes reports, presentations, and
+secondary material that would add noise to the shared candidate pool.
+
+PDF resolution is also a registry capability. CORE, Europe PMC, DOAJ, OpenAIRE, HAL,
+and Zenodo resolve candidates concurrently; the shared downloader then validates and
+atomically stores them in source-priority order.
 
 ## Tools
 

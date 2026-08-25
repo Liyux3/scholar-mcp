@@ -3,6 +3,63 @@
 import pytest
 
 
+class TestRepositoryRecords:
+    def test_hal_record_exposes_native_pdf(self):
+        from scholar_mcp import hal_client
+
+        paper = hal_client._normalize({
+            "halId_s": "hal-1",
+            "title_s": ["HAL paper"],
+            "authFullName_s": ["A. Author"],
+            "fileMain_s": "https://hal.science/hal-1/document",
+            "doiId_s": "10.1/hal",
+            "producedDateY_i": 2025,
+        })
+
+        assert paper["open_access_url"].endswith("/document")
+        assert paper["external_ids"]["HAL"] == "hal-1"
+
+    def test_zenodo_admits_publications_and_selects_pdf(self):
+        from scholar_mcp import zenodo_client
+
+        paper = zenodo_client._normalize({
+            "id": 42,
+            "metadata": {
+                "title": "Zenodo paper",
+                "doi": "10.5281/zenodo.42",
+                "publication_date": "2025-01-02",
+                "resource_type": {"type": "publication"},
+                "creators": [{"name": "A. Author"}],
+                "access_right": "open",
+            },
+            "files": [{
+                "key": "paper.pdf",
+                "links": {"self": "https://zenodo.org/api/records/42/files/paper.pdf/content"},
+            }],
+            "links": {"self_html": "https://zenodo.org/records/42"},
+        })
+
+        assert paper["open_access_url"].endswith("/content")
+        assert paper["year"] == 2025
+
+    def test_openaire_only_uses_open_repository_instances(self):
+        from scholar_mcp import openaire_client
+
+        item = {
+            "mainTitle": "Repository paper",
+            "id": "oa-1",
+            "authors": [],
+            "pids": [{"scheme": "doi", "value": "10.1/oa"}],
+            "bestAccessRight": {"label": "OPEN ACCESS"},
+            "instances": [
+                {"accessRight": {"label": "CLOSED"}, "urls": ["https://closed.test/file"]},
+                {"accessRight": {"label": "OPEN ACCESS"}, "urls": ["https://repo.test/file"]},
+            ],
+        }
+
+        assert openaire_client._instance_urls(item, open_only=True) == ["https://repo.test/file"]
+
+
 @pytest.mark.integration
 class TestEuropePMC:
     def test_search_returns_results(self):

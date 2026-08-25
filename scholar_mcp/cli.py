@@ -13,6 +13,7 @@ from .library_connectors import (
     publish_notion,
     sync_zotero,
 )
+from . import sources
 
 
 def _emit(payload: dict, compact: bool) -> None:
@@ -128,11 +129,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if arguments[0] == "library":
         return _run_library(arguments[1:])
+    if arguments[0] == "sources":
+        _emit({"sources": sources.capabilities()}, compact=False)
+        return 0
     if arguments[0] in {"-h", "--help"}:
         print(
-            "usage: scholar-mcp [library ...]\n\n"
+            "usage: scholar-mcp [library ... | sources]\n\n"
             "Without arguments, starts the Scholar MCP server.\n"
-            "Use 'scholar-mcp library --help' for local library and connectors."
+            "Use 'scholar-mcp sources' for the source capability matrix or "
+            "'scholar-mcp library --help' for local library and connectors."
         )
         return 0
     raise SystemExit(f"unknown command: {arguments[0]}")

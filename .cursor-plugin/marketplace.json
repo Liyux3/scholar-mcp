@@ -1,0 +1,27 @@
+{
+  "name": "scholar-mcp",
+  "owner": {
+    "name": "Yuxian Li"
+  },
+  "metadata": {
+    "description": "Academic retrieval, citation traversal, primary-text reading, and research memory.",
+    "version": "0.8.1"
+  },
+  "plugins": [
+    {
+      "name": "scholar-mcp",
+      "source": "plugins/scholar-mcp",
+      "description": "Find papers, follow evidence, read primary sources, and build a durable research library.",
+      "version": "0.8.1",
+      "author": {
+        "name": "Yuxian Li"
+      },
+      "homepage": "https://github.com/Liyux3/scholar-mcp",
+      "repository": "https://github.com/Liyux3/scholar-mcp",
+      "license": "Apache-2.0",
+      "keywords": ["academic-search", "citations", "deep-research", "mcp"],
+      "category": "Research",
+      "tags": ["papers", "research", "literature-review"]
+    }
+  ]
+}

@@ -65,3 +65,17 @@ def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
         })
 
     return papers[:limit]
+
+
+def resolve_pdf(paper: dict) -> list[str]:
+    identifiers = paper.get("external_ids") or {}
+    doi = str(identifiers.get("DOI") or "").strip()
+    title = str(paper.get("title") or "").strip()
+    query = f'doi:"{doi}"' if doi else f'title:"{title}"' if title else ""
+    if not query:
+        return []
+    return [
+        result["open_access_url"]
+        for result in search_papers(query, limit=5)
+        if result.get("open_access_url")
+    ]

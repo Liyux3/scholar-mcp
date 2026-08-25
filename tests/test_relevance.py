@@ -30,6 +30,26 @@ def test_optimize_query_preserves_short():
     assert relevance.optimize_query(short_q) == short_q
 
 
+def test_keyword_query_preserves_dataset_and_shared_task_anchors():
+    query = (
+        "Find the wikiHowToImprove dataset and the SemEval shared task "
+        "used for clarification requirement detection"
+    )
+    optimized = relevance.keyword_query(query, max_words=8)
+
+    assert "wikiHowToImprove" in optimized
+    assert "SemEval" in optimized
+
+
+def test_keyword_query_preserves_multiword_proper_names():
+    optimized = relevance.keyword_query(
+        "annotation strategies on Amazon Mechanical Turk for broad document coverage",
+        max_words=8,
+    )
+
+    assert "Amazon Mechanical Turk" in optimized
+
+
 def test_optimize_query_targets_ek_kb_2_length():
     """ek_kb_2 yields ~6 words. Longer output means we regressed to kb_5,
     which scored OA=0 on the 20q sweep. Guard the upper bound tightly.

@@ -130,16 +130,42 @@ def test_download_from_arxiv():
         assert os.path.exists(result["file_path"])
 
 
-def test_download_nonexistent_paper():
+def test_download_nonexistent_paper(monkeypatch):
     paper_info = {
         "paper_id": "nonexistent",
         "open_access_url": None,
         "external_ids": {},
         "url": "",
     }
+    monkeypatch.setattr(pdf_utils.sources, "resolve_pdf_candidates", lambda paper: [])
     with tempfile.TemporaryDirectory() as tmpdir:
         result = pdf_utils.download_paper(paper_info, tmpdir)
         assert result["success"] is False
+
+
+def test_registered_repository_candidate_uses_shared_download_path(monkeypatch, tmp_path):
+    paper_info = {
+        "paper_id": "paper",
+        "title": "A paper",
+        "open_access_url": None,
+        "external_ids": {},
+        "url": "",
+    }
+    monkeypatch.setattr(
+        pdf_utils.sources,
+        "resolve_pdf_candidates",
+        lambda paper: [("hal", "https://example.test/paper.pdf")],
+    )
+    monkeypatch.setattr(
+        pdf_utils,
+        "_try_download",
+        lambda url, save_path, filename: str(tmp_path / filename),
+    )
+
+    result = pdf_utils.download_paper(paper_info, str(tmp_path))
+
+    assert result["success"] is True
+    assert result["source"] == "hal"
 
 
 @pytest.mark.integration

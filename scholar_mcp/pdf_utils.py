@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 from pypdf import PdfReader
 from . import config
-from . import core_client
+from . import sources
 
 DOWNLOAD_TIMEOUT = 60
 DOWNLOAD_CHUNK_SIZE = 256 * 1024
@@ -281,12 +281,8 @@ def _resolve_preprint_pdf(doi: str, oa_url: str | None = None) -> str | None:
 
 def download_paper(paper_info: dict, save_path: str) -> dict:
     """Smart download chain:
-    1. S2 open access URL
-    2. arXiv direct (if ArXiv ID in external_ids)
-    3. CORE (search by DOI or title for institutional PDFs)
-    4. bioRxiv/medRxiv (if DOI starts with 10.1101)
-    5. Sci-Hub (if SCIHUB_ENABLED, requires DOI)
-    6. Fail gracefully with URLs
+    direct record URL -> canonical archive -> registered OA repositories ->
+    Unpaywall -> configured library proxy -> optional Sci-Hub.
     """
     save_path = os.path.expanduser(save_path)
     filename = _pdf_filename(paper_info)
@@ -315,19 +311,7 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
             return {"success": True, "file_path": result, "source": "arxiv",
                     "message": f"Downloaded from arXiv ({arxiv_id})."}
 
-    # 3. CORE (search by DOI or title for institutional PDFs)
-    try:
-        title = paper_info.get("title", "")
-        core_url = core_client.get_pdf_url(doi=doi or None, title=title or None)
-        if core_url:
-            result = _try_download(core_url, save_path, filename)
-            if result:
-                return {"success": True, "file_path": result, "source": "core",
-                        "message": "Downloaded via CORE (institutional repository)."}
-    except Exception:
-        pass
-
-    # 4. Preprint servers (bioRxiv, medRxiv, SSRN, PsyArXiv, ChemRxiv, etc.)
+    # 3. Canonical preprint servers (bioRxiv, medRxiv, SSRN, OSF, ChemRxiv, etc.)
     preprint_url = _resolve_preprint_pdf(doi, oa_url)
     if preprint_url:
         result = _try_download(preprint_url, save_path, filename)
@@ -335,7 +319,24 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
             return {"success": True, "file_path": result, "source": "preprint",
                     "message": "Downloaded from preprint server."}
 
-    # 5. Unpaywall (legal OA discovery via DOI)
+    # 4. PubMed Central, when identity resolution already supplied the PMCID.
+    pmcid = ext_ids.get("PubMedCentral") or ext_ids.get("PMC")
+    if pmcid:
+        pmc_url = f"https://europepmc.org/articles/{pmcid}?pdf=render"
+        result = _try_download(pmc_url, save_path, filename)
+        if result:
+            return {"success": True, "file_path": result, "source": "europepmc",
+                    "message": f"Downloaded from Europe PMC ({pmcid})."}
+
+    # 5. Registered OA repositories. Resolution happens in parallel; every
+    # candidate is streamed through the same PDF validation and atomic write.
+    for source_name, candidate_url in sources.resolve_pdf_candidates(paper_info):
+        result = _try_download(candidate_url, save_path, filename)
+        if result:
+            return {"success": True, "file_path": result, "source": source_name,
+                    "message": f"Downloaded via {source_name}."}
+
+    # 6. Unpaywall (DOI-level OA discovery)
     if doi:
         unpaywall_url = _try_unpaywall(doi)
         if unpaywall_url:
@@ -343,15 +344,6 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
             if result:
                 return {"success": True, "file_path": result, "source": "unpaywall",
                         "message": "Downloaded via Unpaywall (legal open access)."}
-
-    # 6. PubMed Central
-    pmcid = ext_ids.get("PubMedCentral") or ext_ids.get("PMC")
-    if pmcid:
-        pmc_url = f"https://www.ncbi.nlm.nih.gov/pmc/articles/{pmcid}/pdf/"
-        result = _try_download(pmc_url, save_path, filename)
-        if result:
-            return {"success": True, "file_path": result, "source": "pmc",
-                    "message": f"Downloaded from PubMed Central ({pmcid})."}
 
     # 7. Institutional proxy, if a session cookie is configured. Tried before
     # Sci-Hub because it is the licensed route to the same paper.
@@ -368,7 +360,7 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
             return {"success": True, "file_path": result, "source": "scihub",
                     "message": f"Downloaded via Sci-Hub (DOI: {doi})."}
 
-    # 8. Fail gracefully
+    # 9. Return useful identities and landing pages when no PDF was resolved.
     s2_url = paper_info.get("url", "")
     doi_link = f" or via DOI: https://doi.org/{doi}" if doi else ""
     return {

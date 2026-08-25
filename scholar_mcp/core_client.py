@@ -112,3 +112,12 @@ def get_pdf_url(doi: str = None, title: str = None) -> str | None:
             continue
 
     return None
+
+
+def resolve_pdf(paper: dict) -> list[str]:
+    identifiers = paper.get("external_ids") or {}
+    url = get_pdf_url(
+        doi=str(identifiers.get("DOI") or "") or None,
+        title=str(paper.get("title") or "") or None,
+    )
+    return [url] if url else []

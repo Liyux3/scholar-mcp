@@ -1,0 +1,33 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      S2_API_KEY:
+        type: string
+        description: Optional Semantic Scholar key for higher limits and snippet search.
+      OPENALEX_API_KEY:
+        type: string
+        description: Optional OpenAlex key for search and citation traversal.
+      DASHSCOPE_API_KEY:
+        type: string
+        description: Optional DashScope key for Qwen reranking.
+      CORE_API_KEY:
+        type: string
+        description: Optional CORE key for repository search and PDF resolution.
+      EXA_API_KEY:
+        type: string
+        description: Optional Exa key for an additional semantic retrieval channel.
+  commandFunction: |-
+    (config) => {
+      const env = { SCHOLAR_MCP_EXTENSIONS: 'research' };
+      for (const key of ['S2_API_KEY', 'OPENALEX_API_KEY', 'DASHSCOPE_API_KEY', 'CORE_API_KEY', 'EXA_API_KEY']) {
+        if (config[key]) env[key] = config[key];
+      }
+      return {
+        command: 'uvx',
+        args: ['--from', 'scholar-mcp==0.8.1', 'scholar-mcp'],
+        env,
+      };
+    }
+  exampleConfig: {}

@@ -285,28 +285,26 @@ class TestReadPagination:
         first = yaml.safe_load(server.read_paper("paper"))
         second = yaml.safe_load(server.read_paper("paper", start=first["next_start"]))
 
-        assert first["returned_chars"] == 12_000
+        assert len(first["content"]) == 12_000
         assert first["is_truncated"] is True
         assert first["next_start"] == 12_000
-        assert first["content_warning"] == server.READ_CONTENT_WARNING
+        assert first["content_notice"] == server.READ_CONTENT_NOTICE
         assert second["content"] == "a" * 500
         assert second["is_truncated"] is False
-        assert "content_warning" not in second
+        assert "content_notice" not in second
 
-    def test_full_text_override_returns_remaining_content(self, monkeypatch):
-        self._patch_read(monkeypatch, "0123456789")
+    def test_read_prefers_a_paragraph_boundary(self, monkeypatch):
+        self._patch_read(monkeypatch, "a" * 80 + "\n\n" + "b" * 80)
 
-        result = yaml.safe_load(
-            server.read_paper("paper", start=3, max_chars=1, return_full_text=True)
-        )
+        result = yaml.safe_load(server.read_paper("paper", max_chars=100))
 
-        assert result["content"] == "3456789"
-        assert result["returned_chars"] == 7
-        assert result["is_truncated"] is False
+        assert result["content"] == "a" * 80 + "\n\n"
+        assert result["next_start"] == 82
+        assert result["is_truncated"] is True
 
 class TestPublishedToolMetadata:
     def test_server_version_matches_package(self):
-        assert __version__ == "0.8.0"
+        assert __version__ == "0.8.1"
         assert server.mcp.version == __version__
 
     def test_every_tool_declares_behavior_annotations(self):

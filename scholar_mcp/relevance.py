@@ -21,7 +21,7 @@ STOPWORDS = frozenset({
     "how", "what", "when", "where", "why", "all", "each", "every",
     "both", "few", "more", "most", "other", "some", "such", "only",
     "own", "same", "also", "using", "based", "via", "etc",
-    "us", "we", "our", "me", "my", "your", "they", "their", "them",
+    "us", "we", "our", "me", "my", "you", "your", "they", "their", "them",
     "let", "like", "new", "make", "get", "use", "way",
     "show", "know", "take", "come", "see", "look", "find", "give",
     "tell", "think", "say", "try", "ask", "seem", "help", "keep",
@@ -65,6 +65,7 @@ WEAK_WORDS = frozenset({
     "there", "papers", "uses", "used", "using", "based", "like",
     "find", "found", "show", "shown", "given", "take", "know",
     "called", "related", "available", "also", "well", "still",
+    "recommend", "suggest", "list", "refer", "direct",
 })
 
 
@@ -86,6 +87,64 @@ def extract_keywords(query: str, max_keywords: int = 8) -> list[str]:
         return ranked[:max_keywords]
     remaining = [w for w in all_kw if w not in set(ranked)]
     return (ranked + remaining)[:max_keywords]
+
+
+def extract_lexical_anchors(query: str, max_anchors: int = 3) -> list[str]:
+    """Keep exact names that semantic compression is most likely to erase.
+
+    Dataset names, shared-task names, acronyms, camel-case identifiers, and
+    short proper-noun phrases are often the only bridge from an indirect user
+    description to an older paper title. They are cheap lexical signals, so
+    preserve a few without turning the whole natural-language question into a
+    brittle exact query.
+    """
+    candidates = []
+    candidates.extend(re.findall(r'["“]([^"”]{3,60})["”]', query))
+    candidates.extend(re.findall(
+        r"\b(?:[A-Z]{2,}[A-Za-z0-9-]*|[A-Za-z]*[a-z][A-Z][A-Za-z0-9-]*|"
+        r"[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)+)\b",
+        query,
+    ))
+    candidates.extend(re.findall(
+        r"\b[A-Z][A-Za-z0-9-]+(?:\s+[A-Z][A-Za-z0-9-]+){1,3}\b",
+        query,
+    ))
+
+    anchors = []
+    seen = set()
+    for candidate in candidates:
+        candidate = re.sub(r"\s+", " ", candidate).strip(" ,.;:()[]")
+        normalized = candidate.casefold()
+        words = re.findall(r"[A-Za-z0-9][\w-]*", normalized)
+        if not words or all(word in STOPWORDS | WEAK_WORDS for word in words):
+            continue
+        if normalized not in seen:
+            seen.add(normalized)
+            anchors.append(candidate)
+        if len(anchors) >= max_anchors:
+            break
+    return anchors
+
+
+def keyword_query(query: str, max_words: int) -> str:
+    """Build a bounded keyword query with exact lexical anchors first."""
+    words = []
+    seen = set()
+    values = extract_lexical_anchors(query)
+    values.extend(
+        word for word in extract_keywords(query, max_keywords=max_words * 2)
+        if word not in STOPWORDS and word not in WEAK_WORDS
+    )
+    for value in values:
+        for word in re.findall(r"[A-Za-z0-9][\w-]*", value):
+            normalized = word.casefold()
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            words.append(word)
+            if len(words) >= max_words:
+                return " ".join(words)
+    return " ".join(words)
 
 
 _keybert_model = None
@@ -122,16 +181,19 @@ def optimize_query(query: str) -> str:
 
     compressed = _keybert_extract(query)
     if compressed:
-        return compressed
+        anchor_words = " ".join(extract_lexical_anchors(query)).split()
+        present = set(re.findall(r"[A-Za-z0-9][\w-]*", compressed.casefold()))
+        missing = [word for word in anchor_words if word.casefold() not in present]
+        return " ".join([compressed, *missing]).strip()
 
-    return " ".join(extract_keywords(query, max_keywords=FALLBACK_MAX_KEYWORDS))
+    return keyword_query(query, max_words=FALLBACK_MAX_KEYWORDS)
 
 
 def optimize_query_short(query: str, max_words: int = 8) -> str:
     """Ultra-short keyword query for APIs with tight length limits (e.g. S2 ~10 words)."""
     if _word_count(query) <= max_words:
         return query
-    return " ".join(extract_keywords(query, max_keywords=max_words))
+    return keyword_query(query, max_words=max_words)
 
 
 def _load_keybert():
