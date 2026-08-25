@@ -1,24 +1,79 @@
-name: Publish to PyPI
+name: Publish release
 
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
-  publish:
+  validate-and-publish:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - name: Build package
-        run: uv build
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Verify tag and metadata
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, tomllib
+          root = pathlib.Path('.')
+          project = tomllib.loads((root / 'pyproject.toml').read_text())['project']
+          version = project['version']
+          if os.environ['RELEASE_TAG'] != f'v{version}':
+              raise SystemExit('Release tag and pyproject version differ')
+          server = json.loads((root / 'server.json').read_text())
+          if server['version'] != version or server['packages'][0]['version'] != version:
+              raise SystemExit('server.json version differs from pyproject')
+          PY
+
+      - name: Install locked validation environment
+        run: uv sync --locked --extra dev --extra compression --extra rerank
+
+      - name: Run release checks
+        run: |
+          uv run pytest
+          uv run ruff check .
+
+      - name: Build and validate distributions
+        run: |
+          rm -rf dist
+          uv build
+          uv run --with twine twine check dist/*
+
+      - name: Smoke-test installed wheel over MCP
+        run: uv run python scripts/smoke_release.py
+
+      - name: Install MCP Registry publisher
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v1.8.0/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+
+      - name: Validate MCP Registry metadata
+        run: ./mcp-publisher validate server.json
+
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
 
       - name: Publish to PyPI
-        run: uv publish --check-url https://pypi.org/simple
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_TOKEN }}
+
+      - name: Publish to official MCP Registry
+        run: ./mcp-publisher publish server.json

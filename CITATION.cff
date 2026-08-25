@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: If Scholar MCP supports your research workflow, please cite the software.
+title: Scholar MCP
+type: software
+authors:
+  - family-names: Li
+    given-names: Yuxian
+repository-code: https://github.com/Liyux3/scholar-mcp
+url: https://github.com/Liyux3/scholar-mcp
+license: Apache-2.0
+version: 0.8.0

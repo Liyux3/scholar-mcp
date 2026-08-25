@@ -33,6 +33,88 @@ def test_existing_pdf_is_reused(monkeypatch, tmp_path):
     assert result["file_path"] == str(path)
 
 
+class _StreamResponse:
+    def __init__(self, chunks):
+        self.chunks = chunks
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def raise_for_status(self):
+        return None
+
+    def iter_bytes(self, chunk_size):
+        del chunk_size
+        for chunk in self.chunks:
+            if isinstance(chunk, Exception):
+                raise chunk
+            yield chunk
+
+
+class _StreamClient:
+    def __init__(self, chunks, **kwargs):
+        del kwargs
+        self.chunks = chunks
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def stream(self, method, url, headers):
+        del method, url, headers
+        return _StreamResponse(self.chunks)
+
+
+def test_download_streams_and_atomically_publishes(monkeypatch, tmp_path):
+    chunks = [b"%PDF-1.7\n", b"first chunk", b"second chunk"]
+    monkeypatch.setattr(
+        pdf_utils.httpx,
+        "Client",
+        lambda **kwargs: _StreamClient(chunks, **kwargs),
+    )
+
+    result = pdf_utils._try_download("https://example.test/paper", str(tmp_path), "paper.pdf")
+
+    assert result == str(tmp_path / "paper.pdf")
+    assert (tmp_path / "paper.pdf").read_bytes() == b"".join(chunks)
+    assert list(tmp_path.glob("*.part")) == []
+    assert list(tmp_path.glob(".*.part")) == []
+
+
+def test_interrupted_download_never_publishes_partial_pdf(monkeypatch, tmp_path):
+    chunks = [b"%PDF-1.7\npartial", OSError("connection lost")]
+    monkeypatch.setattr(
+        pdf_utils.httpx,
+        "Client",
+        lambda **kwargs: _StreamClient(chunks, **kwargs),
+    )
+
+    result = pdf_utils._try_download("https://example.test/paper", str(tmp_path), "paper.pdf")
+
+    assert result is None
+    assert not (tmp_path / "paper.pdf").exists()
+    assert list(tmp_path.glob(".*.part")) == []
+
+
+def test_non_pdf_download_is_discarded(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        pdf_utils.httpx,
+        "Client",
+        lambda **kwargs: _StreamClient([b"<html>not a paper</html>"], **kwargs),
+    )
+
+    result = pdf_utils._try_download("https://example.test/paper", str(tmp_path), "paper.pdf")
+
+    assert result is None
+    assert not (tmp_path / "paper.pdf").exists()
+    assert list(tmp_path.glob(".*.part")) == []
+
+
 @pytest.mark.integration
 def test_download_from_arxiv():
     paper_info = {

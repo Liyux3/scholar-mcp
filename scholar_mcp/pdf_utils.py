@@ -1,6 +1,7 @@
 import os
 import re
 import hashlib
+import tempfile
 from pathlib import Path
 
 import httpx
@@ -9,6 +10,8 @@ from . import config
 from . import core_client
 
 DOWNLOAD_TIMEOUT = 60
+DOWNLOAD_CHUNK_SIZE = 256 * 1024
+PDF_HEADER_SCAN_BYTES = 1024
 USER_AGENT = "scholar-mcp/0.1.0 (academic research tool)"
 
 # Institutional proxy. Off unless a session cookie is configured.
@@ -52,24 +55,68 @@ def _cached_pdf(save_path: str, filename: str) -> str | None:
     return None
 
 
+def _atomic_pdf_bytes(content: bytes, save_path: str, filename: str) -> str | None:
+    """Atomically persist an already-buffered PDF payload."""
+    if b"%PDF-" not in content[:PDF_HEADER_SCAN_BYTES]:
+        return None
+
+    destination = Path(save_path).expanduser() / filename
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, staging_name = tempfile.mkstemp(
+        dir=destination.parent,
+        prefix=f".{destination.name}.",
+        suffix=".part",
+    )
+    staging = Path(staging_name)
+    try:
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(content)
+            output.flush()
+            os.fsync(output.fileno())
+        staging.replace(destination)
+        return str(destination)
+    except OSError:
+        return None
+    finally:
+        staging.unlink(missing_ok=True)
+
+
 def _try_download(url: str, save_path: str, filename: str) -> str | None:
-    """Attempt to download a PDF from url. Returns file path on success, None on failure."""
+    """Stream a PDF to a staging file and atomically publish it on success."""
+    destination = Path(save_path).expanduser() / filename
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, staging_name = tempfile.mkstemp(
+        dir=destination.parent,
+        prefix=f".{destination.name}.",
+        suffix=".part",
+    )
+    os.close(descriptor)
+    staging = Path(staging_name)
     try:
         headers = {"User-Agent": USER_AGENT}
         with httpx.Client(timeout=DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
-            response = client.get(url, headers=headers)
-            response.raise_for_status()
-            content_type = response.headers.get("content-type", "")
-            is_pdf = "pdf" in content_type or response.content[:5] == b"%PDF-"
-            if not is_pdf:
-                return None
-            os.makedirs(save_path, exist_ok=True)
-            file_path = os.path.join(save_path, filename)
-            with open(file_path, "wb") as f:
-                f.write(response.content)
-            return file_path
+            with client.stream("GET", url, headers=headers) as response:
+                response.raise_for_status()
+                prefix = bytearray()
+                with staging.open("wb") as output:
+                    for chunk in response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE):
+                        if not chunk:
+                            continue
+                        if len(prefix) < PDF_HEADER_SCAN_BYTES:
+                            remaining = PDF_HEADER_SCAN_BYTES - len(prefix)
+                            prefix.extend(chunk[:remaining])
+                        output.write(chunk)
+                    output.flush()
+                    os.fsync(output.fileno())
+
+        if b"%PDF-" not in prefix:
+            return None
+        staging.replace(destination)
+        return str(destination)
     except (httpx.HTTPError, OSError):
         return None
+    finally:
+        staging.unlink(missing_ok=True)
 
 
 SCIHUB_MIRRORS = ["https://sci-hub.mksa.top", "https://sci-hub.se", "https://sci-hub.st"]
@@ -150,10 +197,7 @@ def _try_ezproxy(doi: str, save_path: str, filename: str) -> str | None:
         # publisher-specific paths from here is where scraping would begin.
         return None
 
-    target = Path(save_path) / filename
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(response.content)
-    return str(target)
+    return _atomic_pdf_bytes(response.content, save_path, filename)
 
 
 def _try_unpaywall(doi: str) -> str | None:

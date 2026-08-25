@@ -6,8 +6,8 @@ build/
 .venv/
 *.pdf
 downloads/
+mcpb-build/
 .DS_Store
-uv.lock
 .flashrank_cache/
 eval/data/
 eval/cache/

@@ -260,6 +260,50 @@ class TestDownloadIndexing:
         assert captured["collection"] == "downloads"
         assert captured["paper"]["pdf_path"] == "/tmp/saved.pdf"
 
+
+class TestReadPagination:
+    def _patch_read(self, monkeypatch, text):
+        monkeypatch.setattr(server, "_find_paper", lambda paper_id: {"title": paper_id})
+        monkeypatch.setattr(
+            server.pdf_utils,
+            "download_paper",
+            lambda *args: {
+                "success": True,
+                "file_path": "/tmp/paper.pdf",
+                "source": "test",
+            },
+        )
+        monkeypatch.setattr(
+            server.pdf_utils,
+            "extract_text",
+            lambda *args, **kwargs: text,
+        )
+
+    def test_default_read_is_bounded_and_continuable(self, monkeypatch):
+        self._patch_read(monkeypatch, "a" * 12_500)
+
+        first = yaml.safe_load(server.read_paper("paper"))
+        second = yaml.safe_load(server.read_paper("paper", start=first["next_start"]))
+
+        assert first["returned_chars"] == 12_000
+        assert first["is_truncated"] is True
+        assert first["next_start"] == 12_000
+        assert first["content_warning"] == server.READ_CONTENT_WARNING
+        assert second["content"] == "a" * 500
+        assert second["is_truncated"] is False
+        assert "content_warning" not in second
+
+    def test_full_text_override_returns_remaining_content(self, monkeypatch):
+        self._patch_read(monkeypatch, "0123456789")
+
+        result = yaml.safe_load(
+            server.read_paper("paper", start=3, max_chars=1, return_full_text=True)
+        )
+
+        assert result["content"] == "3456789"
+        assert result["returned_chars"] == 7
+        assert result["is_truncated"] is False
+
 class TestPublishedToolMetadata:
     def test_server_version_matches_package(self):
         assert __version__ == "0.8.0"

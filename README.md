@@ -8,6 +8,12 @@
   </picture>
 </p>
 
+<p align="center">
+  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
+  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
+  <a href="https://registry.modelcontextprotocol.io/?search=io.github.liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
+</p>
+
 <h3 align="center">Go deeper.</h3>
 
 <p align="center">
@@ -76,6 +82,8 @@ claude plugin install scholar-mcp@scholar-mcp
 
 The same plugin directory follows the Agent Plugins standard for Cursor, Pi, and compatible harnesses. OpenCode can launch `uvx scholar-mcp` as a local MCP; Pi can use `pi-mcp-adapter`.
 
+Release artifacts also include the PyPI package, multi-architecture GHCR image, and macOS MCPB bundles. See the complete [distribution matrix](docs/DISTRIBUTION.md).
+
 ## Tools
 
 | Profile | Tool | Responsibility |
@@ -84,7 +92,7 @@ The same plugin directory follows the Agent Plugins standard for Cursor, Pi, and
 | Core | `paper_info` | Paper detail, citations, and references through one selective call |
 | Core | `recommend_papers` | Related work through semantic and citation connections |
 | Core | `search_authors` | Author profiles, affiliations, paper counts, and h-index |
-| Core | `read_paper` | Temporarily fetch and read primary evidence |
+| Core | `read_paper` | Temporarily fetch and read bounded, continuable primary evidence |
 | Core | `download_paper` | Persist a PDF and index it in a collection |
 | Research | `build_paper_graph` | Bounded citation graph with PageRank, bridges, nodes, edges, and Mermaid |
 | Research | `paper_library` | Collections, FTS search, notes, tags, PDFs, and Markdown vault export |
@@ -166,7 +174,7 @@ scholar-mcp library publish notion --collection rag
 
 ## Paper access
 
-`read_paper` uses a temporary directory and leaves no retained PDF. `download_paper` persists the file, reuses a valid local copy, and indexes its metadata in the selected collection.
+`read_paper` uses a temporary directory and leaves no retained PDF. It returns at most 12,000 characters by default with `next_start` continuation metadata; use `return_full_text=true` only when the caller can accept the complete remaining text. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
 
 The shared resolution chain covers:
 
@@ -212,6 +220,8 @@ uv run pytest
 ```
 
 Unit tests are the default. Live API tests are marked `integration` so routine validation stays deterministic.
+
+Connector and feature contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues through the private process in [SECURITY.md](SECURITY.md); citation metadata is available in [CITATION.cff](CITATION.cff).
 
 README visuals follow the reusable [presentation system](docs/PRESENTATION_SYSTEM.md), including narrative, layout, motion, and release checks.
 

@@ -44,7 +44,7 @@ compression = [
 ]
 # Reranker fallback, used whenever the DashScope API is unavailable.
 rerank = ["flashrank>=0.2.10"]
-dev = ["pytest>=8.0.0", "pillow>=11.0"]
+dev = ["pytest>=8.0.0", "pillow>=11.0", "ruff>=0.12.0"]
 
 [project.urls]
 Homepage = "https://github.com/Liyux3/scholar-mcp"
@@ -66,3 +66,10 @@ addopts = "-m 'not integration'"
 markers = [
     "integration: hits live external APIs, needs network and often API keys",
 ]
+
+[tool.ruff]
+target-version = "py310"
+extend-exclude = ["eval"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

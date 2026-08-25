@@ -142,7 +142,7 @@ Priority determines ordering in `all_sources()`, not fallback sequence.
 | recommend_papers | Similarity, co-citation peers, or bibliographic kin |
 | search_authors | Author lookup with h-index |
 | download_paper | Persist a PDF and index it in a collection |
-| read_paper | Temporarily fetch and extract a PDF |
+| read_paper | Temporarily fetch a PDF and return bounded text with continuation metadata |
 
 `scholar://status` is a resource. The `research` profile adds
 `build_paper_graph` and `paper_library`; field discovery is composed by the

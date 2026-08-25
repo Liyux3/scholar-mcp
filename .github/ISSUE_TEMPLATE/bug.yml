@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a reproducible Scholar MCP failure
+title: "[bug] "
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version and install method
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, Python, MCP client, and transport
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: Redaction
+      options:
+        - label: Logs contain no API keys, private paths, papers, or notes.
+          required: true

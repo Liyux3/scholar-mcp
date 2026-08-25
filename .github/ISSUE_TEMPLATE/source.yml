@@ -1,0 +1,30 @@
+name: Source connector proposal
+description: Propose or implement an academic source connector
+title: "[source] "
+labels: [source]
+body:
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and official API documentation
+    validations:
+      required: true
+  - type: dropdown
+    id: capabilities
+    attributes:
+      label: Primary capability
+      options: [Search, Paper lookup, Citations, References, Open PDF resolution]
+    validations:
+      required: true
+  - type: textarea
+    id: terms
+    attributes:
+      label: Authentication, limits, and usage terms
+    validations:
+      required: true
+  - type: textarea
+    id: fixtures
+    attributes:
+      label: Proposed deterministic fixtures and failure cases
+    validations:
+      required: true

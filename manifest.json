@@ -1,0 +1,76 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/mcpb/main/schemas/mcpb-manifest-v0.4.schema.json",
+  "manifest_version": "0.4",
+  "name": "scholar-mcp",
+  "display_name": "Scholar MCP",
+  "version": "0.8.0",
+  "description": "Multi-source academic search, citation traversal, bounded paper reading, and a persistent research library.",
+  "author": {
+    "name": "Yuxian Li"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Liyux3/scholar-mcp.git"
+  },
+  "homepage": "https://github.com/Liyux3/scholar-mcp",
+  "documentation": "https://github.com/Liyux3/scholar-mcp#readme",
+  "support": "https://github.com/Liyux3/scholar-mcp/issues",
+  "server": {
+    "type": "python",
+    "entry_point": "server/scholar_mcp/__main__.py",
+    "mcp_config": {
+      "command": "python3.12",
+      "args": ["-m", "scholar_mcp"],
+      "env": {
+        "PYTHONPATH": "${__dirname}/server:${__dirname}/server/vendor",
+        "SCHOLAR_DATA_DIR": "${user_config.data_dir}",
+        "SCHOLAR_MCP_EXTENSIONS": "research",
+        "S2_API_KEY": "${user_config.s2_api_key}",
+        "OPENALEX_API_KEY": "${user_config.openalex_api_key}",
+        "DASHSCOPE_API_KEY": "${user_config.dashscope_api_key}"
+      }
+    }
+  },
+  "keywords": ["mcp", "academic-search", "citations", "papers", "research"],
+  "license": "Apache-2.0",
+  "compatibility": {
+    "claude_desktop": ">=1.0.0",
+    "platforms": ["darwin"],
+    "runtimes": {
+      "python": ">=3.12,<3.13"
+    }
+  },
+  "user_config": {
+    "data_dir": {
+      "type": "directory",
+      "title": "Scholar data directory",
+      "description": "Local PDFs, SQLite library, snapshots, and vault data.",
+      "required": false,
+      "default": "${HOME}/.scholar-mcp"
+    },
+    "s2_api_key": {
+      "type": "string",
+      "title": "Semantic Scholar API key",
+      "description": "Optional key for higher Semantic Scholar limits and snippet search.",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    },
+    "openalex_api_key": {
+      "type": "string",
+      "title": "OpenAlex API key",
+      "description": "Optional key for OpenAlex search and citation traversal.",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    },
+    "dashscope_api_key": {
+      "type": "string",
+      "title": "DashScope reranker API key",
+      "description": "Optional key for the Qwen reranker; local fallback remains available.",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    }
+  }
+}
