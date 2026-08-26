@@ -1,174 +1,135 @@
 ---
 name: deep-research
-description: Conduct long-horizon, evidence-grounded research with Scholar MCP. Use for literature reviews, field maps, recent-frontier analysis, technical landscape studies, claim verification, paper lineage tracing, benchmark comparison, or any investigation that requires primary academic evidence and iterative search.
+description: Conduct evidence-grounded literature reviews and technical field investigations with Scholar MCP. Use for iterative academic search, multi-paper claim verification, frontier mapping, benchmark comparison, or citation lineage tracing. Route ordinary paper lookup directly to Scholar MCP.
 license: Apache-2.0
 ---
 
 # Deep Research
 
-Build an evolving understanding of the question. Go beyond paper summaries into framing, source judgment, mechanism-level reading, contradiction analysis, and synthesis. Use Scholar MCP as the academic retrieval and citation-tracing specialist.
+The goal is not just to find facts, but to build an evolving, auditable
+understanding of a field. Use Scholar MCP for academic discovery, identity
+resolution, citation traversal, primary-text reading, and selected research memory.
 
-## Operating principles
+## Choose the depth
 
-- Prefer primary papers, official code, datasets, benchmarks, standards, and author materials.
-- Separate observed facts, source claims, inferences, and recommendations.
-- Preserve identifiers and URLs so every important claim can be retraced.
-- Seek disconfirming evidence with the same effort as confirming evidence.
-- Judge results in their actual setup: dataset, split, metric, baseline, compute, model size, and evaluation protocol.
-- Treat timing as evidence. Track when ideas appeared, what they inherited, and what happened afterward.
-- Look for anomalies, missing comparisons, abandoned ideas, and contradictory results. Each is a search lead.
-- Read decision-relevant papers at mechanism level. Use abstracts and snippets for discovery, then verify decisive claims in the primary material.
-- Scale conclusions to the breadth and quality of the evidence.
-- Keep final understanding with the main researcher. Agents may collect material; the main researcher inspects the evidence that determines the conclusion.
-
-## Choose the research depth
-
-- **Focused verification:** answer one bounded claim with a small set of decisive primary sources.
-- **Technical review:** map approaches, lineages, benchmarks, and disagreements around a defined question.
-- **Frontier scan:** emphasize recent work, weak signals, active groups, follow-up evidence, and claims that remain unsettled.
-
-Match the search breadth and artifact size to the request. Keep focused verification bounded; give technical reviews enough breadth to establish the field structure.
-
-## Scholar MCP tool routing
-
-| Need | Tool and approach |
+| Mode | Starting scope |
 |---|---|
-| Check coverage | Read `scholar://status` when source availability matters. |
-| Map an unfamiliar field | Search the topic with `intent=survey`, `foundational`, and `recent`; merge the resulting vocabulary, works, and open questions. |
-| Search literature | Use `search_papers`; preserve the natural-language question and apply year, venue, field, type, OA, and intent filters only when justified. |
-| Inspect a paper | Use `paper_info` with `detail,citations,references`. Prefer DOI, arXiv, OpenAlex, or S2 identifiers over title matching. |
-| Find topical neighbors | Use `recommend_papers` with `relation=similar`. |
-| Recover foundations | Use `paper_info` with `references`. |
-| Recover descendants | Use `paper_info` with `citations`. |
-| Recover intellectual peers | Use `relation=peers` for co-citation. |
-| Find methodological kin | Use `relation=kin` for bibliographic coupling across vocabulary boundaries. |
-| Build a bounded lineage | Resolve stable seed IDs, then use `build_paper_graph`; inspect analytics and open bridge or pivot papers. |
-| Read primary evidence | Use `read_paper` for temporary online reading. Use `download_paper` only when the PDF should remain on disk. |
-| Curate durable evidence | Use `paper_library` to save selected papers, search collections, update notes/tags, or export a vault. |
+| Focused verification | One bounded claim, one or two searches, a small set of decisive primary sources |
+| Technical review | Complementary search views, five to eight inspected candidates, two or three expansion seeds |
+| Frontier scan | Recent work, active groups, weak signals, counterevidence, and follow-up activity |
 
-`search_papers` routes raw, short, and compressed queries to different source types. Preserve the natural-language question and let the source adapters choose their query form. Read `_meta.source_coverage`, `_meta.reranker`, and `_meta.sources_unavailable`; distinguish low recall from throttling, timeout, missing optional credentials, and a genuinely empty result. Use `debug=true` only when source-level yield, latency, or ranking provenance changes the diagnosis.
+These are starting budgets. Walk one step, see what's there, then decide the next
+step. Expand when a new branch can change the field map or conclusion; stop a branch
+when it repeats known structure or drifts from the question.
 
-## Dynamic field discovery
+## Scholar MCP routing
 
-Treat field discovery as an evolving research workflow rather than one fixed query or citation threshold.
+| Need | Tool |
+|---|---|
+| Check live coverage | Read `scholar://status` |
+| Search literature | `search_papers`; preserve the natural-language question and select an intent only when it changes ranking |
+| Recover surveys, foundations, recent work, methods, or datasets | `search_papers` with `intent=survey`, `foundational`, `recent`, `method`, or `dataset` |
+| Inspect a paper | `paper_info` with the needed parts of `detail,citations,references` |
+| Find topical neighbors | `recommend_papers` with `relation=similar` |
+| Find intellectual peers | `recommend_papers` with `relation=peers` |
+| Cross vocabulary boundaries | `recommend_papers` with `relation=kin` |
+| Build a lineage | Resolve stable seed IDs, then use `build_paper_graph` |
+| Read primary evidence | `read_paper`; continue with `next_start` when the relevant section extends beyond one chunk |
+| Retain a PDF | `download_paper` |
+| Curate durable evidence | `paper_library` for selected papers, notes, tags, collections, and vault export |
 
-1. Search the natural-language question with balanced, survey, foundational, and recent intents where each view is relevant.
-2. Build a small query portfolio around distinct mechanisms, datasets, evaluation settings, and counter-positions learned from the first results. Keep mechanisms separate instead of joining every term into one over-constrained query.
-3. Inspect candidate papers through stable IDs. Record why each paper matters, what it changes, and what evidence could disconfirm it.
-4. Follow references, citations, similar papers, co-citation peers, and bibliographic kin selectively. Stop a branch when it drifts from the question or repeats known structure.
-5. Build citation graphs only after the seeds are resolved and relevant. Use the graph to expose bridges and lineages, then inspect the papers behind those positions.
-6. Save only selected evidence to `paper_library`. Apply collections, notes, and tags deliberately; field mapping never auto-saves the raw candidate pool.
-7. Stop when major branches are stable, further searches yield diminishing novelty, and open disagreements are explicit.
+Scholar routes raw, short, and compressed query forms to different source types.
+Keep the original question intact. Use source filters when the research question
+justifies them. Read `_meta.source_coverage`, `_meta.reranker`, and degradation
+details before interpreting an empty or thin result. Enable `debug=true` when
+source-level yield, latency, or ranking provenance changes the diagnosis.
 
-Keep the evolving state in the evidence ledger. This preserves every decision-relevant retrieval step while letting the investigation adapt its breadth and depth.
-
-Keep optional API credentials inside the MCP runtime. Redact them from prompts, reports, logs, command arguments, and generated files. When an optional key is absent, continue with the available coverage and report the affected source briefly.
-
-## Research loop
+## Adaptive research loop
 
 ### 1. Frame
 
-- State the actual decision or understanding the research should enable.
-- Split it into technical subquestions, boundary conditions, and adjacent fields.
-- Fix the timeframe and define what would change the conclusion.
-- Record initial assumptions and label them as hypotheses.
-- Define an evidence bar for each major claim: direct experiment, replicated result, formal derivation, official specification, or informed inference.
+- State the decision or understanding the research should enable.
+- Separate technical subquestions, boundary conditions, timeframe, and assumptions.
+- Define what evidence would support or overturn each important claim.
 
 ### 2. Map
 
-- Recover the field vocabulary, major approaches, canonical works, active groups, datasets, benchmarks, and open problems.
-- Build a rough lineage before optimizing the search for narrow terms.
-- Search both canonical work and the middle zone: recent, consequential papers whose citation signals are still forming.
+- Start with two or three complementary views, each centered on a distinct mechanism,
+  dataset, evaluation setting, or counter-position.
+- Build a field map, not just a source summary. Recover field vocabulary, major
+  approaches, canonical works, datasets, benchmarks, active groups, and disagreements.
+- Let each source update the next search.
+- Include the middle zone: recent consequential work whose citation signal is still
+  forming.
 
-### 3. Retrieve iteratively
+### 3. Inspect
 
-- Run broad searches first, then update queries using terminology learned from results.
-- Use several query formulations when the question spans mechanisms, applications, and evaluation.
-- Follow citations, references, semantic neighbors, co-citation, and bibliographic coupling.
-- Track each search round and what new vocabulary or hypothesis it introduced.
-- Preserve rejected candidates and the reason they were rejected when that decision may matter later.
-- Search for the strongest counter-position explicitly. Queries such as failure, limitation, replication, rebuttal, negative result, and benchmark name often expose evidence missed by topical search alone.
+- Resolve promising papers through DOI, arXiv, OpenAlex, S2, or other stable IDs.
+- For papers that affect the conclusion, inspect the exact claim, mechanism,
+  assumptions, training and evaluation setup, strongest evidence, and failure modes.
+- When something matters, push into the modeling choices, actual math, implementation
+  details, requirements, and what breaks when an assumption changes.
+- Compare results only under compatible datasets, splits, metrics, baselines,
+  model sizes, compute, and evaluation protocols.
 
-### 4. Triage evidence
+### 4. Expand selectively
 
-Prioritize each candidate by:
+- Follow references to recover foundations and citations to recover descendants.
+- Use similar papers, co-citation peers, and bibliographic kin when they add a distinct
+  route into the question.
+- Build a graph after the seeds are resolved and relevant. Treat graph position as a
+  lead for inspection, while evidence remains in the underlying papers.
+- Search explicitly for limitations, replications, rebuttals, negative results, and
+  the strongest counter-position. Each anomaly, absence, or contradiction is a lead.
 
-1. Relevance to the real question.
-2. Evidence quality and reproducibility.
-3. Novelty of mechanism or conclusion.
-4. Importance in the lineage.
-5. Follow-up evidence, implementations, criticism, or replication.
+### 5. Consolidate
 
-Examine unusually clean gains, weak baselines, incomparable settings, hidden filtering, cherry-picked subsets, and claims with little follow-up especially closely.
+- Update the vocabulary, field structure, claims, counterevidence, and open questions
+  after each meaningful round. Ask what surprised you, what should exist but does not,
+  where sources disagree, and which unknown could still overturn the conclusion.
+- Record why a decisive paper matters and why close alternatives were rejected.
+- Save selected evidence to `paper_library`; keep the unreviewed candidate pool transient.
+- Important cognitive work stays with the main researcher, who inspects the evidence
+  that determines the conclusion.
 
-### 5. Read and probe
+### 6. Synthesize
 
-For papers that affect the conclusion, extract:
+- Lead with the answer to the actual question.
+- Explain the field structure, development lineage, and meaningful disagreements.
+- Separate observed facts, source claims, inferences, and recommendations.
+- Put citations beside the claims they support and preserve stable identifiers and URLs.
+- State confidence, residual uncertainty, and the evidence that would resolve it.
 
-- The exact claim and its scope.
-- Mechanism, assumptions, and mathematical or algorithmic definition.
-- Training and evaluation setup.
-- Strongest quantitative evidence.
-- Failure modes and boundary conditions.
-- Comparability to adjacent work.
-- Omissions, unexplained choices, and contradictions.
+## Evidence state
 
-Use citation count to locate influential work. Judge evidence quality from the work itself and the evidence that followed it.
-
-Ask after each round:
-
-- What surprised me?
-- What is conspicuously absent?
-- Where do credible sources disagree, and which setup difference explains it?
-- Which apparently similar methods are actually solving different problems?
-- What single unknown could still overturn the conclusion?
-
-### 6. Connect and consolidate
-
-Maintain a compact evidence state:
+Maintain one compact ledger while the investigation evolves:
 
 ```text
 Question and decision
-Current field map
+Field map and vocabulary
 Paper and code ledger
 Claims and supporting evidence
-Counterevidence
+Counterevidence and boundary conditions
 Timeline and lineages
 Benchmark comparability
 Anomalies and missing work
-Confidence by claim
-Open questions
+Confidence and open questions
 Next searches
 ```
 
-For each important claim, record paper identifiers, URLs, relevant location or result, confidence, and whether it is published, inferred, or estimated. Update earlier judgments when new evidence changes the field map.
+Prefer primary papers, official code, datasets, benchmarks, standards, and author
+materials. Use abstracts and snippets for discovery, then read decision-relevant work
+at mechanism level. Treat unusually clean gains, weak baselines, incomparable settings,
+hidden filtering, and claims with little follow-up as leads for deeper inspection.
+Timing is signal: track when an idea appeared, what it inherited, and what happened
+afterward. Preserve uncertainty instead of forcing premature closure.
 
-A compact claim ledger is usually enough:
+## Stopping and delivery
 
-```text
-Claim | Evidence | Counterevidence | Scope | Confidence | Source IDs
-```
+Stop when the major branches are stable, additional searches yield little novelty,
+important claims are supported or bounded, and unresolved disagreements are explicit.
 
-### 7. Synthesize
-
-- Answer the actual question directly.
-- Explain the field structure and development lineage.
-- Distinguish mature knowledge from tentative frontier signals.
-- Compare methods under compatible settings and name incompatibilities explicitly.
-- Put citations next to the claims they support.
-- State residual uncertainty and the evidence that would resolve it.
-- Highlight conclusions that changed during the investigation and why.
-
-## Depth and stopping
-
-Continue when the field map is shallow, important branches are missing, recent changes may alter the answer, credible sources conflict, or decisive claims lack primary evidence.
-
-Stop when the major structure is stable, important searches yield diminishing novelty, key claims are supported or bounded, contradictions are explained or isolated, and the user can act on the result.
-
-For a time-bounded run, reserve the final portion for consolidating the evidence state. Expand another branch only when it can still change the conclusion.
-
-## Deliverable
-
-When a writable workspace is available, grow one cumulative research artifact while searching. Otherwise maintain the same evidence state in context and return the synthesis directly.
-
-Lead with the answer, then provide the field map or comparison, decisive evidence, counterevidence, uncertainty, and next actions. Include raw source links and compact excerpts where they materially improve auditability. Use verified bibliographic details and mark unresolved metadata explicitly.
+A research run delivers one cumulative artifact, grown while searching, when a writable
+workspace is available. Otherwise maintain the same evidence state in context. Match
+the final artifact to the chosen depth: concise for focused verification, broader for
+technical reviews and frontier scans.
