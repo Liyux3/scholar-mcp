@@ -154,7 +154,6 @@ _keybert_model = None
 COMPRESS_THRESHOLD_WORDS = 12
 
 # Two-stage compression parameters, tuned by the 2026-05-11 sensitivity sweep.
-# See docs/QUERY_COMPRESSION.md for the full config comparison.
 EK_PRE_MAX = 15      # keyword budget for the noise-stripping stage
 KB_TOP_N = 2         # keyphrases KeyBERT selects from the cleaned text
 KB_DIVERSITY = 0.5   # MMR diversity; higher values drift off-topic

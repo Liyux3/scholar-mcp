@@ -5,26 +5,23 @@ drives the package, registry, container, and MCPB workflows from the same tag.
 
 ## Automatic release channels
 
-| Channel | Artifact / entry | Automation | Current state |
-|---|---|---|---|
-| GitHub Release | Source, notes, attached MCPB bundles | Release is the trigger | Prepared |
-| PyPI / uvx | `scholar-mcp==0.8.1` | `publish.yml` | Published and fresh-install verified |
-| Official MCP Registry | `io.github.liyux3/scholar-mcp` | OIDC publisher after PyPI | Manifest validates; not published |
-| GHCR | `ghcr.io/liyux3/scholar-mcp` | Multi-arch Docker build | Prepared |
-| MCPB | Darwin arm64 and x86_64 bundles | macOS matrix build + MCP smoke | Prepared and locally smoke-tested |
-| Codex marketplace | `.agents/plugins/marketplace.json` | Repository marketplace | Manifest validates |
-| Claude marketplace | `.claude-plugin/marketplace.json` | Repository marketplace | Manifest validates |
-| Cursor marketplace | `.cursor-plugin/marketplace.json` | Repository import and refresh | Manifest prepared |
-| Agent Plugins | `plugins/scholar-mcp/plugin.json` | Repository distribution | Manifest present |
-| Smithery | `smithery.yaml` | Repository build configuration | Prepared; listing needs account submission |
-| Cline | `llms-install.md` | Agent-readable installation | Prepared; marketplace needs review |
+| Channel | Artifact / entry | Automation |
+|---|---|---|
+| GitHub Release | Source, notes, attached MCPB bundles | Release trigger |
+| PyPI / uvx | `scholar-mcp` | `publish.yml` |
+| Official MCP Registry | `io.github.liyux3/scholar-mcp` | OIDC publisher after PyPI |
+| GHCR | `ghcr.io/liyux3/scholar-mcp` | Multi-architecture Docker build |
+| MCPB | Darwin arm64 and x86_64 bundles | macOS matrix build and MCP smoke |
+| Codex marketplace | `.agents/plugins/marketplace.json` | Repository marketplace |
+| Claude marketplace | `.claude-plugin/marketplace.json` | Repository marketplace |
+| Cursor marketplace | `.cursor-plugin/marketplace.json` | Repository import and refresh |
+| Agent Plugins | `plugins/scholar-mcp/plugin.json` | Repository distribution |
+| Smithery | `smithery.yaml` | Repository build configuration |
+| Cline | `llms-install.md` | Agent-readable installation |
 
 The release workflow verifies version parity, runs tests and Ruff, builds the package,
 validates distributions, installs the wheel in an isolated environment, performs a real
 MCP handshake, publishes PyPI, then publishes the official Registry entry.
-
-Public PyPI latest is v0.8.1. The local v0.8.2 candidate adds bounded parallel PDF
-candidate probes and remains staged with the public Git history.
 
 ## Client install paths
 
@@ -48,8 +45,7 @@ KeyBERT/model stack is explicitly desired; DashScope reranking remains available
 
 ## Directory submissions requiring external accounts
 
-These cannot be completed by repository automation alone. Submit after the public v0.8
-artifacts exist and resolve correctly.
+These channels require account or maintainer review after release artifacts resolve.
 
 | Directory | Submission form / artifact | Required external state |
 |---|---|---|
@@ -79,10 +75,9 @@ Publication order is package first, official Registry second, directory mirrors 
 7. Verify clean installs from PyPI, Registry, container, and MCPB on fresh clients.
 8. Submit Smithery and external directories, then publish the launch benchmark/demo.
 
-## P1: access coverage and connector collaboration
+## Access coverage and connector collaboration
 
-P1 ships in the public PyPI v0.8.1 package. It expands full-text success without
-weakening retrieval quality or enlarging the default tool surface.
+The source registry expands full-text success while preserving the compact tool surface.
 
 1. OpenAIRE, Europe PMC, HAL, Zenodo, DOAJ, and CORE expose one registry-level
    `resolve_pdf` capability.
@@ -94,5 +89,5 @@ weakening retrieval quality or enlarging the default tool surface.
 5. Lexical anchors preserve dataset, benchmark, shared-task, acronym, and proper-name
    signals before keyword APIs receive a compressed query.
 
-P1 does not add one MCP tool per provider. It increases the capability of the existing
-`search_papers`, `download_paper`, and `read_paper` primitives.
+Provider capabilities remain behind the existing `search_papers`, `download_paper`,
+and `read_paper` primitives.

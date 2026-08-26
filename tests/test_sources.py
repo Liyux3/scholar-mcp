@@ -263,10 +263,9 @@ class TestFanOutBudget:
 class TestCallersRouteQueries:
     """parallel_search accepts raw_query and short_query as keyword arguments,
     so a caller that omits them silently sends one string to every source.
-    Two callers did exactly that for months: discover_field, which then missed
-    the defining paper of any field it was asked about, and the title-based
-    expansion channel. Nothing fails at runtime, every source still returns
-    results, just worse ones, which is why this is checked structurally.
+    Earlier field mapping and title expansion callers did exactly that for
+    months. Nothing fails at runtime, every source still returns results, just
+    worse ones, which is why this is checked structurally.
     """
 
     def _unrouted_call_sites(self):

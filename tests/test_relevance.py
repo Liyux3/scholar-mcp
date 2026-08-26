@@ -317,8 +317,7 @@ class TestRankFinal:
         which flips a 0.9-vs-0.6 rerank gap.
 
         This looks like a bug and was investigated as one. Capping it makes
-        retrieval worse. Re-ranking the cached LitSearch results offline
-        (eval/citation_boost_sweep.py) gives, on the expansion cache:
+        retrieval worse. Re-ranking the cached LitSearch expansion run gives:
 
             unbounded (current)   R@5 0.620   R@10 0.680   R@20 0.700
             clamped at 0.25       R@5 0.580   R@10 0.640   R@20 0.700

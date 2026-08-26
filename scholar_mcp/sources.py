@@ -24,7 +24,7 @@ class SourceResult:
 
 # How a source wants its query phrased. Keyword APIs match terms and lose
 # recall as the query grows; semantic APIs embed the whole sentence and lose
-# meaning when it is stripped to keywords. See docs/QUERY_COMPRESSION.md.
+# meaning when it is stripped to keywords.
 QUERY_RAW = "raw"          # full natural-language query
 QUERY_COMPRESSED = "compressed"  # ~6 keywords, the shared default
 QUERY_SHORT = "short"      # ~8 keywords, for APIs with hard length limits

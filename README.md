@@ -137,7 +137,7 @@ Scholar recovered nine R@5 hits that Exa missed; Exa recovered four that Scholar
 <details>
 <summary>Benchmark protocol</summary>
 
-The comparison uses the same first 50 LitSearch inline-ACL queries, ground-truth titles, title matcher, and top-20 cutoff. Exa ran with category `research paper`. Scholar used its standard retrieval pipeline with Qwen reranking. BM25 follows the official LitSearch title+abstract implementation: lowercase tokenization, English stopword removal, Porter stemming, and `BM25Okapi` over the 64K-paper corpus. The Scholar/Exa run was collected on 12 May 2026; BM25 was reproduced on 25 August 2026. The frozen summary is in [`docs/benchmarks/litsearch-inline-acl-50.json`](docs/benchmarks/litsearch-inline-acl-50.json), with [raw BM25 results](eval/results/bm25_title_abstract_inline_acl_50.jsonl) and their [hash manifest](eval/results/bm25_title_abstract_inline_acl_50.summary.json).
+The comparison uses the same first 50 LitSearch inline-ACL queries, ground-truth titles, title matcher, and top-20 cutoff. Exa ran with category `research paper`. Scholar used its standard retrieval pipeline with Qwen reranking. BM25 follows the official LitSearch title+abstract implementation: lowercase tokenization, English stopword removal, Porter stemming, and `BM25Okapi` over the 64K-paper corpus. The Scholar/Exa run was collected on 12 May 2026; BM25 was reproduced on 25 August 2026. The frozen summary is in [`docs/benchmarks/litsearch-inline-acl-50.json`](docs/benchmarks/litsearch-inline-acl-50.json), with [raw BM25 results](docs/benchmarks/bm25_title_abstract_inline_acl_50.jsonl) and their [hash manifest](docs/benchmarks/bm25_title_abstract_inline_acl_50.summary.json).
 
 </details>
 
@@ -175,7 +175,7 @@ scholar-mcp library publish notion --collection rag
 
 ## Paper access
 
-`read_paper` uses a temporary directory and leaves no retained PDF. One call returns at most 12,000 characters by default—roughly 2,500–3,500 tokens, usually several pages rather than a complete paper. Paragraph-aware chunks expose `next_start`, so an agent can continue until the full primary text has been read without flooding one context window. Its public input stays small: paper ID, continuation offset, and character budget. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
+`read_paper` uses a temporary directory and leaves no retained PDF. One call returns at most 12,000 characters by default, roughly 2,500–3,500 tokens and usually several pages rather than a complete paper. Paragraph-aware chunks expose `next_start`, so an agent can continue until the full primary text has been read without flooding one context window. Its public input stays small: paper ID, continuation offset, and character budget. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
 
 The shared resolution chain covers:
 
@@ -225,8 +225,6 @@ uv run pytest
 Unit tests are the default. Live API tests are marked `integration` and run separately with `uv run pytest -m integration`; pytest reports them as `deselected` during the deterministic unit run because the marker filter intentionally leaves network-dependent cases out of that invocation.
 
 Connector and feature contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues through the private process in [SECURITY.md](SECURITY.md); citation metadata is available in [CITATION.cff](CITATION.cff).
-
-README visuals follow the reusable [presentation system](docs/PRESENTATION_SYSTEM.md), including narrative, layout, motion, and release checks.
 
 Local and Docker clients use stdio by default. Set `SCHOLAR_MCP_TRANSPORT=http` for Streamable HTTP; the default endpoint is `/mcp`.
 

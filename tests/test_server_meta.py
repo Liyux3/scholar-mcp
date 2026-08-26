@@ -88,7 +88,7 @@ class TestErrorCleaning:
 
 class TestKnowledgeBaseDiscoverability:
     """An empty listing of the default collection reads as "nothing saved",
-    even when other collections are full. discover_field and download both
+    even when other collections are full. Downloads and research workflows
     write to named collections, so that is the normal state.
     """
 

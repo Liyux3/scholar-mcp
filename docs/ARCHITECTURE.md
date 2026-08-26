@@ -8,22 +8,22 @@ citation graph of the top results.
 
 ```
 scholar_mcp/
-  server.py       — FastMCP server, six core tools, the shared _pipeline
-  sources.py      — source registry, parallel dispatch, per-source query routing
-  relevance.py    — query compression, dedup, rerank, final ranking
-  expansion.py    — expansion channels, one function each, registered in a table
-  traversal.py    — co-citation and bibliographic coupling
-  graph.py        — citation graph construction, PageRank, pivot detection
-  discovery.py    — legacy field-landscape assembly retained for compatibility
-  knowledge_base.py — stable Paper Library API over the SQLite store
-  library_store.py  — SQLite authority, FTS5, JSONL migration/snapshots, sync state
-  library_connectors.py — Obsidian, Zotero, and Notion adapters
-  cli.py          — MCP entry point plus library connector commands
-  vault.py        — Obsidian export of saved papers and local PDF links
-  cache.py        — response cache, 5 min TTL
-  pdf_utils.py    — cached downloads under ~/.scholar-mcp/papers, pypdf extraction
-  config.py       — env var configuration
-  *_client.py     — one module per API, all returning the same paper dict
+  server.py       : FastMCP server, six core tools, the shared _pipeline
+  sources.py      : source registry, parallel dispatch, per-source query routing
+  relevance.py    : query compression, dedup, rerank, final ranking
+  expansion.py    : expansion channels, one function each, registered in a table
+  traversal.py    : co-citation and bibliographic coupling
+  graph.py        : citation graph construction, PageRank, pivot detection
+  discovery.py    : optional deterministic field-map baseline
+  knowledge_base.py : stable Paper Library API over the SQLite store
+  library_store.py  : SQLite authority, FTS5, JSONL migration/snapshots, sync state
+  library_connectors.py : Obsidian, Zotero, and Notion adapters
+  cli.py          : MCP entry point plus library connector commands
+  vault.py        : Obsidian export of saved papers and local PDF links
+  cache.py        : response cache, 5 min TTL
+  pdf_utils.py    : cached downloads under ~/.scholar-mcp/papers, pypdf extraction
+  config.py       : env var configuration
+  *_client.py     : one module per API, all returning the same paper dict
 ```
 
 Adding a source means writing a `*_client.py` with a `search_papers` function
@@ -39,16 +39,16 @@ query
   ├─ optimize_query_short  -> ~8 keyword query   (Semantic Scholar)
   └─ raw query                                   (semantic sources)
         ↓
-  sources.parallel_search  — 12 threads, one per available source
+  sources.parallel_search  : 12 threads, one per available source
         ↓
-  deduplicate              — DOI, then normalized title; merges metadata
+  deduplicate              : DOI, then normalized title; merges metadata
         ↓
-  rerank                   — DashScope qwen3-rerank, FlashRank fallback
+  rerank                   : DashScope qwen3-rerank, FlashRank fallback
         ↓
-  rank_final               — rerank score adjusted by citations, source
+  rank_final               : rerank score adjusted by citations, source
                              agreement, recency
         ↓
-  expansion                — channels run over the top 3 results,
+  expansion                : channels run over the top 3 results,
                              then a second rerank pass
         ↓
   truncate to limit
@@ -61,9 +61,9 @@ those reports are returned alongside results.
 
 ### Query routing
 
-The three query forms exist because keyword APIs and semantic APIs want
-opposite things. See `docs/QUERY_COMPRESSION.md` for the measurements behind
-the ~6 word target and the per-source optima.
+The three query forms exist because keyword APIs and semantic APIs respond to
+different query lengths. Cached sensitivity sweeps established the shared
+roughly six-word target and the source-specific budgets below.
 
 | Route | Sources |
 |-------|---------|
@@ -227,7 +227,7 @@ the dominant latency or failure modes.
 The next runtime upgrade, if sustained-load measurements justify it, is an
 async HTTP scheduler with cancellable requests, per-source concurrency, and
 health-aware backoff. Rust becomes attractive only when profiling shows a real
-CPU or memory boundary—for example, millions of local papers, a heavy local
+CPU or memory boundary, for example millions of local papers or a heavy local
 listwise ranker, or a multi-tenant service where Python scheduling itself is
 measurably dominant. That component can then sit behind the existing Python MCP
 surface rather than forcing a full rewrite.
@@ -309,11 +309,9 @@ that several sources return is not distorted by one bad record, and
 precisely because the count cannot be trusted at face value.
 
 Two related corrections to earlier readings of this data. "Attention Is All
-You Need" showing 2025 and 6,598 citations is not a stale duplicate record: it
-is the real Work, contaminated by eight unrelated posted-content DOIs attached
-as locations. And GPT-3's low count is not preprint/proceedings splitting, as
-its arXiv and NeurIPS versions are already locations on a single Work. See
-`docs/OPENALEX_DATA_QUALITY.md` for the measurements.
+You Need" showing 2025 and 6,598 citations is the real Work, contaminated by
+unrelated posted-content DOIs attached as locations. GPT-3's low count also
+persists after its arXiv and NeurIPS versions resolve to one Work.
 
 ## Error handling
 

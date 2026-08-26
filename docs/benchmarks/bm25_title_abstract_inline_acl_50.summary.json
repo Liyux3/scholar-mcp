@@ -1,0 +1,15 @@
+{
+  "benchmark": "LitSearch inline_acl first 50",
+  "system": "BM25 title+abstract",
+  "queries": 50,
+  "query_sha256": "4fc95642d8fb232f2bf978faf4475501d7cc901cdbdb5541946c48942db34a6d",
+  "result_sha256": "ce4dee62c5805fbdc2290186882af825fcf5e43d8d83445cab2038bcc3348e26",
+  "metrics": {
+    "R@5": 0.46,
+    "R@10": 0.46,
+    "R@20": 0.56,
+    "MRR": 0.33485714285714285,
+    "Hit@20": 0.56,
+    "n": 50
+  }
+}

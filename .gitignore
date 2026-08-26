@@ -9,5 +9,12 @@ downloads/
 mcpb-build/
 .DS_Store
 .flashrank_cache/
-eval/data/
-eval/cache/
+.claude/
+eval/
+docs/PRESENTATION_SYSTEM.md
+docs/COMPETITIVE_LANDSCAPE.md
+docs/OPENALEX_DATA_QUALITY.md
+docs/QUERY_COMPRESSION.md
+docs/RERANKING.md
+docs/assets/brands/
+scripts/render_readme_assets.py
