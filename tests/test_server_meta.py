@@ -261,7 +261,7 @@ class TestDownloadIndexing:
         assert captured["paper"]["pdf_path"] == "/tmp/saved.pdf"
 
 
-class TestReadPagination:
+class TestReadPaper:
     def _patch_read(self, monkeypatch, text):
         monkeypatch.setattr(server, "_find_paper", lambda paper_id: {"title": paper_id})
         monkeypatch.setattr(
@@ -279,28 +279,28 @@ class TestReadPagination:
             lambda *args, **kwargs: text,
         )
 
-    def test_default_read_is_bounded_and_continuable(self, monkeypatch):
+    def test_default_read_returns_complete_text(self, monkeypatch):
         self._patch_read(monkeypatch, "a" * 12_500)
 
-        first = yaml.safe_load(server.read_paper("paper"))
-        second = yaml.safe_load(server.read_paper("paper", start=first["next_start"]))
+        result = yaml.safe_load(server.read_paper("paper"))
 
-        assert len(first["content"]) == 12_000
-        assert first["is_truncated"] is True
-        assert first["next_start"] == 12_000
-        assert first["content_notice"] == server.READ_CONTENT_NOTICE
-        assert second["content"] == "a" * 500
-        assert second["is_truncated"] is False
-        assert "content_notice" not in second
+        assert result["content"] == "a" * 12_500
+        assert result["content_length"] == 12_500
+        assert result["content_notice"] == server.READ_CONTENT_NOTICE
 
-    def test_read_prefers_a_paragraph_boundary(self, monkeypatch):
-        self._patch_read(monkeypatch, "a" * 80 + "\n\n" + "b" * 80)
+    def test_optional_page_cap_is_forwarded(self, monkeypatch):
+        self._patch_read(monkeypatch, "unused")
+        captured = {}
 
-        result = yaml.safe_load(server.read_paper("paper", max_chars=100))
+        def extract(file_path, max_pages=0):
+            captured.update(file_path=file_path, max_pages=max_pages)
+            return "preview"
 
-        assert result["content"] == "a" * 80 + "\n\n"
-        assert result["next_start"] == 82
-        assert result["is_truncated"] is True
+        monkeypatch.setattr(server.pdf_utils, "extract_text", extract)
+        result = yaml.safe_load(server.read_paper("paper", max_pages=3))
+
+        assert result["content"] == "preview"
+        assert captured == {"file_path": "/tmp/paper.pdf", "max_pages": 3}
 
 class TestPublishedToolMetadata:
     def test_server_version_matches_package(self):

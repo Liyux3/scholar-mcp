@@ -157,7 +157,7 @@ download stays serial, so the common path transfers one PDF without sacrificing 
 | recommend_papers | Similarity, co-citation peers, or bibliographic kin |
 | search_authors | Author lookup with h-index |
 | download_paper | Persist a PDF and index it in a collection |
-| read_paper | Temporarily fetch a PDF and return bounded text with continuation metadata |
+| read_paper | Temporarily fetch a PDF and return the complete extracted paper, with an optional page cap |
 
 `scholar://status` is a resource. The `research` profile adds
 `build_paper_graph` and `paper_library`; field discovery is composed by the

@@ -93,7 +93,7 @@ Release artifacts also include the PyPI package, multi-architecture GHCR image, 
 | Core | `paper_info` | Paper detail, citations, and references through one selective call |
 | Core | `recommend_papers` | Related work through semantic and citation connections |
 | Core | `search_authors` | Author profiles, affiliations, paper counts, and h-index |
-| Core | `read_paper` | Temporarily fetch and read bounded, continuable primary evidence |
+| Core | `read_paper` | Temporarily fetch and read a complete paper in one call |
 | Core | `download_paper` | Persist a PDF and index it in a collection |
 | Research | `build_paper_graph` | Bounded citation graph with PageRank, bridges, nodes, edges, and Mermaid |
 | Research | `paper_library` | Collections, FTS search, notes, tags, PDFs, and Markdown vault export |
@@ -175,7 +175,7 @@ scholar-mcp library publish notion --collection rag
 
 ## Paper access
 
-`read_paper` uses a temporary directory and leaves no retained PDF. One call returns at most 12,000 characters by default, roughly 2,500–3,500 tokens and usually several pages rather than a complete paper. Paragraph-aware chunks expose `next_start`, so an agent can continue until the full primary text has been read without flooding one context window. Its public input stays small: paper ID, continuation offset, and character budget. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
+`read_paper` uses a temporary directory and returns the complete extracted paper in one call. Pass `max_pages` only when a shorter preview is useful. The PDF is removed after extraction. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
 
 The shared resolution chain covers:
 

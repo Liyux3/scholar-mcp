@@ -34,7 +34,7 @@ when it repeats known structure or drifts from the question.
 | Find intellectual peers | `recommend_papers` with `relation=peers` |
 | Cross vocabulary boundaries | `recommend_papers` with `relation=kin` |
 | Build a lineage | Resolve stable seed IDs, then use `build_paper_graph` |
-| Read primary evidence | `read_paper`; continue with `next_start` when the relevant section extends beyond one chunk |
+| Read primary evidence | `read_paper`; one call returns the complete extracted paper |
 | Retain a PDF | `download_paper` |
 | Curate durable evidence | `paper_library` for selected papers, notes, tags, collections, and vault export |
 

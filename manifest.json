@@ -4,7 +4,7 @@
   "name": "scholar-mcp",
   "display_name": "Scholar MCP",
   "version": "0.8.2",
-  "description": "Multi-source academic search, citation traversal, bounded paper reading, and a persistent research library.",
+  "description": "Multi-source academic search, citation traversal, complete paper reading, and a persistent research library.",
   "author": {
     "name": "Yuxian Li"
   },
