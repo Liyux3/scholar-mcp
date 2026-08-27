@@ -17,6 +17,7 @@ from . import (
     expansion,
     graph,
     openalex_client,
+    paper_reader,
     pdf_utils,
     relevance,
     s2_client,
@@ -659,7 +660,7 @@ def download_paper(
 ))
 def read_paper(
     paper_id: str,
-    pages: str = pdf_utils.DEFAULT_READ_PAGES,
+    pages: str = paper_reader.DEFAULT_READ_PAGES,
     visual: str = "",
 ):
     """Resolve and read a paper through a cleaned temporary PDF.
@@ -680,7 +681,7 @@ def read_paper(
         if not result.get("success") or not result.get("file_path"):
             return _yaml(result)
         try:
-            extracted = pdf_utils.extract_text(
+            extracted = paper_reader.read(
                 result["file_path"], pages=pages, visual=visual
             )
             image = extracted.pop("_image_bytes", None)

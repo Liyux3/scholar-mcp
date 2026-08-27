@@ -274,11 +274,11 @@ class TestReadPaper:
             },
         )
         monkeypatch.setattr(
-            server.pdf_utils,
-            "extract_text",
+            server.paper_reader,
+            "read",
             lambda *args, **kwargs: {
                 "content": text,
-                "pages": server.pdf_utils.DEFAULT_READ_PAGES,
+                "pages": server.paper_reader.DEFAULT_READ_PAGES,
                 "total_pages": 24,
                 "next_pages": "11-20",
             },
@@ -298,11 +298,11 @@ class TestReadPaper:
         self._patch_read(monkeypatch, "unused")
         captured = {}
 
-        def extract(file_path, pages=server.pdf_utils.DEFAULT_READ_PAGES, visual=""):
+        def extract(file_path, pages=server.paper_reader.DEFAULT_READ_PAGES, visual=""):
             captured.update(file_path=file_path, pages=pages, visual=visual)
             return {"content": "appendix", "pages": pages, "total_pages": 18}
 
-        monkeypatch.setattr(server.pdf_utils, "extract_text", extract)
+        monkeypatch.setattr(server.paper_reader, "read", extract)
         result = yaml.safe_load(server.read_paper("paper", pages="11-18"))
 
         assert result["content"] == "appendix"
@@ -313,8 +313,8 @@ class TestReadPaper:
     def test_visual_returns_text_and_image_content(self, monkeypatch):
         self._patch_read(monkeypatch, "unused")
         monkeypatch.setattr(
-            server.pdf_utils,
-            "extract_text",
+            server.paper_reader,
+            "read",
             lambda *args, **kwargs: {
                 "content": "figure context",
                 "pages": "3",
