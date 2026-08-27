@@ -16,6 +16,9 @@ PDF_HEADER_SCAN_BYTES = 1024
 PDF_PROBE_TIMEOUT = 12
 PDF_PROBE_BUDGET = 15
 PDF_PROBE_WORKERS = 4
+DEFAULT_READ_PAGE_COUNT = 10
+DEFAULT_READ_PAGES = f"1-{DEFAULT_READ_PAGE_COUNT}"
+MAX_READ_PAGES = 20
 USER_AGENT = "scholar-mcp/0.1.0 (academic research tool)"
 _pdf_probe_pool = ThreadPoolExecutor(max_workers=PDF_PROBE_WORKERS)
 
@@ -427,17 +430,39 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
     }
 
 
-def extract_text(file_path: str, max_pages: int = 0) -> str:
-    """Extract text from a PDF file."""
+def extract_text(file_path: str, pages: str = DEFAULT_READ_PAGES) -> dict:
+    """Extract one bounded, one-indexed page range from a PDF file."""
     reader = PdfReader(file_path)
-    pages = reader.pages
-    if max_pages > 0:
-        pages = pages[:max_pages]
+    total_pages = len(reader.pages)
+    match = re.fullmatch(r"\s*(\d+)(?:\s*-\s*(\d+))?\s*", pages)
+    if not match:
+        raise ValueError("pages must be a page number or range such as '1-10'")
+
+    start = int(match.group(1))
+    requested_end = int(match.group(2) or start)
+    if start < 1 or requested_end < start:
+        raise ValueError("pages must be an ascending, one-indexed range")
+    if requested_end - start + 1 > MAX_READ_PAGES:
+        raise ValueError(f"read at most {MAX_READ_PAGES} pages per call")
+    if start > total_pages:
+        raise ValueError(f"paper has {total_pages} pages; requested page {start}")
+
+    end = min(requested_end, total_pages)
 
     parts = []
-    for i, page in enumerate(pages):
+    for page_number in range(start, end + 1):
+        page = reader.pages[page_number - 1]
         text = page.extract_text()
         if text:
-            parts.append(f"--- Page {i + 1} ---\n{text}")
+            parts.append(f"--- Page {page_number} ---\n{text}")
 
-    return "\n\n".join(parts) if parts else "(No text could be extracted from this PDF.)"
+    result = {
+        "content": "\n\n".join(parts)
+        if parts else "(No text could be extracted from this PDF.)",
+        "pages": f"{start}-{end}" if start != end else str(start),
+        "total_pages": total_pages,
+    }
+    if end < total_pages:
+        next_end = min(end + DEFAULT_READ_PAGE_COUNT, total_pages)
+        result["next_pages"] = f"{end + 1}-{next_end}"
+    return result

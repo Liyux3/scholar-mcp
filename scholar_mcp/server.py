@@ -650,7 +650,7 @@ def download_paper(
 
 
 @mcp.tool(annotations=ToolAnnotations(
-    title="Read a paper without retaining its PDF",
+    title="Read a paper's main text or a page range",
     readOnlyHint=True,
     destructiveHint=False,
     idempotentHint=True,
@@ -658,13 +658,15 @@ def download_paper(
 ))
 def read_paper(
     paper_id: str,
-    max_pages: int = 0,
+    pages: str = pdf_utils.DEFAULT_READ_PAGES,
 ) -> str:
-    """Resolve and read a complete paper through a cleaned temporary PDF.
+    """Resolve and read a paper through a cleaned temporary PDF.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
-        max_pages: Optional page cap for a quick preview (0 = complete paper)
+        pages: One-indexed page range. The default usually reaches the conclusion
+            of an AI conference paper. Use ranges such as "11-20" for appendices.
+            At most 20 pages can be read per call.
     """
     paper_info_data = _find_paper(paper_id)
     if paper_info_data is None:
@@ -674,12 +676,10 @@ def read_paper(
         if not result.get("success") or not result.get("file_path"):
             return _yaml(result)
         try:
-            content = pdf_utils.extract_text(result["file_path"], max_pages=max_pages)
-            return _yaml({
-                "content": content,
-                "content_length": len(content),
-                "content_notice": READ_CONTENT_NOTICE,
-            })
+            extracted = pdf_utils.extract_text(result["file_path"], pages=pages)
+            extracted["content_length"] = len(extracted["content"])
+            extracted["content_notice"] = READ_CONTENT_NOTICE
+            return _yaml(extracted)
         except Exception as error:
             return _yaml({"error": f"PDF text extraction failed: {error}"})
 

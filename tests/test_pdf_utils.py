@@ -4,6 +4,7 @@ import httpx
 import pytest
 import os
 import tempfile
+from pypdf import PdfWriter
 from scholar_mcp import pdf_utils
 
 
@@ -202,9 +203,26 @@ def test_extract_text():
     with tempfile.TemporaryDirectory() as tmpdir:
         dl = pdf_utils.download_paper(paper_info, tmpdir)
         if dl["success"]:
-            text = pdf_utils.extract_text(dl["file_path"], max_pages=1)
-            assert len(text) > 100
-            assert "attention" in text.lower() or "transformer" in text.lower()
+            result = pdf_utils.extract_text(dl["file_path"], pages="1")
+            assert len(result["content"]) > 100
+            assert result["pages"] == "1"
+            content = result["content"].lower()
+            assert "attention" in content or "transformer" in content
+
+
+def test_extract_text_returns_reusable_page_ranges(tmp_path):
+    path = tmp_path / "paper.pdf"
+    writer = PdfWriter()
+    for _ in range(24):
+        writer.add_blank_page(width=612, height=792)
+    with path.open("wb") as stream:
+        writer.write(stream)
+
+    result = pdf_utils.extract_text(str(path))
+
+    assert result["pages"] == "1-10"
+    assert result["total_pages"] == 24
+    assert result["next_pages"] == "11-20"
 
 
 class TestLibraryProxy:

@@ -276,31 +276,38 @@ class TestReadPaper:
         monkeypatch.setattr(
             server.pdf_utils,
             "extract_text",
-            lambda *args, **kwargs: text,
+            lambda *args, **kwargs: {
+                "content": text,
+                "pages": server.pdf_utils.DEFAULT_READ_PAGES,
+                "total_pages": 24,
+                "next_pages": "11-20",
+            },
         )
 
-    def test_default_read_returns_complete_text(self, monkeypatch):
+    def test_default_read_returns_main_text(self, monkeypatch):
         self._patch_read(monkeypatch, "a" * 12_500)
 
         result = yaml.safe_load(server.read_paper("paper"))
 
         assert result["content"] == "a" * 12_500
+        assert result["pages"] == "1-10"
+        assert result["next_pages"] == "11-20"
         assert result["content_length"] == 12_500
         assert result["content_notice"] == server.READ_CONTENT_NOTICE
 
-    def test_optional_page_cap_is_forwarded(self, monkeypatch):
+    def test_page_range_is_forwarded(self, monkeypatch):
         self._patch_read(monkeypatch, "unused")
         captured = {}
 
-        def extract(file_path, max_pages=0):
-            captured.update(file_path=file_path, max_pages=max_pages)
-            return "preview"
+        def extract(file_path, pages=server.pdf_utils.DEFAULT_READ_PAGES):
+            captured.update(file_path=file_path, pages=pages)
+            return {"content": "appendix", "pages": pages, "total_pages": 18}
 
         monkeypatch.setattr(server.pdf_utils, "extract_text", extract)
-        result = yaml.safe_load(server.read_paper("paper", max_pages=3))
+        result = yaml.safe_load(server.read_paper("paper", pages="11-18"))
 
-        assert result["content"] == "preview"
-        assert captured == {"file_path": "/tmp/paper.pdf", "max_pages": 3}
+        assert result["content"] == "appendix"
+        assert captured == {"file_path": "/tmp/paper.pdf", "pages": "11-18"}
 
 class TestPublishedToolMetadata:
     def test_server_version_matches_package(self):

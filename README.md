@@ -175,7 +175,7 @@ scholar-mcp library publish notion --collection rag
 
 ## Paper access
 
-`read_paper` uses a temporary directory and returns the complete extracted paper in one call. Pass `max_pages` only when a shorter preview is useful. The PDF is removed after extraction. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
+`read_paper` uses a temporary PDF and reads pages 1-10 by default, which usually reaches the conclusion of an AI conference paper. Pass a range such as `pages="11-20"` to continue into references or appendices. Each call returns the total page count and the next useful range. The PDF is removed after extraction. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
 
 The shared resolution chain covers:
 
