@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import os
 import re
 import tempfile
@@ -8,7 +9,7 @@ from functools import wraps
 import yaml
 from fastmcp import FastMCP
 from fastmcp.tools.tool import ToolResult
-from mcp.types import TextContent, ToolAnnotations
+from mcp.types import ImageContent, TextContent, ToolAnnotations
 
 from . import (
     __version__,
@@ -659,7 +660,8 @@ def download_paper(
 def read_paper(
     paper_id: str,
     pages: str = pdf_utils.DEFAULT_READ_PAGES,
-) -> str:
+    visual: str = "",
+):
     """Resolve and read a paper through a cleaned temporary PDF.
 
     Args:
@@ -667,6 +669,8 @@ def read_paper(
         pages: One-indexed page range. The default usually reaches the conclusion
             of an AI conference paper. Use ranges such as "11-20" for appendices.
             At most 20 pages can be read per call.
+        visual: Optional selector returned by this tool, such as "Figure 3",
+            "Table 2", or "page 5". Returns one focused visual with its text.
     """
     paper_info_data = _find_paper(paper_id)
     if paper_info_data is None:
@@ -676,10 +680,25 @@ def read_paper(
         if not result.get("success") or not result.get("file_path"):
             return _yaml(result)
         try:
-            extracted = pdf_utils.extract_text(result["file_path"], pages=pages)
-            extracted["content_length"] = len(extracted["content"])
+            extracted = pdf_utils.extract_text(
+                result["file_path"], pages=pages, visual=visual
+            )
+            image = extracted.pop("_image_bytes", None)
             extracted["content_notice"] = READ_CONTENT_NOTICE
-            return _yaml(extracted)
+            text = _yaml(extracted)
+            if image is None:
+                return text
+            return ToolResult(
+                content=[
+                    TextContent(type="text", text=text),
+                    ImageContent(
+                        type="image",
+                        data=base64.b64encode(image).decode("ascii"),
+                        mimeType="image/png",
+                    ),
+                ],
+                structured_content=extracted,
+            )
         except Exception as error:
             return _yaml({"error": f"PDF text extraction failed: {error}"})
 
@@ -1029,7 +1048,10 @@ def _register_structured_yaml_adapters() -> None:
 
         @wraps(function)
         def adapter(*args, __function=function, **kwargs):
-            return _yaml_tool_result(__function(*args, **kwargs))
+            result = __function(*args, **kwargs)
+            if isinstance(result, ToolResult):
+                return result
+            return _yaml_tool_result(result)
 
         mcp.local_provider.remove_tool(name)
         mcp.tool(

@@ -175,7 +175,7 @@ scholar-mcp library publish notion --collection rag
 
 ## Paper access
 
-`read_paper` uses a temporary PDF and reads pages 1-10 by default, which usually reaches the conclusion of an AI conference paper. Pass a range such as `pages="11-20"` to continue into references or appendices. Each call returns the total page count and the next useful range. The PDF is removed after extraction. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
+`read_paper` uses a temporary PDF and reads pages 1-10 by default, which usually reaches the conclusion of an AI conference paper. It returns page-aware Markdown, structured tables when their geometry is reliable, and caption selectors for figures and visual table fallbacks. Pass `visual="Figure 3"` or another returned selector to receive one focused page crop alongside its text. Pass `pages="11-20"` to continue into references or appendices. The PDF is removed after extraction. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
 
 The shared resolution chain covers:
 

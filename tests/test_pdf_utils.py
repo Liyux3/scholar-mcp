@@ -203,11 +203,13 @@ def test_extract_text():
     with tempfile.TemporaryDirectory() as tmpdir:
         dl = pdf_utils.download_paper(paper_info, tmpdir)
         if dl["success"]:
-            result = pdf_utils.extract_text(dl["file_path"], pages="1")
+            result = pdf_utils.extract_text(dl["file_path"])
             assert len(result["content"]) > 100
-            assert result["pages"] == "1"
+            assert result["pages"] == "1-10"
             content = result["content"].lower()
             assert "attention" in content or "transformer" in content
+            assert result["visuals"][0]["selector"] == "Figure 1"
+            assert result["tables"][0]["structured"] is True
 
 
 def test_extract_text_returns_reusable_page_ranges(tmp_path):
@@ -223,6 +225,26 @@ def test_extract_text_returns_reusable_page_ranges(tmp_path):
     assert result["pages"] == "1-10"
     assert result["total_pages"] == 24
     assert result["next_pages"] == "11-20"
+
+
+def test_caption_requires_a_caption_separator():
+    caption = {
+        "bbox": [10, 20, 100, 40],
+        "lines": [{"spans": [{
+            "text": "Figure 2: Model architecture.",
+            "font": {"size": 10},
+        }]}],
+    }
+    prose = {
+        **caption,
+        "lines": [{"spans": [{
+            "text": "Figure 2 shows the model architecture.",
+            "font": {"size": 10},
+        }]}],
+    }
+
+    assert pdf_utils._caption(caption, 3)["selector"] == "Figure 2"
+    assert pdf_utils._caption(prose, 3) is None
 
 
 class TestLibraryProxy:

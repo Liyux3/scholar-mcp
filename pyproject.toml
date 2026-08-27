@@ -27,6 +27,10 @@ dependencies = [
     # behind what anyone has actually run.
     "fastmcp>=3.0.0,<4",
     "feedparser>=6.0.0",
+    "pdftext>=0.7.1,<1",
+    "pdfplumber>=0.11.9,<1",
+    "pypdfium2>=5.10,<6",
+    "pillow>=11.0",
     "pypdf>=4.0.0",
     "httpx>=0.27.0",
     "beautifulsoup4>=4.12.0",

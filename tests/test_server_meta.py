@@ -292,22 +292,45 @@ class TestReadPaper:
         assert result["content"] == "a" * 12_500
         assert result["pages"] == "1-10"
         assert result["next_pages"] == "11-20"
-        assert result["content_length"] == 12_500
         assert result["content_notice"] == server.READ_CONTENT_NOTICE
 
     def test_page_range_is_forwarded(self, monkeypatch):
         self._patch_read(monkeypatch, "unused")
         captured = {}
 
-        def extract(file_path, pages=server.pdf_utils.DEFAULT_READ_PAGES):
-            captured.update(file_path=file_path, pages=pages)
+        def extract(file_path, pages=server.pdf_utils.DEFAULT_READ_PAGES, visual=""):
+            captured.update(file_path=file_path, pages=pages, visual=visual)
             return {"content": "appendix", "pages": pages, "total_pages": 18}
 
         monkeypatch.setattr(server.pdf_utils, "extract_text", extract)
         result = yaml.safe_load(server.read_paper("paper", pages="11-18"))
 
         assert result["content"] == "appendix"
-        assert captured == {"file_path": "/tmp/paper.pdf", "pages": "11-18"}
+        assert captured == {
+            "file_path": "/tmp/paper.pdf", "pages": "11-18", "visual": "",
+        }
+
+    def test_visual_returns_text_and_image_content(self, monkeypatch):
+        self._patch_read(monkeypatch, "unused")
+        monkeypatch.setattr(
+            server.pdf_utils,
+            "extract_text",
+            lambda *args, **kwargs: {
+                "content": "figure context",
+                "pages": "3",
+                "total_pages": 12,
+                "visual": {"selector": "Figure 1", "page": 3},
+                "_image_bytes": b"png-bytes",
+            },
+        )
+
+        result = server.read_paper("paper", visual="Figure 1")
+
+        assert isinstance(result, server.ToolResult)
+        assert result.content[0].type == "text"
+        assert result.content[1].type == "image"
+        assert result.content[1].mimeType == "image/png"
+        assert result.structured_content["visual"]["selector"] == "Figure 1"
 
 class TestPublishedToolMetadata:
     def test_server_version_matches_package(self):
