@@ -247,6 +247,58 @@ def test_caption_requires_a_caption_separator():
     assert pdf_utils._caption(prose, 3) is None
 
 
+def test_caption_isolates_same_block_column_text():
+    block = {
+        "bbox": [10, 10, 500, 200],
+        "lines": [
+            {"bbox": [300, 100, 500, 112], "spans": [{
+                "text": "Figure 1: Accuracy by epoch.", "font": {"size": 10},
+            }]},
+            {"bbox": [10, 80, 280, 92], "spans": [{
+                "text": "The surrounding argument remains in the body.",
+                "font": {"size": 10},
+            }]},
+        ],
+    }
+
+    caption = pdf_utils._caption(block, 4)
+
+    assert caption["caption"] == "Accuracy by epoch."
+    assert caption["_remainder_text"] == "The surrounding argument remains in the body."
+
+
+def test_title_uses_line_height_when_type3_font_size_is_invalid():
+    page = {
+        "blocks": [{"lines": [
+            {"bbox": [80, 100, 530, 114], "spans": [{
+                "text": "A Reliable Multimodal Paper Reader", "font": {"size": 1},
+            }]},
+            {"bbox": [150, 140, 460, 151], "spans": [{
+                "text": "Ada Author and Alan Author", "font": {"size": 1},
+            }]},
+        ]}],
+    }
+
+    title, lines = pdf_utils._page_title(page, 792)
+
+    assert title == "A Reliable Multimodal Paper Reader"
+    assert lines == {(80.0, 100.0, 530.0, 114.0)}
+
+
+def test_replacement_characters_trigger_page_local_fallback():
+    class Page:
+        def extract_text(self):
+            return "clean fallback text " * 20
+
+    reader = type("Reader", (), {"pages": [Page()]})()
+    content = "--- Page 1 ---\n\n" + ("broken � text " * 20)
+
+    repaired, pages = pdf_utils._replace_low_quality_pages(content, reader)
+
+    assert "�" not in repaired
+    assert pages == [1]
+
+
 class TestLibraryProxy:
     """The institutional proxy is the last automated step before Sci-Hub and
     the least reliable one: sessions expire, publishers serve interstitials

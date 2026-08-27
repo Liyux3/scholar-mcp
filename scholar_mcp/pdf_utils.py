@@ -469,9 +469,9 @@ def _parse_page_range(pages: str, total_pages: int) -> tuple[int, int]:
     return start, min(requested_end, total_pages)
 
 
-def _block_text(block: dict) -> str:
+def _lines_text(lines_data: list[dict]) -> str:
     lines = []
-    for line in block.get("lines", []):
+    for line in lines_data:
         text = "".join(span.get("text", "") for span in line.get("spans", []))
         text = re.sub(r"\s+", " ", text).strip()
         if not text:
@@ -481,6 +481,10 @@ def _block_text(block: dict) -> str:
         else:
             lines.append(text)
     return " ".join(lines)
+
+
+def _block_text(block: dict) -> str:
+    return _lines_text(block.get("lines", []))
 
 
 def _weighted_font_size(block: dict) -> float:
@@ -524,20 +528,56 @@ def _body_font_size(layout_pages: list[dict]) -> float:
 
 
 def _caption(block: dict, page_number: int) -> dict | None:
-    text = _block_text(block)
-    match = _CAPTION_RE.match(text)
-    if not match:
-        return None
-    kind = "figure" if match.group("kind").lower().startswith("fig") else "table"
-    prefix = "Figure" if kind == "figure" else "Table"
-    label = match.group("label")
-    return {
-        "selector": f"{prefix} {label}",
-        "page": page_number,
-        "kind": kind,
-        "caption": match.group("caption").strip(),
-        "_bbox": [float(value) for value in block.get("bbox", [0, 0, 0, 0])],
-    }
+    lines = block.get("lines", [])
+    for index, line in enumerate(lines):
+        text = _lines_text([line])
+        match = _CAPTION_RE.match(text)
+        if not match:
+            continue
+        kind = "figure" if match.group("kind").lower().startswith("fig") else "table"
+        prefix = "Figure" if kind == "figure" else "Table"
+        label = match.group("label")
+        consumed = [line]
+        bbox = [float(value) for value in line.get("bbox", [0, 0, 0, 0])]
+        font_size = _weighted_font_size({"lines": [line]})
+        previous_bbox = bbox
+        next_index = index + 1
+        while next_index < len(lines):
+            next_line = lines[next_index]
+            next_text = _lines_text([next_line])
+            next_bbox = [
+                float(value) for value in next_line.get("bbox", [0, 0, 0, 0])
+            ]
+            gap = next_bbox[1] - previous_bbox[3]
+            same_column = _horizontal_overlap(previous_bbox, tuple(next_bbox)) >= 0.7
+            next_size = _weighted_font_size({"lines": [next_line]})
+            same_font = font_size and abs(next_size - font_size) <= max(0.8, font_size * 0.08)
+            if not (
+                next_text
+                and -2 <= gap <= max(4, font_size * 0.55)
+                and same_column
+                and same_font
+            ):
+                break
+            consumed.append(next_line)
+            bbox = [
+                min(bbox[0], next_bbox[0]), min(bbox[1], next_bbox[1]),
+                max(bbox[2], next_bbox[2]), max(bbox[3], next_bbox[3]),
+            ]
+            previous_bbox = next_bbox
+            next_index += 1
+        caption_text = _lines_text(consumed)
+        caption_match = _CAPTION_RE.match(caption_text)
+        remainder = lines[:index] + lines[next_index:]
+        return {
+            "selector": f"{prefix} {label}",
+            "page": page_number,
+            "kind": kind,
+            "caption": caption_match.group("caption").strip(),
+            "_bbox": bbox,
+            "_remainder_text": _lines_text(remainder),
+        }
+    return None
 
 
 def _find_captions(layout_pages: list[dict]) -> list[dict]:
@@ -777,10 +817,141 @@ def _intersects(first: list[float], second: list[float]) -> bool:
     )
 
 
-def _heading(text: str, font_size: float, body_size: float, first_page: bool) -> str | None:
+def _expanded_intersects(first: list[float], second: list[float], pad: float = 14) -> bool:
+    expanded = [first[0] - pad, first[1] - pad, first[2] + pad, first[3] + pad]
+    return _intersects(expanded, second)
+
+
+def _union_bbox(boxes: list[list[float]]) -> list[float]:
+    return [
+        min(box[0] for box in boxes), min(box[1] for box in boxes),
+        max(box[2] for box in boxes), max(box[3] for box in boxes),
+    ]
+
+
+def _figure_region(file_path: str, target: dict) -> list[float] | None:
+    import pdfplumber
+
+    with pdfplumber.open(file_path) as document:
+        page = document.pages[target["page"] - 1]
+        caption = target["_bbox"]
+        center = (caption[0] + caption[2]) / 2
+        if center < page.width * 0.42:
+            left, right = page.width * 0.02, page.width * 0.54
+        elif center > page.width * 0.58:
+            left, right = page.width * 0.46, page.width * 0.98
+        else:
+            left, right = page.width * 0.02, page.width * 0.98
+        above = caption[1] >= page.height * 0.2
+        search = [
+            left,
+            max(0, caption[1] - page.height * 0.65) if above else caption[3],
+            right,
+            caption[1] if above else min(page.height, caption[3] + page.height * 0.65),
+        ]
+        objects = []
+        for item in [*page.images, *page.rects, *page.curves, *page.lines]:
+            bbox = [
+                float(item.get("x0", 0)),
+                float(item.get("top", 0)),
+                float(item.get("x1", 0)),
+                float(item.get("bottom", item.get("top", 0))),
+            ]
+            if bbox[2] <= bbox[0]:
+                bbox[2] = bbox[0] + 0.5
+            if bbox[3] <= bbox[1]:
+                bbox[3] = bbox[1] + 0.5
+            if _intersects(bbox, search):
+                objects.append([
+                    max(bbox[0], search[0]), max(bbox[1], search[1]),
+                    min(bbox[2], search[2]), min(bbox[3], search[3]),
+                ])
+        if not objects:
+            return None
+
+        components = []
+        for bbox in objects:
+            overlapping = [
+                index for index, component in enumerate(components)
+                if _expanded_intersects(component, bbox)
+            ]
+            if not overlapping:
+                components.append(bbox)
+                continue
+            merged = _union_bbox([bbox, *(components[index] for index in overlapping)])
+            components = [
+                component for index, component in enumerate(components)
+                if index not in overlapping
+            ]
+            components.append(merged)
+
+        def distance(component: list[float]) -> float:
+            vertical = (
+                abs(caption[1] - component[3])
+                if above else abs(component[1] - caption[3])
+            )
+            horizontal = max(
+                0,
+                abs((component[0] + component[2]) / 2 - center)
+                - (caption[2] - caption[0]) / 2,
+            )
+            return vertical + horizontal * 0.25
+
+        viable = [
+            component for component in components
+            if (component[2] - component[0]) * (component[3] - component[1])
+            >= page.width * page.height * 0.002
+        ]
+        if not viable:
+            return None
+        region = min(viable, key=distance)
+        if distance(region) > page.height * 0.25:
+            return None
+        return _union_bbox([region, caption])
+
+
+def _page_title(page: dict, page_height: float) -> tuple[str, set[tuple[float, ...]]]:
+    candidates = []
+    for block in page.get("blocks", []):
+        for line in block.get("lines", []):
+            text = _lines_text([line])
+            size = _weighted_font_size({"lines": [line]})
+            bbox = tuple(float(value) for value in line.get("bbox", []))
+            if bbox and not 4 <= size <= 48:
+                size = bbox[3] - bbox[1]
+            if (
+                text
+                and not re.match(r"^(?:arXiv:|Published as|Proceedings of)", text, re.I)
+                and 4 <= size <= 48
+                and bbox
+                and bbox[1] < page_height * 0.25
+            ):
+                candidates.append((bbox[1], bbox[0], size, bbox, text))
+    if not candidates:
+        return "", set()
+    largest = max(item[2] for item in candidates)
+    selected = sorted(
+        (item for item in candidates if item[2] >= largest * 0.9 and len(item[4]) <= 240),
+        key=lambda item: (item[0], item[1]),
+    )
+    if not selected:
+        return "", set()
+    title_lines = [selected[0]]
+    for item in selected[1:]:
+        previous = title_lines[-1]
+        gap = item[0] - previous[3][3]
+        if -2 <= gap <= max(10, previous[2] * 0.9):
+            title_lines.append(item)
+        else:
+            break
+    return (
+        " ".join(item[4] for item in title_lines),
+        {item[3] for item in title_lines},
+    )
+
+
+def _heading(text: str, font_size: float, body_size: float) -> str | None:
     normalized = text.strip().rstrip(":").lower()
-    if first_page and len(text) <= 180 and font_size >= body_size * 1.45:
-        return f"# {text}"
     if normalized in _NAMED_HEADINGS:
         return f"## {text}"
     match = _NUMBERED_HEADING_RE.match(text)
@@ -819,23 +990,10 @@ def _markdown_content(
             entry["bbox"] for entry in tables.values()
             if entry["page"] == page_number
         ]
-        title_bboxes = []
-        title_text = ""
-        if page_number == 1:
-            candidates = [
-                (_weighted_font_size(block), block, _block_text(block))
-                for block in page.get("blocks", [])
-                if _block_text(block)
-                and float(block.get("bbox", [0, 0, 0, page_height])[1]) < page_height * 0.35
-            ]
-            if candidates:
-                largest = max(size for size, _, _ in candidates)
-                title_candidates = [
-                    (block, text) for size, block, text in candidates
-                    if largest and size >= largest * 0.9 and len(text) <= 220
-                ]
-                title_bboxes = [tuple(block.get("bbox", [])) for block, _ in title_candidates]
-                title_text = " ".join(text for _, text in title_candidates)
+        title_text, title_lines = (
+            _page_title(page, page_height) if page_number == 1 else ("", set())
+        )
+        title_emitted = False
         for block in page.get("blocks", []):
             text = _block_text(block)
             if not text:
@@ -846,9 +1004,21 @@ def _markdown_content(
             bbox_key = (page_number, tuple(bbox))
             if bbox_key in caption_continuations:
                 continue
-            if tuple(bbox) in title_bboxes:
-                if tuple(bbox) == title_bboxes[0]:
+            block_title_lines = [
+                line for line in block.get("lines", [])
+                if tuple(float(value) for value in line.get("bbox", [])) in title_lines
+            ]
+            if block_title_lines:
+                if not title_emitted:
                     parts.append(f"# {title_text}")
+                    title_emitted = True
+                remainder_lines = [
+                    line for line in block.get("lines", [])
+                    if tuple(float(value) for value in line.get("bbox", [])) not in title_lines
+                ]
+                remainder_text = _lines_text(remainder_lines)
+                if remainder_text:
+                    parts.append(remainder_text)
                 continue
             caption = caption_by_page_bbox.get(bbox_key)
             if caption:
@@ -874,12 +1044,12 @@ def _markdown_content(
                     visuals.append({key: caption[key] for key in (
                         "selector", "page", "kind", "caption"
                     )})
+                if caption.get("_remainder_text"):
+                    parts.append(caption["_remainder_text"])
                 continue
             if any(_intersects(bbox, table_bbox) for table_bbox in page_table_bboxes):
                 continue
-            heading = _heading(
-                text, _weighted_font_size(block), body_size, page_number == 1
-            )
+            heading = _heading(text, _weighted_font_size(block), body_size)
             parts.append(heading or text)
     content = "\n\n".join(parts)
     content = re.sub(r"(?<=\w)-\n\n(?=[a-z])", "", content)
@@ -906,20 +1076,31 @@ def _render_visual(file_path: str, target: dict, table: dict | None = None) -> b
             max(table["bbox"][3], caption_bbox[3]),
         ]
         crop_kind = "table-bbox"
-    elif target.get("_bbox"):
+    elif target.get("kind") == "figure" and target.get("_bbox"):
+        crop = _figure_region(file_path, target)
+        if crop:
+            crop_kind = "figure-geometry"
+    if crop is None and target.get("_bbox"):
         x0, y0, x1, y1 = target["_bbox"]
         margin = 14.0
-        if target["kind"] == "figure" and y0 >= height * 0.2:
-            crop = [width * 0.035, max(0, y0 - height * 0.6), width * 0.965, y1 + 8]
-        elif target["kind"] == "figure":
-            crop = [width * 0.035, max(0, y0 - margin), width * 0.965, min(height, y1 + height * 0.6)]
-        elif y1 <= height * 0.8:
-            crop = [width * 0.035, max(0, y0 - margin), width * 0.965, min(height, y1 + height * 0.6)]
+        center = (x0 + x1) / 2
+        if center < width * 0.42:
+            crop_left, crop_right = width * 0.035, width * 0.52
+        elif center > width * 0.58:
+            crop_left, crop_right = width * 0.48, width * 0.965
         else:
-            crop = [width * 0.035, max(0, y0 - height * 0.6), width * 0.965, min(height, y1 + margin)]
+            crop_left, crop_right = width * 0.035, width * 0.965
+        if target["kind"] == "figure" and y0 >= height * 0.2:
+            crop = [crop_left, max(0, y0 - height * 0.6), crop_right, y1 + 8]
+        elif target["kind"] == "figure":
+            crop = [crop_left, max(0, y0 - margin), crop_right, min(height, y1 + height * 0.6)]
+        elif y1 <= height * 0.8:
+            crop = [crop_left, max(0, y0 - margin), crop_right, min(height, y1 + height * 0.6)]
+        else:
+            crop = [crop_left, max(0, y0 - height * 0.6), crop_right, min(height, y1 + margin)]
         crop_kind = "caption-guided"
     if crop:
-        margin = 10.0
+        margin = 4.0 if target.get("kind") == "figure" else 10.0
         left = max(0, crop[0] - margin) * PDF_RENDER_SCALE
         top = max(0, crop[1] - margin) * PDF_RENDER_SCALE
         right = min(width, crop[2] + margin) * PDF_RENDER_SCALE
@@ -951,6 +1132,38 @@ def _pypdf_fallback(reader: PdfReader, start: int, end: int) -> str:
     return "\n\n".join(parts) if parts else "(No text could be extracted from this PDF.)"
 
 
+def _replace_low_quality_pages(
+    content: str,
+    reader: PdfReader,
+) -> tuple[str, list[int]]:
+    sections = re.split(r"(?m)(?=^--- Page \d+ ---$)", content)
+    fallback_pages = []
+    repaired = []
+    for section in sections:
+        match = re.match(r"--- Page (\d+) ---", section)
+        if not match:
+            if section:
+                repaired.append(section)
+            continue
+        page_number = int(match.group(1))
+        replacements = section.count("�")
+        if replacements < 3 or replacements / max(1, len(section)) <= 0.001:
+            repaired.append(section)
+            continue
+        fallback = reader.pages[page_number - 1].extract_text() or ""
+        fallback_ratio = fallback.count("�") / max(1, len(fallback))
+        if (
+            fallback
+            and fallback_ratio < replacements / len(section)
+            and len(fallback) >= len(section) * 0.5
+        ):
+            repaired.append(f"--- Page {page_number} ---\n\n{fallback.strip()}\n\n")
+            fallback_pages.append(page_number)
+        else:
+            repaired.append(section)
+    return "".join(repaired).strip(), fallback_pages
+
+
 def extract_text(
     file_path: str,
     pages: str = DEFAULT_READ_PAGES,
@@ -970,6 +1183,7 @@ def extract_text(
         captions = _find_captions(layout)
         tables = _structured_tables(file_path, captions)
         content, visuals, table_index = _markdown_content(layout, captions, tables)
+        content, fallback_pages = _replace_low_quality_pages(content, reader)
     except Exception:
         if target and target["kind"] != "page":
             raise
@@ -977,6 +1191,7 @@ def extract_text(
         visuals = []
         table_index = []
         tables = {}
+        fallback_pages = list(range(start, end + 1))
 
     result = {
         "content": content,
@@ -987,6 +1202,8 @@ def extract_text(
         result["visuals"] = visuals
     if table_index:
         result["tables"] = table_index
+    if fallback_pages:
+        result["text_fallback_pages"] = fallback_pages
     if target:
         matching_table = tables.get(target["selector"])
         image = _render_visual(file_path, target, matching_table)
