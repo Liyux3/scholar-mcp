@@ -12,9 +12,14 @@ def reset_s2_health(monkeypatch):
     monkeypatch.setattr(s2_client, "_s2_probe_in_flight", False)
 
 
-def _response(status_code: int, payload: dict, url: str) -> httpx.Response:
+def _response(
+    status_code: int,
+    payload: dict,
+    url: str,
+    headers: dict | None = None,
+) -> httpx.Response:
     request = httpx.Request("GET", url)
-    return httpx.Response(status_code, json=payload, request=request)
+    return httpx.Response(status_code, json=payload, request=request, headers=headers)
 
 
 def test_get_retries_rate_limit_before_success(monkeypatch):
@@ -54,6 +59,26 @@ def test_final_overload_opens_shared_cooldown(monkeypatch):
         s2_client._get("https://example.test/s2", retries=1)
 
     assert s2_client.is_healthy() is False
+
+
+def test_retry_after_controls_cooldown(monkeypatch):
+    monkeypatch.setattr(s2_client, "_wait_for_turn", lambda timeout=0: True)
+    monkeypatch.setattr(
+        s2_client.httpx,
+        "get",
+        lambda url, **kwargs: _response(
+            429,
+            {"error": "busy"},
+            url,
+            headers={"Retry-After": "1"},
+        ),
+    )
+
+    with pytest.raises(httpx.HTTPStatusError):
+        s2_client._get("https://example.test/s2", retries=1)
+
+    remaining = s2_client._s2_cooldown_until - s2_client.time.monotonic()
+    assert 0 < remaining <= 1
 
 
 def test_cooldown_skips_network_until_one_probe(monkeypatch):

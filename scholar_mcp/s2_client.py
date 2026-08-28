@@ -55,9 +55,12 @@ S2_MIN_INTERVAL = 1.05
 S2_GATE_TIMEOUT = 6.0
 
 # A confirmed provider overload should not make every concurrent graph hop
-# wait for the same failure. Keep the pause short, then let exactly one core
-# request probe recovery. Metadata enrichment never becomes that probe.
-S2_COOLDOWN_SECONDS = 30.0
+# wait for the same failure. Retry once with a bounded pause, then use the
+# provider's Retry-After or a short default before one core recovery probe.
+# Metadata enrichment never becomes that probe.
+S2_DEFAULT_COOLDOWN_SECONDS = 5.0
+S2_MAX_COOLDOWN_SECONDS = 30.0
+S2_MAX_RETRY_WAIT_SECONDS = 2.0
 S2_METADATA_GATE_TIMEOUT = 0.05
 _s2_health_lock = threading.Lock()
 _s2_cooldown_until = 0.0
@@ -83,14 +86,36 @@ def _begin_request(*, allow_probe: bool = True) -> bool:
         return True
 
 
-def _finish_request(*, probe: bool, healthy: bool, overloaded: bool = False) -> None:
+def _retry_after_seconds(response: httpx.Response | None) -> float | None:
+    """Read a bounded numeric Retry-After value when S2 provides one."""
+    if response is None:
+        return None
+    try:
+        value = float(response.headers.get("retry-after", ""))
+    except (TypeError, ValueError):
+        return None
+    return min(max(value, 0.0), S2_MAX_COOLDOWN_SECONDS)
+
+
+def _finish_request(
+    *,
+    probe: bool,
+    healthy: bool,
+    overloaded: bool = False,
+    cooldown_seconds: float | None = None,
+) -> None:
     """Update shared S2 health after one request finishes."""
     global _s2_cooldown_until, _s2_probe_in_flight
     with _s2_health_lock:
         if healthy:
             _s2_cooldown_until = 0.0
         elif overloaded:
-            _s2_cooldown_until = time.monotonic() + S2_COOLDOWN_SECONDS
+            pause = (
+                S2_DEFAULT_COOLDOWN_SECONDS
+                if cooldown_seconds is None
+                else cooldown_seconds
+            )
+            _s2_cooldown_until = time.monotonic() + pause
         if probe:
             _s2_probe_in_flight = False
 
@@ -157,10 +182,19 @@ def _request_json(
                 _finish_request(probe=probe, healthy=False, overloaded=True)
                 raise
             if response.status_code == 429 and attempt < retries - 1:
-                time.sleep(2)
+                retry_after = _retry_after_seconds(response)
+                time.sleep(min(
+                    S2_MAX_RETRY_WAIT_SECONDS,
+                    S2_MAX_RETRY_WAIT_SECONDS if retry_after is None else retry_after,
+                ))
                 continue
             if response.status_code == 429 or response.status_code in {502, 503, 504}:
-                _finish_request(probe=probe, healthy=False, overloaded=True)
+                _finish_request(
+                    probe=probe,
+                    healthy=False,
+                    overloaded=True,
+                    cooldown_seconds=_retry_after_seconds(response),
+                )
             else:
                 # A non-overload 4xx still proves that the provider is alive.
                 _finish_request(probe=probe, healthy=True)
