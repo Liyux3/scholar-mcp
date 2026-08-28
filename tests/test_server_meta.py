@@ -140,6 +140,42 @@ class TestFollowUpIdentifiers:
         assert debug["score"] == 0.93
         assert debug["sources"] == ["arxiv", "openalex"]
 
+    def test_unknown_bibliographic_metadata_is_omitted(self):
+        formatted = server._format_paper({
+            "title": "Sparse Record",
+            "authors": [],
+            "year": None,
+            "venue": "",
+            "citation_count": 0,
+            "abstract": "",
+        })
+
+        assert formatted == {"title": "Sparse Record"}
+
+    def test_known_bibliographic_metadata_is_preserved(self):
+        formatted = server._format_paper({
+            "title": "Complete Record",
+            "authors": ["Ada Author"],
+            "year": 2026,
+            "venue": "ICML",
+            "citation_count": 7,
+            "abstract": "Evidence.",
+            "external_ids": {"DOI": "10.1/example"},
+            "is_open_access": True,
+        })
+
+        assert formatted == {
+            "title": "Complete Record",
+            "authors": ["Ada Author"],
+            "year": 2026,
+            "venue": "ICML",
+            "citations": 7,
+            "abstract": "Evidence.",
+            "doi": "10.1/example",
+            "id": "10.1/example",
+            "open_access": True,
+        }
+
 
 class TestPaperInfoInput:
     def test_rejects_unknown_sections(self):
@@ -332,10 +368,25 @@ class TestReadPaper:
         assert result.content[1].mimeType == "image/png"
         assert result.structured_content["visual"]["selector"] == "Figure 1"
 
+
 class TestPublishedToolMetadata:
     def test_server_version_matches_package(self):
         assert __version__ == "0.8.2"
         assert server.mcp.version == __version__
+
+    def test_search_modes_are_schema_enums(self):
+        tools = {
+            tool.name: tool
+            for tool in asyncio.run(server.mcp.list_tools())
+        }
+        schema = tools["search_papers"].parameters["properties"]
+
+        assert schema["sort"]["enum"] == ["relevance", "citations", "date"]
+        assert schema["sort"]["default"] == "relevance"
+        assert schema["intent"]["enum"] == [
+            "balanced", "foundational", "recent", "survey", "method", "dataset",
+        ]
+        assert schema["intent"]["default"] == "balanced"
 
     def test_every_tool_declares_behavior_annotations(self):
         tools = {
