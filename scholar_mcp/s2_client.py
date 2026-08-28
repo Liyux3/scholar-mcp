@@ -101,6 +101,8 @@ def _normalize_s2_id(paper_id: str) -> str:
     S2 requires DOI:xxx, ArXiv:xxx, CorpusID:xxx, or a 40-char SHA hash.
     """
     pid = paper_id.strip()
+    if pid.lower().startswith("corpusid:"):
+        return f"CorpusId:{pid.split(':', 1)[1]}"
     if pid.startswith(("DOI:", "ArXiv:", "CorpusID:", "PMID:", "MAG:", "ACL:")):
         return pid
     if len(pid) == 40 and all(c in "0123456789abcdef" for c in pid):
@@ -112,10 +114,36 @@ def _normalize_s2_id(paper_id: str) -> str:
     return pid
 
 
-def _post(url: str, json_data: dict = None, params: dict = None) -> dict:
-    r = httpx.post(url, json=json_data, params=params, headers=_headers(), timeout=config.S2_TIMEOUT)
-    r.raise_for_status()
-    return r.json()
+def _post(
+    url: str,
+    json_data: dict = None,
+    params: dict = None,
+    retries: int = 2,
+) -> dict | list:
+    for attempt in range(retries):
+        if not _wait_for_turn():
+            raise httpx.HTTPStatusError(
+                "S2 rate-limit gate timed out", request=None, response=None
+            )
+        try:
+            response = httpx.post(
+                url,
+                json=json_data,
+                params=params,
+                headers=_headers(),
+                timeout=config.S2_TIMEOUT,
+            )
+        except httpx.TimeoutException:
+            if attempt < retries - 1:
+                continue
+            raise
+        if response.status_code == 429 and attempt < retries - 1:
+            time.sleep(2)
+            continue
+        response.raise_for_status()
+        return response.json()
+    response.raise_for_status()
+    return {}
 
 
 def format_paper(data: dict) -> dict:
@@ -139,6 +167,7 @@ def format_paper(data: dict) -> dict:
         "year": data.get("year"),
         "venue": data.get("venue") or "",
         "citation_count": data.get("citationCount") or 0,
+        "_citation_count_known": data.get("citationCount") is not None,
         "influential_citations": data.get("influentialCitationCount") or 0,
         "is_open_access": data.get("isOpenAccess") or False,
         "open_access_url": oa_url,
@@ -149,6 +178,19 @@ def format_paper(data: dict) -> dict:
         "url": f"https://www.semanticscholar.org/paper/{data.get('paperId', '')}",
         "source": "semantic_scholar",
     }
+
+
+def get_papers_batch(paper_ids: list[str]) -> list[dict | None]:
+    """Resolve paper metadata in one rate-limited S2 request."""
+    if not paper_ids:
+        return []
+    ids = [_normalize_s2_id(paper_id) for paper_id in paper_ids[:500]]
+    data = _post(
+        f"{BASE_URL}/paper/batch",
+        json_data={"ids": ids},
+        params={"fields": SEARCH_FIELDS},
+    )
+    return data if isinstance(data, list) else []
 
 
 def format_paper_detail(data: dict) -> dict:
@@ -290,6 +332,7 @@ def search_authors(query: str, limit: int = 5):
             "affiliations": a.get("affiliations") or [],
             "paper_count": a.get("paperCount") or 0,
             "citation_count": a.get("citationCount") or 0,
+            "_citation_count_known": a.get("citationCount") is not None,
             "h_index": a.get("hIndex") or 0,
             "url": f"https://www.semanticscholar.org/author/{a.get('authorId', '')}",
         }

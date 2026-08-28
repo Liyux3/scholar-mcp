@@ -418,8 +418,12 @@ def _merge_two(a: dict, b: dict) -> dict:
         merged["abstract"] = b_abs
     if len(b.get("authors") or []) > len(merged.get("authors") or []):
         merged["authors"] = b["authors"]
-    if (b.get("citation_count") or 0) > (merged.get("citation_count") or 0):
+    if (
+        b.get("_citation_count_known")
+        and not merged.get("_citation_count_known")
+    ) or (b.get("citation_count") or 0) > (merged.get("citation_count") or 0):
         merged["citation_count"] = b["citation_count"]
+        merged["_citation_count_known"] = b.get("_citation_count_known", True)
     b_topics = set(b.get("fields_of_study") or [])
     a_topics = set(merged.get("fields_of_study") or [])
     if b_topics - a_topics:

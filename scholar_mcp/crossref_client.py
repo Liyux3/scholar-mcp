@@ -68,6 +68,7 @@ def format_paper(item: dict) -> dict | None:
         "year": year,
         "venue": venue,
         "citation_count": item.get("is-referenced-by-count") or 0,
+        "_citation_count_known": item.get("is-referenced-by-count") is not None,
         "influential_citations": 0,
         "is_open_access": False,
         "open_access_url": None,

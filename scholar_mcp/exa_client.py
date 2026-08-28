@@ -79,6 +79,7 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
             "year": int(r.published_date[:4]) if getattr(r, "published_date", None) and r.published_date else None,
             "venue": "",
             "citation_count": 0,
+            "_citation_count_known": False,
             "influential_citations": 0,
             "is_open_access": True,
             "open_access_url": r.url or "",

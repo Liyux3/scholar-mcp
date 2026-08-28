@@ -62,6 +62,7 @@ def _parse_paper(item) -> Optional[dict]:
             "year": year,
             "venue": parts[1].strip() if len(parts) > 1 else "",
             "citation_count": 0,
+            "_citation_count_known": False,
             "influential_citations": 0,
             "is_open_access": False,
             "open_access_url": None,

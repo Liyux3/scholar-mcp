@@ -63,6 +63,7 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
             "year": year,
             "venue": "arXiv",
             "citation_count": 0,
+            "_citation_count_known": False,
             "influential_citations": 0,
             "is_open_access": True,
             "open_access_url": f"https://arxiv.org/pdf/{arxiv_id}.pdf" if arxiv_id else None,

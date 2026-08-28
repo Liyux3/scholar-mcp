@@ -61,6 +61,7 @@ def _normalize(item: dict) -> dict | None:
         "year": year,
         "venue": str(container.get("name") or item.get("publisher") or ""),
         "citation_count": int(float(indicators.get("citationCount") or 0)),
+        "_citation_count_known": indicators.get("citationCount") is not None,
         "influential_citations": 0,
         "is_open_access": access in OPEN_LABELS,
         "open_access_url": urls[0] if urls else None,

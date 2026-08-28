@@ -56,6 +56,7 @@ def format_paper(data: dict) -> dict:
         "year": year,
         "venue": (data.get("journals") or [{}])[0].get("title", "") if data.get("journals") else "",
         "citation_count": data.get("citationCount") or 0,
+        "_citation_count_known": data.get("citationCount") is not None,
         "influential_citations": 0,
         "is_open_access": download_url is not None,
         "open_access_url": download_url,

@@ -140,6 +140,7 @@ def format_paper(work: dict) -> dict | None:
         "year": year,
         "venue": journal or "",
         "citation_count": work.get("cited_by_count") or 0,
+        "_citation_count_known": work.get("cited_by_count") is not None,
         "influential_citations": 0,
         "is_open_access": is_oa,
         "open_access_url": pdf_url,

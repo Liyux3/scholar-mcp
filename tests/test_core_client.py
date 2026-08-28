@@ -182,7 +182,7 @@ def test_output_format_matches_s2(monkeypatch):
 
     expected_keys = {
         "paper_id", "title", "authors", "abstract", "year", "venue",
-        "citation_count", "influential_citations", "is_open_access",
+        "citation_count", "_citation_count_known", "influential_citations", "is_open_access",
         "open_access_url", "fields_of_study", "publication_date",
         "tldr", "external_ids", "url", "source",
     }

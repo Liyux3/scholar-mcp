@@ -150,7 +150,14 @@ class TestFollowUpIdentifiers:
             "abstract": "",
         })
 
-        assert formatted == {"title": "Sparse Record"}
+        assert formatted == {
+            "title": "Sparse Record",
+            "authors": None,
+            "year": None,
+            "venue": None,
+            "citations": None,
+            "abstract": None,
+        }
 
     def test_known_bibliographic_metadata_is_preserved(self):
         formatted = server._format_paper({
@@ -159,6 +166,7 @@ class TestFollowUpIdentifiers:
             "year": 2026,
             "venue": "ICML",
             "citation_count": 7,
+            "_citation_count_known": True,
             "abstract": "Evidence.",
             "external_ids": {"DOI": "10.1/example"},
             "is_open_access": True,
@@ -175,6 +183,15 @@ class TestFollowUpIdentifiers:
             "id": "10.1/example",
             "open_access": True,
         }
+
+    def test_known_zero_citations_is_distinct_from_unknown(self):
+        formatted = server._format_paper({
+            "title": "New Paper",
+            "citation_count": 0,
+            "_citation_count_known": True,
+        })
+
+        assert formatted["citations"] == 0
 
 
 class TestPaperInfoInput:

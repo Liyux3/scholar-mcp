@@ -100,6 +100,7 @@ def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
             "year": year,
             "venue": e.get("prism:publicationName", ""),
             "citation_count": int(e.get("citedby-count", 0) or 0),
+            "_citation_count_known": e.get("citedby-count") is not None,
             "influential_citations": 0,
             "is_open_access": e.get("openaccess") == "1",
             "open_access_url": None,

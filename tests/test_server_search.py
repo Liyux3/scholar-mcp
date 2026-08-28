@@ -36,3 +36,25 @@ def test_search_date_sort_handles_mixed_source_types(monkeypatch):
         "Older full date",
         "Unknown",
     ]
+
+
+def test_year_filter_applies_after_metadata_enrichment(monkeypatch):
+    papers = [
+        {
+            "title": "Snippet Paper",
+            "year": None,
+            "external_ids": {"CorpusId": "123"},
+        },
+        {"title": "Older Paper", "year": 2023},
+    ]
+    monkeypatch.setattr(server, "_pipeline", lambda *args, **kwargs: (papers, []))
+    monkeypatch.setattr(
+        server.s2_snippet_client,
+        "enrich_metadata",
+        lambda items: items[0].update(year=2026),
+    )
+
+    result = yaml.safe_load(server.search_papers("robot learning", year="2025-2026"))
+
+    assert [paper["title"] for paper in result["results"]] == ["Snippet Paper"]
+    assert result["results"][0]["year"] == 2026

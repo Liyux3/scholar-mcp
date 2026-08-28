@@ -22,6 +22,7 @@ from . import (
     pdf_utils,
     relevance,
     s2_client,
+    s2_snippet_client,
     sources,
     traversal,
 )
@@ -202,17 +203,18 @@ def _format_paper(p: dict, *, detailed: bool = False, debug: bool = False) -> di
     abstract = p.get("abstract") or ""
     if len(abstract) > 300:
         abstract = abstract[:300] + "..."
-    out = {"title": p.get("title", "")}
-    if p.get("authors"):
-        out["authors"] = p["authors"][:5]
-    if p.get("year") not in (None, ""):
-        out["year"] = p["year"]
-    if p.get("venue"):
-        out["venue"] = p["venue"]
-    if (p.get("citation_count") or 0) > 0:
-        out["citations"] = p["citation_count"]
-    if abstract:
-        out["abstract"] = abstract
+    citation_count = p.get("citation_count")
+    citation_known = p.get("_citation_count_known")
+    if citation_known is None:
+        citation_known = (citation_count or 0) > 0
+    out = {
+        "title": p.get("title", ""),
+        "authors": (p.get("authors") or [])[:5] or None,
+        "year": p.get("year") if p.get("year") not in (None, "") else None,
+        "venue": p.get("venue") or None,
+        "citations": citation_count if citation_known else None,
+        "abstract": abstract or None,
+    }
     if doi:
         out["doi"] = doi
     paper_id = relevance.best_paper_id(p)
@@ -246,13 +248,16 @@ def _format_paper(p: dict, *, detailed: bool = False, debug: bool = False) -> di
 
 
 def _format_compact(p: dict) -> dict:
-    out = {"title": p.get("title", "")}
-    if p.get("authors"):
-        out["authors"] = p["authors"][:3]
-    if p.get("year") not in (None, ""):
-        out["year"] = p["year"]
-    if (p.get("citation_count") or 0) > 0:
-        out["citations"] = p["citation_count"]
+    citation_count = p.get("citation_count")
+    citation_known = p.get("_citation_count_known")
+    if citation_known is None:
+        citation_known = (citation_count or 0) > 0
+    out = {
+        "title": p.get("title", ""),
+        "authors": (p.get("authors") or [])[:3] or None,
+        "year": p.get("year") if p.get("year") not in (None, "") else None,
+        "citations": citation_count if citation_known else None,
+    }
     doi = (p.get("external_ids") or {}).get("DOI", "")
     if doi:
         out["doi"] = doi
@@ -290,6 +295,19 @@ def _publication_sort_key(paper: dict) -> tuple[int, int, int]:
             day = 0
         return year, month, day
     return 0, 0, 0
+
+
+def _year_matches(paper: dict, selection: str) -> bool:
+    """Apply a year or inclusive year-range filter after source merging."""
+    match = re.fullmatch(r"\s*(\d{4})(?:\s*-\s*(\d{4}))?\s*", selection)
+    if not match:
+        return True
+    year = _publication_sort_key(paper)[0]
+    if not year:
+        return False
+    start = int(match.group(1))
+    end = int(match.group(2) or start)
+    return min(start, end) <= year <= max(start, end)
 
 
 def _yaml(data: dict) -> str:
@@ -417,6 +435,11 @@ def search_papers(
         rerank_query=query, raw_query=query, intent=rank_intent,
         expand_citations=True, **search_kwargs,
     )
+
+    s2_snippet_client.enrich_metadata(results)
+
+    if year:
+        results = [paper for paper in results if _year_matches(paper, year)]
 
     if fos_list:
         results = relevance.filter_by_fields(results, fos_list)

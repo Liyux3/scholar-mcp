@@ -63,6 +63,7 @@ def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
             "year": year,
             "venue": venue,
             "citation_count": meta.get("citation_count", 0) or 0,
+            "_citation_count_known": meta.get("citation_count") is not None,
             "influential_citations": 0,
             "is_open_access": bool(arxiv_id),
             "open_access_url": f"https://arxiv.org/pdf/{arxiv_id}" if arxiv_id else None,

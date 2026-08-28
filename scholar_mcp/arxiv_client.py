@@ -50,6 +50,7 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
             "year": year,
             "venue": "arXiv",
             "citation_count": 0,
+            "_citation_count_known": False,
             "influential_citations": 0,
             "is_open_access": True,
             "open_access_url": pdf_url,

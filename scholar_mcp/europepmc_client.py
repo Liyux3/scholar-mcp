@@ -75,6 +75,7 @@ def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
             "year": year,
             "venue": item.get("journalTitle", "") or "",
             "citation_count": item.get("citedByCount", 0) or 0,
+            "_citation_count_known": item.get("citedByCount") is not None,
             "influential_citations": 0,
             "is_open_access": item.get("isOpenAccess", "N") == "Y",
             "open_access_url": pdf_urls[0] if pdf_urls else None,

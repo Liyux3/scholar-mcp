@@ -55,8 +55,12 @@ def _merge_record(existing: dict, incoming: dict) -> tuple[dict, bool]:
     if len(incoming.get("authors") or []) > len(merged.get("authors") or []):
         merged["authors"] = incoming["authors"]
         changed = True
-    if (incoming.get("citation_count") or 0) > (merged.get("citation_count") or 0):
+    if (
+        incoming.get("_citation_count_known")
+        and not merged.get("_citation_count_known")
+    ) or (incoming.get("citation_count") or 0) > (merged.get("citation_count") or 0):
         merged["citation_count"] = incoming["citation_count"]
+        merged["_citation_count_known"] = incoming.get("_citation_count_known", True)
         changed = True
     identifiers = {**(incoming.get("external_ids") or {}), **(merged.get("external_ids") or {})}
     if identifiers != (merged.get("external_ids") or {}):

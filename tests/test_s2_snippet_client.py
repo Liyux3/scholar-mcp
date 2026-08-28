@@ -11,6 +11,16 @@ import pytest
 from scholar_mcp import s2_snippet_client as snippet
 
 
+@pytest.fixture(autouse=True)
+def isolate_s2_metadata_enrichment(monkeypatch):
+    monkeypatch.setattr(snippet.s2_client, "_wait_for_turn", lambda: True)
+    monkeypatch.setattr(
+        snippet.s2_client,
+        "get_papers_batch",
+        lambda ids: [None] * len(ids),
+    )
+
+
 def _item(title="A Paper", kind="body", section="Methods", text="passage text",
           corpus_id=123, doi=None, score=0.8):
     paper = {"corpusId": corpus_id, "title": title,
@@ -84,6 +94,36 @@ class TestFormatting:
         assert paper["_snippet_kind"] == "body"
         assert paper["_snippet_section"] == "Methods"
         assert paper["_snippet_score"] == 0.91
+
+    def test_batch_enrichment_fills_bibliographic_metadata(self, monkeypatch):
+        monkeypatch.setattr(snippet.httpx, "get", lambda *a, **kw: _Response(
+            {"data": [_item(text="matched full-text evidence")]}))
+        monkeypatch.setattr(
+            snippet.s2_client,
+            "get_papers_batch",
+            lambda ids: [{
+                "paperId": "s2-paper",
+                "corpusId": 123,
+                "title": "A Paper",
+                "authors": [{"name": "Author One"}],
+                "year": 2026,
+                "venue": "ICML",
+                "citationCount": 0,
+                "externalIds": {"DOI": "10.1/paper"},
+            }],
+        )
+
+        papers = snippet.search_papers("q")
+        snippet.enrich_metadata(papers)
+        paper = papers[0]
+
+        assert paper["abstract"].endswith("matched full-text evidence")
+        assert paper["authors"] == ["Author One"]
+        assert paper["year"] == 2026
+        assert paper["venue"] == "ICML"
+        assert paper["citation_count"] == 0
+        assert paper["_citation_count_known"] is True
+        assert paper["external_ids"]["DOI"] == "10.1/paper"
 
 
 class TestRequest:

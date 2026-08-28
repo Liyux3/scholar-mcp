@@ -18,7 +18,7 @@ so it is registered as QUERY_RAW.
 
 import httpx
 
-from . import config
+from . import config, s2_client
 
 SNIPPET_URL = "https://api.semanticscholar.org/graph/v1/snippet/search"
 
@@ -42,6 +42,10 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     downstream in relevance.deduplicate, which merges by DOI and title.
     """
     params = {"query": query, "limit": min(limit, SNIPPET_MAX_LIMIT)}
+    if not s2_client._wait_for_turn():
+        raise httpx.HTTPStatusError(
+            "S2 rate-limit gate timed out", request=None, response=None
+        )
     response = httpx.get(SNIPPET_URL, params=params, headers=_headers(),
                          timeout=config.S2_TIMEOUT)
     response.raise_for_status()
@@ -52,6 +56,45 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
         if paper:
             papers.append(paper)
     return papers[:limit]
+
+
+def enrich_metadata(papers: list[dict]) -> None:
+    """Fill snippet-only metadata with one S2 batch call when available."""
+    targets = []
+    paper_ids = []
+    for paper in papers:
+        corpus_id = (paper.get("external_ids") or {}).get("CorpusId")
+        incomplete = (
+            not paper.get("authors")
+            or paper.get("year") in (None, "")
+            or not paper.get("venue")
+            or not paper.get("_citation_count_known")
+        )
+        if corpus_id and incomplete:
+            targets.append(paper)
+            paper_ids.append(f"CorpusId:{corpus_id}")
+    if not targets:
+        return
+    try:
+        details = s2_client.get_papers_batch(paper_ids)
+    except (httpx.HTTPError, TimeoutError):
+        return
+    fields = (
+        "paper_id", "authors", "year", "venue", "citation_count",
+        "_citation_count_known", "influential_citations", "is_open_access",
+        "open_access_url", "fields_of_study", "publication_date", "tldr", "url",
+    )
+    for paper, raw in zip(targets, details):
+        if not raw:
+            continue
+        enriched = s2_client.format_paper(raw)
+        for field in fields:
+            if enriched.get(field) not in (None, "", []):
+                paper[field] = enriched[field]
+        paper["external_ids"] = {
+            **(paper.get("external_ids") or {}),
+            **(enriched.get("external_ids") or {}),
+        }
 
 
 def _format(item: dict) -> dict | None:
@@ -89,6 +132,7 @@ def _format(item: dict) -> dict | None:
         "year": paper.get("year"),
         "venue": paper.get("venue") or "",
         "citation_count": paper.get("citationCount") or 0,
+        "_citation_count_known": paper.get("citationCount") is not None,
         "influential_citations": 0,
         "is_open_access": bool(open_access.get("license") or open_access.get("openAccessUrl")),
         "open_access_url": open_access.get("openAccessUrl"),

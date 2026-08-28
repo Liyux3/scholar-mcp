@@ -66,6 +66,7 @@ def format_paper(data: dict, pmid: str) -> dict:
         "year": year,
         "venue": data.get("fulljournalname", "") or data.get("source", ""),
         "citation_count": 0,
+        "_citation_count_known": False,
         "influential_citations": 0,
         "is_open_access": False,
         "open_access_url": None,
