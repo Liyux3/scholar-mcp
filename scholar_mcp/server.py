@@ -586,22 +586,32 @@ def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) 
         results = traversal.bibliographic_coupling(paper_id, title=title, limit=limit)
     elif relation == "similar":
         results = []
+        s2_paused = False
         for pid in _id_variants(paper_id):
             try:
                 results = s2_client.get_recommendations(pid, limit=limit)
                 if results:
                     break
+            except s2_client.S2CooldownError:
+                s2_paused = True
+                break
             except Exception:
                 continue
-        if not results:
-            results = traversal.related_works(paper_id, title=title, limit=limit)
     else:
         return _yaml({"error": f"Unknown relation '{relation}'. Use one of: "
                                "similar, peers, kin"})
 
     if not results:
-        return _yaml({"error": f"No '{relation}' results for '{paper_id}'",
-                      "seed_title": title or None})
+        output = {
+            "error": f"No '{relation}' results for '{paper_id}'",
+            "seed_title": title or None,
+        }
+        if relation == "similar" and s2_paused:
+            output.update({
+                "temporary": True,
+                "available_relations": ["peers", "kin"],
+            })
+        return _yaml(output)
 
     return _yaml({
         "relation": relation,

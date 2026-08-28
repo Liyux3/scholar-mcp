@@ -123,31 +123,6 @@ class TestBibliographicCoupling:
         assert traversal.bibliographic_coupling("seed") == []
 
 
-class TestRelatedWorks:
-    def test_preserves_openalex_related_order(self, monkeypatch):
-        monkeypatch.setattr(traversal, "_wid", lambda *args, **kwargs: "WSEED")
-        monkeypatch.setattr(
-            traversal.oa,
-            "_request",
-            lambda *args, **kwargs: _Response({
-                "related_works": [
-                    "https://openalex.org/WA",
-                    "https://openalex.org/WB",
-                ],
-            }),
-        )
-        monkeypatch.setattr(traversal, "_fetch_works", lambda wids, **kwargs: {
-            "https://openalex.org/WA": _work("WA", "Closest Neighbour"),
-            "https://openalex.org/WB": _work("WB", "Second Neighbour"),
-        })
-
-        results = traversal.related_works("seed", limit=2)
-
-        assert [paper["title"] for paper in results] == [
-            "Closest Neighbour", "Second Neighbour",
-        ]
-        assert all(paper["_relation"] == "similar" for paper in results)
-
 class TestDeadEdgeRecovery:
     """OpenAlex silently omits ids it no longer serves from batched lookups.
 
