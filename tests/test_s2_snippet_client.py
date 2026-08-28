@@ -13,7 +13,6 @@ from scholar_mcp import s2_snippet_client as snippet
 
 @pytest.fixture(autouse=True)
 def isolate_s2_metadata_enrichment(monkeypatch):
-    monkeypatch.setattr(snippet.s2_client, "_wait_for_turn", lambda: True)
     monkeypatch.setattr(
         snippet.s2_client,
         "get_papers_batch",
@@ -31,16 +30,8 @@ def _item(title="A Paper", kind="body", section="Methods", text="passage text",
             "snippet": {"text": text, "snippetKind": kind, "section": section}}
 
 
-class _Response:
-    def __init__(self, payload, status_code=200):
-        self._payload, self.status_code = payload, status_code
-
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise httpx.HTTPStatusError(str(self.status_code), request=None, response=None)
-
-    def json(self):
-        return self._payload
+def _mock_search(monkeypatch, payload):
+    monkeypatch.setattr(snippet.s2_client, "_get", lambda *args, **kwargs: payload)
 
 
 class TestFormatting:
@@ -48,56 +39,57 @@ class TestFormatting:
         """The endpoint returns no abstract. The matched passage is more
         on-point anyway, being the text that actually matched.
         """
-        monkeypatch.setattr(snippet.httpx, "get", lambda *a, **kw: _Response(
-            {"data": [_item(text="distillation fails when capacity gaps are large")]}))
+        _mock_search(monkeypatch, {
+            "data": [_item(text="distillation fails when capacity gaps are large")],
+        })
         paper = snippet.search_papers("q")[0]
         assert "distillation fails" in paper["abstract"]
         assert paper["source"] == "s2_snippet"
 
     def test_section_is_prefixed_for_context(self, monkeypatch):
-        monkeypatch.setattr(snippet.httpx, "get", lambda *a, **kw: _Response(
-            {"data": [_item(section="Related Work", text="prior approaches")]}))
+        _mock_search(monkeypatch, {
+            "data": [_item(section="Related Work", text="prior approaches")],
+        })
         assert snippet.search_papers("q")[0]["abstract"].startswith("[Related Work]")
 
     def test_missing_section_omits_the_prefix(self, monkeypatch):
-        monkeypatch.setattr(snippet.httpx, "get", lambda *a, **kw: _Response(
-            {"data": [_item(section=None, text="bare text")]}))
+        _mock_search(monkeypatch, {"data": [_item(section=None, text="bare text")]})
         assert snippet.search_papers("q")[0]["abstract"] == "bare text"
 
     def test_prefers_doi_as_paper_id(self, monkeypatch):
-        monkeypatch.setattr(snippet.httpx, "get", lambda *a, **kw: _Response(
-            {"data": [_item(doi="10.1234/abc")]}))
+        _mock_search(monkeypatch, {"data": [_item(doi="10.1234/abc")]})
         assert snippet.search_papers("q")[0]["paper_id"] == "10.1234/abc"
 
     def test_falls_back_to_corpus_id(self, monkeypatch):
-        monkeypatch.setattr(snippet.httpx, "get", lambda *a, **kw: _Response(
-            {"data": [_item(corpus_id=999)]}))
+        _mock_search(monkeypatch, {"data": [_item(corpus_id=999)]})
         paper = snippet.search_papers("q")[0]
         assert paper["paper_id"] == "CorpusId:999"
         assert paper["external_ids"]["CorpusId"] == "999"
 
     def test_skips_untitled_entries(self, monkeypatch):
-        monkeypatch.setattr(snippet.httpx, "get", lambda *a, **kw: _Response(
-            {"data": [_item(title=""), _item(title="Real Paper")]}))
+        _mock_search(monkeypatch, {
+            "data": [_item(title=""), _item(title="Real Paper")],
+        })
         results = snippet.search_papers("q")
         assert [p["title"] for p in results] == ["Real Paper"]
 
     def test_truncates_long_passages(self, monkeypatch):
-        monkeypatch.setattr(snippet.httpx, "get", lambda *a, **kw: _Response(
-            {"data": [_item(section=None, text="x" * 5000)]}))
+        _mock_search(monkeypatch, {"data": [_item(section=None, text="x" * 5000)]})
         assert len(snippet.search_papers("q")[0]["abstract"]) == snippet.SNIPPET_TEXT_CHARS
 
     def test_retains_snippet_provenance(self, monkeypatch):
-        monkeypatch.setattr(snippet.httpx, "get", lambda *a, **kw: _Response(
-            {"data": [_item(kind="body", section="Methods", score=0.91)]}))
+        _mock_search(monkeypatch, {
+            "data": [_item(kind="body", section="Methods", score=0.91)],
+        })
         paper = snippet.search_papers("q")[0]
         assert paper["_snippet_kind"] == "body"
         assert paper["_snippet_section"] == "Methods"
         assert paper["_snippet_score"] == 0.91
 
     def test_batch_enrichment_fills_bibliographic_metadata(self, monkeypatch):
-        monkeypatch.setattr(snippet.httpx, "get", lambda *a, **kw: _Response(
-            {"data": [_item(text="matched full-text evidence")]}))
+        _mock_search(monkeypatch, {
+            "data": [_item(text="matched full-text evidence")],
+        })
         monkeypatch.setattr(
             snippet.s2_client,
             "get_papers_batch",
@@ -130,18 +122,20 @@ class TestRequest:
     def test_caps_limit_at_api_maximum(self, monkeypatch):
         seen = {}
 
-        def fake_get(url, params=None, headers=None, timeout=None):
+        def fake_get(url, params=None, **kwargs):
             seen.update(params)
-            return _Response({"data": []})
+            return {"data": []}
 
-        monkeypatch.setattr(snippet.httpx, "get", fake_get)
+        monkeypatch.setattr(snippet.s2_client, "_get", fake_get)
         snippet.search_papers("q", limit=5000)
         assert seen["limit"] == snippet.SNIPPET_MAX_LIMIT
 
     def test_propagates_http_errors(self, monkeypatch):
         """Silent [] would make an outage look like a query with no matches."""
-        monkeypatch.setattr(snippet.httpx, "get",
-                            lambda *a, **kw: _Response({}, status_code=429))
+        def fail(*args, **kwargs):
+            raise httpx.HTTPStatusError("429", request=None, response=None)
+
+        monkeypatch.setattr(snippet.s2_client, "_get", fail)
         with pytest.raises(httpx.HTTPStatusError):
             snippet.search_papers("q")
 

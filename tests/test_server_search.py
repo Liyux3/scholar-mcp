@@ -85,3 +85,22 @@ def test_metadata_enrichment_skips_an_overloaded_s2(monkeypatch):
     assert result["results"][0]["authors"] is None
     assert result["results"][0]["year"] is None
     assert result["results"][0]["venue"] is None
+
+
+def test_similar_recommendations_fall_back_to_openalex(monkeypatch):
+    fallback = [{"title": "OpenAlex Neighbour", "paper_id": "W2"}]
+    monkeypatch.setattr(server, "_lookup_title", lambda paper_id: "Seed Paper")
+    monkeypatch.setattr(
+        server.s2_client,
+        "get_recommendations",
+        lambda *args, **kwargs: (_ for _ in ()).throw(server.s2_client.S2CooldownError()),
+    )
+    monkeypatch.setattr(
+        server.traversal,
+        "related_works",
+        lambda *args, **kwargs: fallback,
+    )
+
+    result = yaml.safe_load(server.recommend_papers("W1", relation="similar"))
+
+    assert result["papers"][0]["title"] == "OpenAlex Neighbour"

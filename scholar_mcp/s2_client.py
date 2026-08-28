@@ -54,6 +54,52 @@ S2_MIN_INTERVAL = 1.05
 # search for.
 S2_GATE_TIMEOUT = 6.0
 
+# A confirmed provider overload should not make every concurrent graph hop
+# wait for the same failure. Keep the pause short, then let exactly one core
+# request probe recovery. Metadata enrichment never becomes that probe.
+S2_COOLDOWN_SECONDS = 30.0
+S2_METADATA_GATE_TIMEOUT = 0.05
+_s2_health_lock = threading.Lock()
+_s2_cooldown_until = 0.0
+_s2_probe_in_flight = False
+
+
+class S2CooldownError(RuntimeError):
+    """Semantic Scholar is temporarily bypassed after a confirmed failure."""
+
+
+def _begin_request(*, allow_probe: bool = True) -> bool:
+    """Reserve one request, returning whether it is the recovery probe."""
+    global _s2_probe_in_flight
+    now = time.monotonic()
+    with _s2_health_lock:
+        if _s2_cooldown_until == 0:
+            return False
+        if now < _s2_cooldown_until:
+            raise S2CooldownError("S2 is in a short overload cooldown")
+        if not allow_probe or _s2_probe_in_flight:
+            raise S2CooldownError("S2 is waiting for one recovery probe")
+        _s2_probe_in_flight = True
+        return True
+
+
+def _finish_request(*, probe: bool, healthy: bool, overloaded: bool = False) -> None:
+    """Update shared S2 health after one request finishes."""
+    global _s2_cooldown_until, _s2_probe_in_flight
+    with _s2_health_lock:
+        if healthy:
+            _s2_cooldown_until = 0.0
+        elif overloaded:
+            _s2_cooldown_until = time.monotonic() + S2_COOLDOWN_SECONDS
+        if probe:
+            _s2_probe_in_flight = False
+
+
+def is_healthy() -> bool:
+    """Whether optional traffic may use S2 without becoming a probe."""
+    with _s2_health_lock:
+        return _s2_cooldown_until == 0.0
+
 
 def _wait_for_turn(timeout: float = S2_GATE_TIMEOUT) -> bool:
     """Space out requests across threads. False if the wait would be too long."""
@@ -73,27 +119,78 @@ def _wait_for_turn(timeout: float = S2_GATE_TIMEOUT) -> bool:
         _s2_gate.release()
 
 
-def _get(url: str, params: dict = None, retries: int = 2) -> dict:
-    for attempt in range(retries):
-        if not _wait_for_turn():
-            raise httpx.HTTPStatusError(
-                "S2 rate-limit gate timed out", request=None, response=None)
-        try:
-            r = httpx.get(url, params=params, headers=_headers(), timeout=config.S2_TIMEOUT)
-        except httpx.TimeoutException:
-            if attempt < retries - 1:
+def _request_json(
+    method: str,
+    url: str,
+    *,
+    params: dict | None = None,
+    json_data: dict | None = None,
+    retries: int = 2,
+    gate_timeout: float = S2_GATE_TIMEOUT,
+    allow_probe: bool = True,
+) -> dict | list:
+    """Run one S2 request through the shared gate and health circuit."""
+    probe = _begin_request(allow_probe=allow_probe)
+    response = None
+    try:
+        for attempt in range(max(retries, 1)):
+            response = None
+            if not _wait_for_turn(timeout=gate_timeout):
+                raise httpx.HTTPStatusError(
+                    "S2 rate-limit gate timed out", request=None, response=None
+                )
+            if not probe and not is_healthy():
+                raise S2CooldownError("S2 entered cooldown while this request waited")
+            try:
+                request = httpx.get if method == "GET" else httpx.post
+                kwargs = {
+                    "params": params,
+                    "headers": _headers(),
+                    "timeout": config.S2_TIMEOUT,
+                }
+                if method != "GET":
+                    kwargs["json"] = json_data
+                response = request(url, **kwargs)
+            except (httpx.TimeoutException, httpx.TransportError):
+                if attempt < retries - 1:
+                    continue
+                _finish_request(probe=probe, healthy=False, overloaded=True)
+                raise
+            if response.status_code == 429 and attempt < retries - 1:
+                time.sleep(2)
                 continue
-            raise
-        if r.status_code == 429 and attempt < retries - 1:
-            # The gate already spaces requests, so a 429 means the server is
-            # busier than our interval assumes. One short extra pause, not an
-            # escalating chain that multiplies across concurrent callers.
-            time.sleep(2)
-            continue
-        r.raise_for_status()
-        return r.json()
-    r.raise_for_status()
+            if response.status_code == 429 or response.status_code in {502, 503, 504}:
+                _finish_request(probe=probe, healthy=False, overloaded=True)
+            else:
+                # A non-overload 4xx still proves that the provider is alive.
+                _finish_request(probe=probe, healthy=True)
+            response.raise_for_status()
+            return response.json()
+    except Exception:
+        # Gate contention and invalid requests should not open a provider-wide
+        # cooldown, but a failed recovery probe must be released.
+        if response is None:
+            _finish_request(probe=probe, healthy=False)
+        raise
     return {}
+
+
+def _get(
+    url: str,
+    params: dict = None,
+    retries: int = 2,
+    *,
+    gate_timeout: float = S2_GATE_TIMEOUT,
+    allow_probe: bool = True,
+) -> dict:
+    return _request_json(
+        "GET",
+        url,
+        params=params,
+        retries=retries,
+        gate_timeout=gate_timeout,
+        allow_probe=allow_probe,
+    )
 
 
 def _normalize_s2_id(paper_id: str) -> str:
@@ -119,31 +216,19 @@ def _post(
     json_data: dict = None,
     params: dict = None,
     retries: int = 2,
+    *,
+    gate_timeout: float = S2_GATE_TIMEOUT,
+    allow_probe: bool = True,
 ) -> dict | list:
-    for attempt in range(retries):
-        if not _wait_for_turn():
-            raise httpx.HTTPStatusError(
-                "S2 rate-limit gate timed out", request=None, response=None
-            )
-        try:
-            response = httpx.post(
-                url,
-                json=json_data,
-                params=params,
-                headers=_headers(),
-                timeout=config.S2_TIMEOUT,
-            )
-        except httpx.TimeoutException:
-            if attempt < retries - 1:
-                continue
-            raise
-        if response.status_code == 429 and attempt < retries - 1:
-            time.sleep(2)
-            continue
-        response.raise_for_status()
-        return response.json()
-    response.raise_for_status()
-    return {}
+    return _request_json(
+        "POST",
+        url,
+        params=params,
+        json_data=json_data,
+        retries=retries,
+        gate_timeout=gate_timeout,
+        allow_probe=allow_probe,
+    )
 
 
 def format_paper(data: dict) -> dict:
@@ -190,6 +275,8 @@ def get_papers_batch(paper_ids: list[str]) -> list[dict | None]:
         json_data={"ids": ids},
         params={"fields": SEARCH_FIELDS},
         retries=1,
+        gate_timeout=S2_METADATA_GATE_TIMEOUT,
+        allow_probe=False,
     )
     return data if isinstance(data, list) else []
 

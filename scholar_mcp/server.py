@@ -443,7 +443,7 @@ def search_papers(
         and report["status"] in {"error", "timeout", "blocked"}
         for report in reports
     )
-    if not s2_degraded:
+    if not s2_degraded and s2_client.is_healthy():
         s2_snippet_client.enrich_metadata(results)
 
     if year:
@@ -593,6 +593,8 @@ def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) 
                     break
             except Exception:
                 continue
+        if not results:
+            results = traversal.related_works(paper_id, title=title, limit=limit)
     else:
         return _yaml({"error": f"Unknown relation '{relation}'. Use one of: "
                                "similar, peers, kin"})

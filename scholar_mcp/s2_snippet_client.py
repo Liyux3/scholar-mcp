@@ -18,7 +18,7 @@ so it is registered as QUERY_RAW.
 
 import httpx
 
-from . import config, s2_client
+from . import s2_client
 
 SNIPPET_URL = "https://api.semanticscholar.org/graph/v1/snippet/search"
 
@@ -30,11 +30,6 @@ SNIPPET_MAX_LIMIT = 1000
 SNIPPET_TEXT_CHARS = 1200
 
 
-def _headers() -> dict:
-    key = config.get_s2_api_key()
-    return {"x-api-key": key} if key else {}
-
-
 def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     """Search paper full text, returning one result per matching passage.
 
@@ -42,16 +37,10 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     downstream in relevance.deduplicate, which merges by DOI and title.
     """
     params = {"query": query, "limit": min(limit, SNIPPET_MAX_LIMIT)}
-    if not s2_client._wait_for_turn():
-        raise httpx.HTTPStatusError(
-            "S2 rate-limit gate timed out", request=None, response=None
-        )
-    response = httpx.get(SNIPPET_URL, params=params, headers=_headers(),
-                         timeout=config.S2_TIMEOUT)
-    response.raise_for_status()
+    data = s2_client._get(SNIPPET_URL, params=params)
 
     papers = []
-    for item in response.json().get("data") or []:
+    for item in data.get("data") or []:
         paper = _format(item)
         if paper:
             papers.append(paper)
@@ -77,7 +66,7 @@ def enrich_metadata(papers: list[dict]) -> None:
         return
     try:
         details = s2_client.get_papers_batch(paper_ids)
-    except (httpx.HTTPError, TimeoutError):
+    except (httpx.HTTPError, TimeoutError, s2_client.S2CooldownError):
         return
     fields = (
         "paper_id", "authors", "year", "venue", "citation_count",

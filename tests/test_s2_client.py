@@ -1,8 +1,15 @@
 """Tests for Semantic Scholar API client."""
 
 import httpx
+import pytest
 
 from scholar_mcp import s2_client
+
+
+@pytest.fixture(autouse=True)
+def reset_s2_health(monkeypatch):
+    monkeypatch.setattr(s2_client, "_s2_cooldown_until", 0.0)
+    monkeypatch.setattr(s2_client, "_s2_probe_in_flight", False)
 
 
 def _response(status_code: int, payload: dict, url: str) -> httpx.Response:
@@ -33,6 +40,66 @@ def test_get_retries_rate_limit_before_success(monkeypatch):
     # dependent.
     assert 2 in sleeps
     assert len(sleeps) <= 2
+
+
+def test_final_overload_opens_shared_cooldown(monkeypatch):
+    monkeypatch.setattr(s2_client, "_wait_for_turn", lambda timeout=0: True)
+    monkeypatch.setattr(
+        s2_client.httpx,
+        "get",
+        lambda url, **kwargs: _response(429, {"error": "busy"}, url),
+    )
+
+    with pytest.raises(httpx.HTTPStatusError):
+        s2_client._get("https://example.test/s2", retries=1)
+
+    assert s2_client.is_healthy() is False
+
+
+def test_cooldown_skips_network_until_one_probe(monkeypatch):
+    monkeypatch.setattr(
+        s2_client,
+        "_s2_cooldown_until",
+        s2_client.time.monotonic() + 30,
+    )
+    monkeypatch.setattr(
+        s2_client.httpx,
+        "get",
+        lambda *args, **kwargs: pytest.fail("cooldown should bypass the network"),
+    )
+
+    with pytest.raises(s2_client.S2CooldownError):
+        s2_client._get("https://example.test/s2")
+
+
+def test_successful_probe_restores_s2(monkeypatch):
+    monkeypatch.setattr(
+        s2_client,
+        "_s2_cooldown_until",
+        s2_client.time.monotonic() - 1,
+    )
+    monkeypatch.setattr(s2_client, "_wait_for_turn", lambda timeout=0: True)
+    monkeypatch.setattr(
+        s2_client.httpx,
+        "get",
+        lambda url, **kwargs: _response(200, {"data": []}, url),
+    )
+
+    assert s2_client._get("https://example.test/s2") == {"data": []}
+    assert s2_client.is_healthy() is True
+
+
+def test_metadata_batch_is_low_priority(monkeypatch):
+    captured = {}
+
+    def fake_post(url, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(s2_client, "_post", fake_post)
+    assert s2_client.get_papers_batch(["CorpusId:1"]) == []
+    assert captured["gate_timeout"] == s2_client.S2_METADATA_GATE_TIMEOUT
+    assert captured["allow_probe"] is False
 
 
 def test_search_papers(monkeypatch):

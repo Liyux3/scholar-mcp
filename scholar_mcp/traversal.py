@@ -169,6 +169,25 @@ def _materialise(candidates: list[tuple[str, int]], relation: str, limit: int) -
     return out[:limit]
 
 
+def related_works(paper_id: str, title: str = "", limit: int = 20) -> list[dict]:
+    """OpenAlex semantic neighbours, preserving its related-work order."""
+    wid = _wid(paper_id, title)
+    if not wid:
+        return []
+
+    params = oa._params_base()
+    params["select"] = "related_works"
+    response = oa._request(f"{OA_BASE}/{wid}", params)
+    if response.status_code != 200:
+        return []
+    related = response.json().get("related_works") or []
+    candidates = [
+        (ref, len(related) - index)
+        for index, ref in enumerate(related[:FETCH_BATCH])
+    ]
+    return _materialise(candidates, "similar", limit)
+
+
 def co_citation(paper_id: str, title: str = "", limit: int = 20,
                 sample: int = CO_CITATION_SAMPLE) -> list[dict]:
     """Papers frequently cited alongside this one.
