@@ -40,9 +40,17 @@ One continuous agent flow: `search_papers` → `build_paper_graph` → `paper_in
 
 ## How it works
 
-![Scholar MCP retrieval pipeline](docs/assets/retrieval-pipeline.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/retrieval-pipeline-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/retrieval-pipeline.svg">
+  <img alt="Scholar MCP retrieval pipeline" src="docs/assets/retrieval-pipeline.svg">
+</picture>
 
-![Scholar MCP runtime architecture](docs/assets/runtime-architecture.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/runtime-architecture-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/runtime-architecture.svg">
+  <img alt="Scholar MCP runtime architecture" src="docs/assets/runtime-architecture.svg">
+</picture>
 
 Agents call typed MCP tools over stdio or Streamable HTTP. Scholar returns concise text and structured data, while a persistent SQLite library drives FTS5 search, PDF attachments, JSONL snapshots, and Obsidian, Zotero, and Notion connectors.
 
