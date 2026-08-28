@@ -1,5 +1,6 @@
 """Tests for the multi-source merge search_papers in server.py."""
 
+import pytest
 import yaml
 
 from scholar_mcp import server
@@ -58,3 +59,29 @@ def test_year_filter_applies_after_metadata_enrichment(monkeypatch):
 
     assert [paper["title"] for paper in result["results"]] == ["Snippet Paper"]
     assert result["results"][0]["year"] == 2026
+
+
+def test_metadata_enrichment_skips_an_overloaded_s2(monkeypatch):
+    papers = [{
+        "title": "Snippet Paper",
+        "external_ids": {"CorpusId": "123"},
+    }]
+    reports = [{
+        "source": "semantic_scholar",
+        "status": "error",
+        "count": 0,
+        "latency_ms": 100,
+        "error": "HTTP 429",
+    }]
+    monkeypatch.setattr(server, "_pipeline", lambda *args, **kwargs: (papers, reports))
+    monkeypatch.setattr(
+        server.s2_snippet_client,
+        "enrich_metadata",
+        lambda items: pytest.fail("overloaded S2 should not receive a batch request"),
+    )
+
+    result = yaml.safe_load(server.search_papers("robot learning"))
+
+    assert result["results"][0]["authors"] is None
+    assert result["results"][0]["year"] is None
+    assert result["results"][0]["venue"] is None

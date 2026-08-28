@@ -189,6 +189,7 @@ def get_papers_batch(paper_ids: list[str]) -> list[dict | None]:
         f"{BASE_URL}/paper/batch",
         json_data={"ids": ids},
         params={"fields": SEARCH_FIELDS},
+        retries=1,
     )
     return data if isinstance(data, list) else []
 

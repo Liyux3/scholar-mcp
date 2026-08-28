@@ -406,9 +406,11 @@ def search_papers(
         paper_types: Comma-separated types (e.g., "JournalArticle,Conference,Review,Book,Dataset"). Default: all types.
         min_citations: Minimum citation count filter (default 0)
         open_access_only: Only return papers with free PDF access
-        sort: Result order: relevance, citations, or date.
-        intent: Ranking preference: balanced, foundational, recent, survey,
-            method, or dataset.
+        sort: Hard final order. Use relevance normally; citations and date
+            replace the reranker's ordering.
+        intent: Soft relevance focus used by reranking and expansion. Use
+            balanced normally; alternatives are foundational, recent, survey,
+            method, and dataset.
         debug: Include per-source latency, provenance, and internal ranking diagnostics.
     """
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
@@ -436,7 +438,13 @@ def search_papers(
         expand_citations=True, **search_kwargs,
     )
 
-    s2_snippet_client.enrich_metadata(results)
+    s2_degraded = any(
+        report["source"] in {"semantic_scholar", "s2_snippet"}
+        and report["status"] in {"error", "timeout", "blocked"}
+        for report in reports
+    )
+    if not s2_degraded:
+        s2_snippet_client.enrich_metadata(results)
 
     if year:
         results = [paper for paper in results if _year_matches(paper, year)]
