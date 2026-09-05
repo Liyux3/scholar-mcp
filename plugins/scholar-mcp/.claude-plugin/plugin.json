@@ -1,6 +1,6 @@
 {
   "name": "scholar-mcp",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Scholar MCP for multi-source academic search, citation traversal, paper reading, and deep research workflows.",
   "author": {
     "name": "Yuxian Li",

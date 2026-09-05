@@ -394,8 +394,17 @@ def search_papers(
     intent: SearchIntent = "balanced",
     debug: bool = False,
 ) -> str:
-    """Search for academic papers across multiple sources (Semantic Scholar, arXiv, OpenAlex).
-    Results are ranked using LLM-based reranking for better relevance.
+    """Search for academic papers across many sources (OpenAlex, Semantic Scholar,
+    arXiv, PubMed, OpenReview, Crossref and more), merge duplicates across
+    DOI/arXiv/S2/OpenAlex identities, and rerank for relevance.
+
+    Use this to find papers from a topic, a question, or a half-remembered
+    title. Use paper_info when you already hold an identifier,
+    recommend_papers to expand from one known paper, and search_authors for
+    people. Read-only. Each call fans out to live APIs under a time budget;
+    sources that time out are reported as degraded coverage instead of
+    failing the call. Put years, venues and filters in the parameters, not in
+    the query text.
 
     Args:
         query: Search query (e.g., "attention is all you need", "CRISPR gene editing")
@@ -500,7 +509,14 @@ def paper_info(
     include: str = "detail",
     limit: int = 20,
 ) -> str:
-    """Get information about a specific paper. Can include detail, citations, and/or references.
+    """Get metadata for one known paper, optionally with the papers that cite it
+    and the papers it references.
+
+    Use this when you already have an identifier; use search_papers to find
+    one first, and recommend_papers for related work that is not a direct
+    citation. Read-only, one upstream lookup per requested section. An
+    unresolvable identifier returns a not-found message rather than an error.
+    Citation and reference lists are ordered by influence and cut at limit.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex W-ID, etc.)
@@ -560,6 +576,11 @@ def paper_info(
 ))
 def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) -> str:
     """Find related papers by a chosen citation-graph relation.
+
+    Use this when you hold one paper and want its neighbourhood. Use
+    search_papers for a topic and paper_info for a paper's direct citation
+    lists. Read-only; results come from embedding and citation data, so very
+    new or uncited papers return few or no neighbours.
 
     "Related" is several different questions, and which one you want depends
     on what you are doing:
@@ -641,7 +662,13 @@ def _id_variants(paper_id: str) -> list[str]:
     openWorldHint=True,
 ))
 def search_authors(query: str, limit: int = 5) -> str:
-    """Search for academic authors/researchers.
+    """Search for researchers by name and return profiles with affiliations,
+    paper counts, h-index and identifiers.
+
+    Use this for people, not papers: use search_papers for papers and
+    paper_info for a paper's own author list. Read-only. Name matching is
+    fuzzy, so common names return many candidates; add an affiliation or
+    field word to the query and keep limit small to disambiguate.
 
     Args:
         query: Author name to search for
@@ -666,7 +693,15 @@ def download_paper(
     save_dir: str = "",
     collection: str = "downloads",
 ) -> str:
-    """Resolve and download one paper PDF.
+    """Resolve one paper to an open-access PDF and save it to disk, optionally
+    indexing it into a library collection.
+
+    Writes a file under save_dir (default: the configured papers directory);
+    a repeat call for the same paper overwrites the same path. Use read_paper
+    instead when you only need the text once. Resolution tries the canonical
+    archive (arXiv, Europe PMC), repository resolvers, preprint servers and
+    Unpaywall in order; a paywalled paper with no open copy returns a clear
+    failure and writes nothing.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
@@ -721,7 +756,14 @@ def read_paper(
     pages: str = paper_reader.DEFAULT_READ_PAGES,
     visual: str = "",
 ):
-    """Resolve and read a paper through a cleaned temporary PDF.
+    """Fetch a paper's PDF into a temporary file and return page-aware Markdown
+    text plus selectors for its figures and tables.
+
+    Use this to read; use download_paper to keep the PDF. Nothing persists
+    after the call. Resolution follows the same open-access chain as
+    download_paper, so paywalled papers without an open copy fail cleanly.
+    Pass a selector from a previous response as visual to get one figure or
+    table with its surrounding text.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
@@ -794,7 +836,14 @@ def build_paper_graph(
     min_citations: int = 0,
     topic_filter: str = "",
 ) -> str:
-    """Build a reproducible citation graph from explicit paper identifiers.
+    """Build a bounded citation graph from explicit seed papers and return nodes,
+    edges, PageRank, bridge papers and a Mermaid diagram.
+
+    Use this after search_papers or paper_info once you have seed
+    identifiers and want structure rather than a list; use recommend_papers
+    for a flat set of related papers. Read-only but the most expensive tool
+    here: cost grows with max_hops times max_papers and every hop calls live
+    citation APIs. Start with max_hops=1 and max_papers=20, then widen.
 
     Args:
         paper_ids: Comma-separated DOI, arXiv, OpenAlex, S2, or exact-title seeds.
@@ -847,7 +896,15 @@ def paper_library(
     limit: int = 20,
     link_citations: bool = False,
 ) -> str:
-    """Manage a local paper library with collections, notes, PDFs, and export.
+    """Manage the local paper library: save, get, list, search, update, remove,
+    list collections, or export a collection as a Markdown vault.
+
+    This is the only tool that writes persistent state. save/update/remove
+    change the SQLite library on disk (default under ~/.scholar-mcp/kb);
+    remove deletes entries permanently; export writes Markdown files into
+    the target vault directory. Use save after search_papers or paper_info to
+    keep papers, and search here to query what you saved; use search_papers
+    for the open literature.
 
     Args:
         action: save/add, get, list, search, update, remove, collections, or export

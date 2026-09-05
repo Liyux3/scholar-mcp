@@ -8,7 +8,7 @@
     {
       "name": "scholar-mcp",
       "description": "Scholar MCP for multi-source academic search and evidence-grounded deep research.",
-      "version": "0.8.3",
+      "version": "0.8.4",
       "source": "./plugins/scholar-mcp"
     }
   ]

@@ -3,7 +3,7 @@
   "manifest_version": "0.4",
   "name": "scholar-mcp",
   "display_name": "Scholar MCP",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Multi-source academic search, citation traversal, complete paper reading, and a persistent research library.",
   "author": {
     "name": "Yuxian Li"

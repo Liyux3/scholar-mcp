@@ -2,7 +2,7 @@
   "mcpServers": {
     "scholar": {
       "command": "uvx",
-      "args": ["--from", "scholar-mcp==0.8.3", "scholar-mcp"],
+      "args": ["--from", "scholar-mcp==0.8.4", "scholar-mcp"],
       "env": {"SCHOLAR_MCP_EXTENSIONS": "research"}
     }
   }
