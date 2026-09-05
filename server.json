@@ -1,39 +1,90 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.liyux3/scholar-mcp",
+  "name": "io.github.Liyux3/scholar-mcp",
   "title": "Scholar MCP",
   "description": "Federated academic search, citation traversal, persistent PDF download, and temporary reading.",
   "repository": {
     "url": "https://github.com/Liyux3/scholar-mcp",
     "source": "github"
   },
-  "version": "0.8.2",
+  "version": "0.8.3",
   "packages": [
     {
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "scholar-mcp",
-      "version": "0.8.2",
+      "version": "0.8.3",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
       },
       "runtimeArguments": [
-        {"type": "positional", "value": "scholar-mcp"}
+        {
+          "type": "positional",
+          "value": "scholar-mcp"
+        }
       ],
       "environmentVariables": [
-        {"name": "SCHOLAR_DATA_DIR", "isRequired": false, "isSecret": false},
-        {"name": "SCHOLAR_MCP_EXTENSIONS", "isRequired": false, "isSecret": false},
-        {"name": "S2_API_KEY", "isRequired": false, "isSecret": true},
-        {"name": "OPENALEX_API_KEY", "isRequired": false, "isSecret": true},
-        {"name": "CORE_API_KEY", "isRequired": false, "isSecret": true},
-        {"name": "SCOPUS_API_KEY", "isRequired": false, "isSecret": true},
-        {"name": "DASHSCOPE_API_KEY", "isRequired": false, "isSecret": true},
-        {"name": "EXA_API_KEY", "isRequired": false, "isSecret": true},
-        {"name": "ZOTERO_API_KEY", "isRequired": false, "isSecret": true},
-        {"name": "ZOTERO_LIBRARY_ID", "isRequired": false, "isSecret": false},
-        {"name": "NOTION_API_KEY", "isRequired": false, "isSecret": true},
-        {"name": "NOTION_DATA_SOURCE_ID", "isRequired": false, "isSecret": false}
+        {
+          "name": "SCHOLAR_DATA_DIR",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "SCHOLAR_MCP_EXTENSIONS",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "S2_API_KEY",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "OPENALEX_API_KEY",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "CORE_API_KEY",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SCOPUS_API_KEY",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "DASHSCOPE_API_KEY",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "EXA_API_KEY",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "ZOTERO_API_KEY",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "ZOTERO_LIBRARY_ID",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "NOTION_API_KEY",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "NOTION_DATA_SOURCE_ID",
+          "isRequired": false,
+          "isSecret": false
+        }
       ]
     }
   ]

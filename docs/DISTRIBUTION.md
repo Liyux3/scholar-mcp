@@ -9,7 +9,7 @@ drives the package, registry, container, and MCPB workflows from the same tag.
 |---|---|---|
 | GitHub Release | Source, notes, attached MCPB bundles | Release trigger |
 | PyPI / uvx | `scholar-mcp` | `publish.yml` |
-| Official MCP Registry | `io.github.liyux3/scholar-mcp` | OIDC publisher after PyPI |
+| Official MCP Registry | `io.github.Liyux3/scholar-mcp` | OIDC publisher after PyPI |
 | GHCR | `ghcr.io/liyux3/scholar-mcp` | Multi-architecture Docker build |
 | MCPB | Darwin arm64 and x86_64 bundles | macOS matrix build and MCP smoke |
 | Codex marketplace | `.agents/plugins/marketplace.json` | Repository marketplace |

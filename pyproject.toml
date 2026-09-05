@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scholar-mcp"
-version = "0.8.2"
+version = "0.8.3"
 description = "Scholar MCP: federated academic paper search (OpenAlex, Semantic Scholar, arXiv, PubMed), citation graphs, full-text reading, and a local paper library for research agents"
 authors = [{ name = "Yuxian Li" }]
 readme = "README.md"
@@ -56,7 +56,7 @@ Documentation = "https://github.com/Liyux3/scholar-mcp#readme"
 Repository = "https://github.com/Liyux3/scholar-mcp"
 Issues = "https://github.com/Liyux3/scholar-mcp/issues"
 Changelog = "https://github.com/Liyux3/scholar-mcp/releases"
-"MCP Registry" = "https://registry.modelcontextprotocol.io/?search=io.github.liyux3%2Fscholar-mcp"
+"MCP Registry" = "https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"
 
 [project.scripts]
 scholar-mcp = "scholar_mcp.cli:main"
