@@ -50,7 +50,7 @@ def test_registry_and_release_workflows_are_wired():
     server = _json("server.json")
     package = server["packages"][0]
     assert server["$schema"].endswith("2025-12-11/server.schema.json")
-    assert server["name"] == "io.github.liyux3/scholar-mcp"
+    assert server["name"] == "io.github.Liyux3/scholar-mcp"
     assert package["registryType"] == "pypi"
     assert package["runtimeHint"] == "uvx"
     assert package["runtimeArguments"] == [
@@ -76,7 +76,7 @@ def test_registry_and_release_workflows_are_wired():
 
 def test_readme_contains_valid_one_click_install_urls():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "<!-- mcp-name: io.github.liyux3/scholar-mcp -->" in readme
+    assert "<!-- mcp-name: io.github.Liyux3/scholar-mcp -->" in readme
 
     vscode_match = re.search(r"https://vscode\.dev/redirect/mcp/install\?[^\"]+", readme)
     assert vscode_match is not None

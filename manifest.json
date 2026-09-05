@@ -3,7 +3,7 @@
   "manifest_version": "0.4",
   "name": "scholar-mcp",
   "display_name": "Scholar MCP",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Multi-source academic search, citation traversal, complete paper reading, and a persistent research library.",
   "author": {
     "name": "Yuxian Li"
@@ -20,7 +20,10 @@
     "entry_point": "server/scholar_mcp/__main__.py",
     "mcp_config": {
       "command": "python3.12",
-      "args": ["-m", "scholar_mcp"],
+      "args": [
+        "-m",
+        "scholar_mcp"
+      ],
       "env": {
         "PYTHONPATH": "${__dirname}/server:${__dirname}/server/vendor",
         "SCHOLAR_DATA_DIR": "${user_config.data_dir}",
@@ -31,11 +34,19 @@
       }
     }
   },
-  "keywords": ["mcp", "academic-search", "citations", "papers", "research"],
+  "keywords": [
+    "mcp",
+    "academic-search",
+    "citations",
+    "papers",
+    "research"
+  ],
   "license": "Apache-2.0",
   "compatibility": {
     "claude_desktop": ">=1.0.0",
-    "platforms": ["darwin"],
+    "platforms": [
+      "darwin"
+    ],
     "runtimes": {
       "python": ">=3.12,<3.13"
     }

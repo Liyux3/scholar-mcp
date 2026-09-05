@@ -1,6 +1,6 @@
 {
   "name": "scholar-mcp",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Scholar MCP for multi-source academic search, citation traversal, paper reading, and deep research workflows.",
   "author": {
     "name": "Yuxian Li",
@@ -9,7 +9,12 @@
   "homepage": "https://github.com/Liyux3/scholar-mcp",
   "repository": "https://github.com/Liyux3/scholar-mcp",
   "license": "Apache-2.0",
-  "keywords": ["academic-search", "citations", "deep-research", "mcp"],
+  "keywords": [
+    "academic-search",
+    "citations",
+    "deep-research",
+    "mcp"
+  ],
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
@@ -18,7 +23,11 @@
     "longDescription": "Search and rerank academic literature across multiple sources, follow citations and references, read open-access papers, and run evidence-grounded deep research workflows.",
     "developerName": "Yuxian Li",
     "category": "Research",
-    "capabilities": ["Academic Search", "Citation Traversal", "Paper Reading"],
+    "capabilities": [
+      "Academic Search",
+      "Citation Traversal",
+      "Paper Reading"
+    ],
     "websiteURL": "https://github.com/Liyux3/scholar-mcp",
     "defaultPrompt": [
       "Map the recent literature and key paper lineages for this topic.",

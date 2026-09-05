@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "Academic retrieval, citation traversal, primary-text reading, and research memory.",
-    "version": "0.8.2"
+    "version": "0.8.3"
   },
   "plugins": [
     {
       "name": "scholar-mcp",
       "source": "plugins/scholar-mcp",
       "description": "Find papers, follow evidence, read primary sources, and build a durable research library.",
-      "version": "0.8.2",
+      "version": "0.8.3",
       "author": {
         "name": "Yuxian Li"
       },
