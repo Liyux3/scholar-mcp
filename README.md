@@ -15,8 +15,6 @@
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
 </p>
 
-<h3 align="center">Go deeper.</h3>
-
 <p align="center">
   Find the paper. Follow the evidence. Build the field.
 </p>
