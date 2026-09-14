@@ -17,7 +17,7 @@ USER_AGENTS = [
 ]
 
 
-class BlockedError(RuntimeError):
+class BlockedError(PermissionError):
     """Google served its anti-scraping interstitial instead of results."""
 
 
@@ -109,6 +109,11 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
             )
 
         soup = BeautifulSoup(response.text, "html.parser")
+        if soup.select_one("#gs_captcha_ccl, form[action*='/sorry/']") or any(
+            marker in response.text.lower()
+            for marker in ("unusual traffic from your computer network", "g-recaptcha")
+        ):
+            raise BlockedError("Google Scholar requires browser verification on this connection")
         results = soup.find_all("div", class_="gs_ri")
         if not results:
             break

@@ -54,6 +54,14 @@ class TestMetaBlock:
     def test_extra_fields_pass_through(self):
         assert server._meta_block([_report("a")], total=7)["total"] == 7
 
+    def test_default_error_is_readable_and_debug_preserves_exception(self):
+        reports = [_report("dblp", status="blocked", count=0,
+                           error="PermissionError: DBLP requires browser verification")]
+        normal = server._meta_block(reports)
+        debug = server._meta_block(reports, debug=True)
+        assert normal["sources_unavailable"][0]["error"] == "DBLP requires browser verification"
+        assert debug["source_reports"][0]["error"].startswith("PermissionError:")
+
 
 class TestErrorCleaning:
     def test_strips_urls_carrying_api_keys(self):

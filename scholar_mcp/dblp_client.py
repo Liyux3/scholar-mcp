@@ -20,9 +20,18 @@ def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
         "q": query,
         "h": min(limit, DBLP_MAX_HITS),
         "format": "json",
+        "c": 0,
     }
-    r = httpx.get(BASE_URL, params=params, timeout=10)
+    r = httpx.get(BASE_URL, params=params, headers={"Accept": "application/json"},
+                  timeout=15, follow_redirects=True)
     r.raise_for_status()
+    if "text/html" in r.headers.get("content-type", "").lower():
+        page = r.text.lower()
+        if any(marker in page for marker in (
+            "anubis", "making sure", "captcha", "verify you are human",
+        )):
+            raise PermissionError("DBLP requires browser verification on this connection")
+        raise ValueError("DBLP returned an HTML page instead of API data")
     data = r.json()
 
     papers = []

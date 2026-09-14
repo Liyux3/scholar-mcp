@@ -26,10 +26,10 @@ VAULT_DIR: str = os.path.expanduser(
     os.environ.get("SCHOLAR_VAULT_DIR", os.path.join(DATA_DIR, "vault"))
 )
 S2_TIMEOUT: int = int(os.environ.get("S2_TIMEOUT", "30"))
-# Wall-clock budget for the whole parallel source fan-out. Sources still
-# answering when it expires are dropped and reported as timed out, so one slow
-# API cannot set the latency for the rest of the fleet.
-SOURCE_BUDGET_S: float = float(os.environ.get("SCHOLAR_SOURCE_BUDGET_S", "8"))
+# Wall-clock budget for one parallel search round. Allow ordinary 10-15s
+# provider requests to finish before discarding their candidates. The same
+# bounded budget applies to each seed-title search during expansion.
+SOURCE_BUDGET_S: float = float(os.environ.get("SCHOLAR_SOURCE_BUDGET_S", "30"))
 SCIHUB_ENABLED: bool = os.environ.get("SCIHUB_ENABLED", "").lower() in ("1", "true", "yes")
 RANK_PARAMS_PATH: str = os.path.expanduser("~/.scholar-mcp/rank_params.json")
 # S2 recommendation candidate pool. "recent" restricts to papers from the last

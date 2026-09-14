@@ -103,6 +103,28 @@ class TestINSPIRE:
 
 
 class TestDBLP:
+    def test_verification_page_is_reported_as_blocked(self, monkeypatch):
+        import httpx
+        from scholar_mcp import dblp_client, sources
+
+        response = httpx.Response(200, headers={"content-type": "text/html"},
+                                  text="<title>Making sure you're not a bot!</title>",
+                                  request=httpx.Request("GET", dblp_client.BASE_URL))
+        monkeypatch.setattr(dblp_client.httpx, "get", lambda *a, **kw: response)
+        result = sources._timed_call("dblp", dblp_client.search_papers, "transformer", 3)
+        assert result.status == "blocked"
+        assert "verification" in result.error
+        assert "JSONDecodeError" not in result.error
+
+    def test_valid_empty_response_remains_empty(self, monkeypatch):
+        import httpx
+        from scholar_mcp import dblp_client, sources
+
+        response = httpx.Response(200, json={"result": {"hits": {"@total": "0"}}},
+                                  request=httpx.Request("GET", dblp_client.BASE_URL))
+        monkeypatch.setattr(dblp_client.httpx, "get", lambda *a, **kw: response)
+        assert sources._timed_call("dblp", dblp_client.search_papers, "q", 3).status == "empty"
+
     @pytest.mark.integration
     def test_returns_list_for_query_with_no_matches(self):
         """A query with genuinely no CS matches returns an empty list. HTTP
@@ -131,6 +153,18 @@ class TestDBLP:
 
 
 class TestGoogleScholarBlocking:
+    def test_http_200_challenge_is_blocked_in_fanout(self, monkeypatch):
+        import httpx
+        from scholar_mcp import scholar_client, sources
+
+        response = httpx.Response(200, text='<div id="gs_captcha_ccl">Verify</div>',
+                                  request=httpx.Request("GET", scholar_client.SCHOLAR_URL))
+        monkeypatch.setattr(scholar_client.httpx, "get", lambda *a, **kw: response)
+        monkeypatch.setattr(scholar_client.time, "sleep", lambda *_: None)
+        result = sources._timed_call("google_scholar", scholar_client.search_papers, "q", 3)
+        assert result.status == "blocked"
+        assert result.results == []
+
     def test_redirect_to_sorry_page_raises(self, monkeypatch):
         """Google answers scraped requests with a 302 to /sorry/ rather than an
         error status, so a bare status check reads it as an ordinary empty

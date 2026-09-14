@@ -153,7 +153,8 @@ def _timed_call(source_name: str, fn: Callable, *args, **kwargs) -> SourceResult
         return SourceResult(source_name, "empty", [], ms)
     except Exception as e:
         ms = int((_time.monotonic() - t0) * 1000)
-        status = "timeout" if "timeout" in type(e).__name__.lower() else "error"
+        status = ("blocked" if isinstance(e, PermissionError) else
+                  "timeout" if "timeout" in type(e).__name__.lower() else "error")
         return SourceResult(source_name, status, [], ms, f"{type(e).__name__}: {e}")
 
 

@@ -26,7 +26,7 @@
   <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-8C714C.svg?style=flat-square" alt="MCP compatible"></a>
 </p>
 
-Scholar MCP turns a research question into a connected body of evidence. It recovers papers from vague descriptions, reaches the work one hop beyond search, opens the primary text, maps the lineage, and carries the selected field into a library that grows with every session.
+Scholar MCP finds papers from natural-language questions, follows citations and related work, and opens the primary text. Save selected papers and notes in a local library that carries your research across sessions.
 
 `Natural-language discovery` · `Related-work discovery` · `Primary evidence` · `Field maps` · `Zotero · Obsidian · Notion connectors`
 
@@ -99,7 +99,7 @@ Release artifacts also include the PyPI package, multi-architecture GHCR image, 
 | Core | `paper_info` | Paper detail, citations, and references through one selective call |
 | Core | `recommend_papers` | Related work through semantic and citation connections |
 | Core | `search_authors` | Author profiles, affiliations, paper counts, and h-index |
-| Core | `read_paper` | Temporarily fetch and read a complete paper in one call |
+| Core | `read_paper` | Read paper text, tables, and selected figures; pages 1-10 by default |
 | Core | `download_paper` | Persist a PDF and index it in a collection |
 | Research | `build_paper_graph` | Bounded citation graph with PageRank, bridges, nodes, edges, and Mermaid |
 | Research | `paper_library` | Collections, FTS search, notes, tags, PDFs, and Markdown vault export |
@@ -124,13 +124,15 @@ Keyword APIs receive measured source-specific query budgets. Semantic endpoints 
 
 Results are canonicalized across DOI, arXiv, Semantic Scholar, OpenAlex, PubMed, and OpenReview identities. Duplicate records contribute complementary metadata and independent source evidence instead of appearing several times.
 
-DashScope `qwen3-rerank` is the primary reranker when configured; FlashRank is the local fallback. The normal response shows only source coverage, the actual reranker, and actionable degradation. `debug=true` adds per-source yield, latency, provenance, and internal ranking diagnostics.
+DashScope `qwen3-rerank` is the primary reranker when configured; FlashRank is the local fallback. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set.
+
+The normal response includes a compact `_meta` summary: sources that returned initial candidates, the actual reranker, and any unavailable sources. A source with zero matches is counted separately from a failed request. `debug=true` adds per-source yield, latency, provenance, and detailed errors. Each parallel search round waits up to 30 seconds by default; `SCHOLAR_SOURCE_BUDGET_S` adjusts this budget.
 
 ## Measured retrieval quality
 
 ![LitSearch quality comparison](docs/assets/litsearch-quality.svg)
 
-Scholar leads the Exa research-paper baseline by **10 points at R@5** and **6 points at R@20** on matched LitSearch.
+In the frozen matched LitSearch run, Scholar recovered **10 percentage points more papers at R@5** and **6 points more at R@20** than Exa research-paper search.
 
 | System | R@5 | R@10 | R@20 | MRR |
 |---|---:|---:|---:|---:|

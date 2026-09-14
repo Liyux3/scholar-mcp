@@ -346,7 +346,8 @@ def _clean_error(message: str) -> str:
 def _meta_block(source_reports: list[dict], *, debug: bool = False, **extra) -> dict:
     """Keep normal output compact while preserving actionable degradation.
 
-    Healthy and genuinely empty sources collapse into one coverage ratio.
+    Coverage counts sources yielding candidates in the initial search round.
+    Empty matches are recorded separately in debug reports.
     Errors and timeouts remain visible. Full yields and latency are opt-in
     diagnostics because repeating them on every search burns context without
     helping the next research decision.
@@ -357,7 +358,8 @@ def _meta_block(source_reports: list[dict], *, debug: bool = False, **extra) -> 
     if degraded:
         meta["sources_unavailable"] = [
             {"source": r["source"], "status": r["status"],
-             "error": _clean_error(r.get("error") or "")}
+             "error": _clean_error(r.get("error") or "") if debug else
+             re.sub(r"^\w+(?:Error|Exception):\s*", "", _clean_error(r.get("error") or ""))}
             for r in degraded
         ]
     if debug:
