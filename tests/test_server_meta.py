@@ -1,8 +1,4 @@
-"""Tests for the per-source metadata block attached to search results.
-
-This block is returned on every search, so its size is a recurring cost to
-the caller's context, and its contents are a recurring disclosure risk.
-"""
+"""Tests for diagnostic-only source metadata and concise result warnings."""
 
 import asyncio
 
@@ -17,12 +13,30 @@ def _report(source, status="ok", count=100, latency_ms=1000, error=None):
 
 
 class TestMetaBlock:
-    def test_healthy_sources_collapse_to_coverage(self):
+    def test_tool_keeps_diagnostics_behind_debug(self, monkeypatch):
+        paper = {"title": "Example paper", "year": 2026, "authors": ["A"], "venue": "ICLR"}
+        reports = [_report("openalex", count=1),
+                   _report("dblp", status="blocked", count=0, error="PermissionError: verification")]
+        monkeypatch.setattr(server, "_pipeline", lambda *a, **kw: ([paper], reports))
+        monkeypatch.setattr(server.relevance, "optimize_query", lambda q: q)
+        monkeypatch.setattr(server.s2_client, "is_healthy", lambda: False)
+        monkeypatch.setattr(server.relevance, "reranker_status", lambda: {"provider": "dashscope"})
+        normal = yaml.safe_load(server.search_papers("example"))
+        debug = yaml.safe_load(server.search_papers("example", debug=True))
+        assert set(normal) == {"results", "warning"}
+        assert normal["results"] == debug["results"]
+        assert debug["_meta"]["source_coverage"] == "1/2"
+        assert debug["_meta"]["reranker"]["provider"] == "dashscope"
+
+    def test_paper_relations_omit_empty_metadata(self, monkeypatch):
+        monkeypatch.setattr(server, "_pipeline", lambda *a, **kw: ([], [_report("openalex", "empty", count=0)]))
+        result = yaml.safe_load(server.paper_info("10.1/example", include="references"))
+        assert result == {"references": []}
+
+    def test_healthy_sources_are_quiet_by_default(self):
         meta = server._meta_block([_report("openalex", count=100),
                                    _report("arxiv", count=42)])
-        assert meta["source_coverage"] == "2/2"
-        assert "sources_unavailable" not in meta
-        assert "source_reports" not in meta
+        assert meta == {}
 
     def test_debug_includes_stable_per_source_reports(self):
         meta = server._meta_block(
@@ -35,7 +49,7 @@ class TestMetaBlock:
         meta = server._meta_block([
             _report("openalex"),
             _report("dblp", status="error", count=0, error="HTTPStatusError: 503"),
-        ])
+        ], debug=True)
         assert meta["source_coverage"] == "1/2"
         assert len(meta["sources_unavailable"]) == 1
         assert meta["sources_unavailable"][0]["source"] == "dblp"
@@ -44,22 +58,24 @@ class TestMetaBlock:
     def test_empty_status_is_quiet_outside_debug(self):
         """An empty corpus match is ordinary; diagnostics can still inspect it."""
         meta = server._meta_block([_report("doaj", status="empty", count=0)])
-        assert meta["source_coverage"] == "0/1"
-        assert "sources_unavailable" not in meta
+        assert meta == {}
         debug = server._meta_block(
             [_report("doaj", status="empty", count=0)], debug=True
         )
         assert debug["source_reports"][0]["status"] == "empty"
 
     def test_extra_fields_pass_through(self):
-        assert server._meta_block([_report("a")], total=7)["total"] == 7
+        assert server._meta_block([_report("a")], debug=True, total=7)["total"] == 7
+        assert server._meta_block([_report("a")], total=7, reranker={"provider": "dashscope"}) == {}
 
     def test_default_error_is_readable_and_debug_preserves_exception(self):
         reports = [_report("dblp", status="blocked", count=0,
                            error="PermissionError: DBLP requires browser verification")]
         normal = server._meta_block(reports)
         debug = server._meta_block(reports, debug=True)
-        assert normal["sources_unavailable"][0]["error"] == "DBLP requires browser verification"
+        assert set(normal) == {"warning"}
+        assert "incomplete" in normal["warning"]
+        assert "dblp" not in str(normal)
         assert debug["source_reports"][0]["error"].startswith("PermissionError:")
 
 
@@ -90,7 +106,7 @@ class TestErrorCleaning:
     def test_meta_block_cleans_errors(self):
         meta = server._meta_block([_report(
             "openalex", status="error", count=0,
-            error="Error for url 'https://api.openalex.org/works?api_key=LEAKME'")])
+            error="Error for url 'https://api.openalex.org/works?api_key=LEAKME'")], debug=True)
         assert "LEAKME" not in str(meta)
 
 

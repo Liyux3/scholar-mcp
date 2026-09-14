@@ -1,6 +1,10 @@
 """DBLP API client. CS bibliography standard. Free, no key needed."""
 
+import re
+import time
+
 import httpx
+from bs4 import BeautifulSoup
 
 BASE_URL = "https://dblp.org/search/publ/api"
 
@@ -22,9 +26,27 @@ def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
         "format": "json",
         "c": 0,
     }
-    r = httpx.get(BASE_URL, params=params, headers={"Accept": "application/json"},
-                  timeout=15, follow_redirects=True)
-    r.raise_for_status()
+    with httpx.Client(timeout=15, follow_redirects=True,
+                      headers={"Accept": "application/json"}) as client:
+        r = client.get(BASE_URL, params=params)
+        r.raise_for_status()
+        if "text/html" in r.headers.get("content-type", "").lower():
+            # Anubis's documented metarefresh mode asks clients to keep the
+            # verification cookie and revisit a same-origin URL after a delay.
+            # Follow that one refresh inside the existing request budget.
+            soup = BeautifulSoup(r.text, "html.parser")
+            refresh = soup.find("meta", attrs={"http-equiv": re.compile("^refresh$", re.I)})
+            match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*;\s*url=(.+)",
+                                 str(refresh.get("content", "")), re.I) if refresh else None
+            if match and soup.find("script", id="anubis_challenge"):
+                delay = float(match[1])
+                target = r.url.join(match[2].strip("\"'"))
+                if (0 <= delay <= 5 and target.scheme == "https"
+                        and target.host == r.url.host and target.port == r.url.port
+                        and target.path == "/.within.website/x/cmd/anubis/api/pass-challenge"):
+                    time.sleep(delay + 0.5)
+                    r = client.get(target)
+                    r.raise_for_status()
     if "text/html" in r.headers.get("content-type", "").lower():
         page = r.text.lower()
         if any(marker in page for marker in (

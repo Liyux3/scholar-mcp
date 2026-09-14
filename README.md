@@ -126,7 +126,7 @@ Results are canonicalized across DOI, arXiv, Semantic Scholar, OpenAlex, PubMed,
 
 DashScope `qwen3-rerank` is the primary reranker when configured; FlashRank is the local fallback. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set.
 
-The normal response includes a compact `_meta` summary: sources that returned initial candidates, the actual reranker, and any unavailable sources. A source with zero matches is counted separately from a failed request. `debug=true` adds per-source yield, latency, provenance, and detailed errors. Each parallel search round waits up to 30 seconds by default; `SCHOLAR_SOURCE_BUDGET_S` adjusts this budget.
+Normal responses focus on papers, with a short warning if availability affected the search. `debug=true` adds `_meta` with source coverage, the actual reranker, per-source yield, latency, provenance, and detailed errors. Each parallel search round waits up to 30 seconds by default; `SCHOLAR_SOURCE_BUDGET_S` adjusts this budget.
 
 ## Measured retrieval quality
 

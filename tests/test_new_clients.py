@@ -103,6 +103,51 @@ class TestINSPIRE:
 
 
 class TestDBLP:
+    def test_metarefresh_preserves_session_and_returns_papers(self, monkeypatch):
+        import httpx
+        from scholar_mcp import dblp_client
+
+        calls = []
+        delays = []
+        def handle(request):
+            calls.append(request)
+            if request.url.path == "/search/publ/api":
+                return httpx.Response(200, headers={
+                    "content-type": "text/html",
+                    "set-cookie": "verification=test; Path=/; Secure",
+                }, text='<script id="anubis_challenge"></script><meta http-equiv="refresh" '
+                        'content="2;url=/.within.website/x/cmd/anubis/api/pass-challenge?id=example">')
+            assert request.headers["cookie"] == "verification=test"
+            return httpx.Response(200, json={"result": {"hits": {"hit": [
+                {"info": {"title": "Transformer.", "year": "2026", "key": "test/paper"}},
+            ]}}})
+
+        client = httpx.Client
+        monkeypatch.setattr(dblp_client.httpx, "Client", lambda **kw: client(
+            transport=httpx.MockTransport(handle), **kw))
+        monkeypatch.setattr(dblp_client.time, "sleep", delays.append)
+        papers = dblp_client.search_papers("transformer", limit=3)
+        assert papers[0]["title"] == "Transformer"
+        assert delays == [2.5]
+        assert len(calls) == 2
+
+    def test_metarefresh_keeps_requests_on_dblp(self, monkeypatch):
+        import httpx
+        from scholar_mcp import dblp_client
+
+        calls = []
+        def handle(request):
+            calls.append(request)
+            return httpx.Response(200, headers={"content-type": "text/html"},
+                                  text='<script id="anubis_challenge"></script><meta http-equiv="refresh" '
+                                       'content="0;url=https://other.invalid/.within.website/x/cmd/anubis/api/pass-challenge">')
+        client = httpx.Client
+        monkeypatch.setattr(dblp_client.httpx, "Client", lambda **kw: client(
+            transport=httpx.MockTransport(handle), **kw))
+        with pytest.raises(PermissionError):
+            dblp_client.search_papers("transformer", limit=3)
+        assert len(calls) == 1
+
     def test_verification_page_is_reported_as_blocked(self, monkeypatch):
         import httpx
         from scholar_mcp import dblp_client, sources
@@ -110,7 +155,7 @@ class TestDBLP:
         response = httpx.Response(200, headers={"content-type": "text/html"},
                                   text="<title>Making sure you're not a bot!</title>",
                                   request=httpx.Request("GET", dblp_client.BASE_URL))
-        monkeypatch.setattr(dblp_client.httpx, "get", lambda *a, **kw: response)
+        monkeypatch.setattr(dblp_client.httpx.Client, "get", lambda *a, **kw: response)
         result = sources._timed_call("dblp", dblp_client.search_papers, "transformer", 3)
         assert result.status == "blocked"
         assert "verification" in result.error
@@ -122,7 +167,7 @@ class TestDBLP:
 
         response = httpx.Response(200, json={"result": {"hits": {"@total": "0"}}},
                                   request=httpx.Request("GET", dblp_client.BASE_URL))
-        monkeypatch.setattr(dblp_client.httpx, "get", lambda *a, **kw: response)
+        monkeypatch.setattr(dblp_client.httpx.Client, "get", lambda *a, **kw: response)
         assert sources._timed_call("dblp", dblp_client.search_papers, "q", 3).status == "empty"
 
     @pytest.mark.integration
@@ -147,7 +192,7 @@ class TestDBLP:
             def raise_for_status(self):
                 raise httpx.HTTPStatusError("503", request=None, response=None)
 
-        monkeypatch.setattr(dblp_client.httpx, "get", lambda *a, **kw: FakeResponse())
+        monkeypatch.setattr(dblp_client.httpx.Client, "get", lambda *a, **kw: FakeResponse())
         with pytest.raises(httpx.HTTPStatusError):
             dblp_client.search_papers("anything", limit=10)
 

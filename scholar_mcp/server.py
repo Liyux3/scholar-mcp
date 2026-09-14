@@ -344,22 +344,22 @@ def _clean_error(message: str) -> str:
 
 
 def _meta_block(source_reports: list[dict], *, debug: bool = False, **extra) -> dict:
-    """Keep normal output compact while preserving actionable degradation.
-
-    Coverage counts sources yielding candidates in the initial search round.
-    Empty matches are recorded separately in debug reports.
-    Errors and timeouts remain visible. Full yields and latency are opt-in
-    diagnostics because repeating them on every search burns context without
-    helping the next research decision.
-    """
+    """Return detailed diagnostics on request, otherwise only result caveats."""
     healthy = [r for r in source_reports if r["status"] == "ok"]
     degraded = [r for r in source_reports if r["status"] in {"error", "timeout", "blocked"}]
+    if not debug:
+        warnings = []
+        if degraded:
+            warnings.append("Some sources were unavailable; results may be incomplete.")
+        if extra.get("reranker", {}).get("provider") == "unavailable":
+            warnings.append("Results were ranked without semantic reranking.")
+        return {"warning": " ".join(warnings)} if warnings else {}
+
     meta = {"source_coverage": f"{len(healthy)}/{len(source_reports)}"}
     if degraded:
         meta["sources_unavailable"] = [
             {"source": r["source"], "status": r["status"],
-             "error": _clean_error(r.get("error") or "") if debug else
-             re.sub(r"^\w+(?:Error|Exception):\s*", "", _clean_error(r.get("error") or ""))}
+             "error": _clean_error(r.get("error") or "")}
             for r in degraded
         ]
     if debug:
@@ -481,22 +481,18 @@ def search_papers(
     results = results[:limit]
 
     if not results:
-        return _yaml({"error": "No relevant results found.", "_meta": _meta_block(reports, debug=debug)})
+        meta = _meta_block(reports, debug=debug)
+        return _yaml({"error": "No relevant results found.",
+                      **({"_meta": meta} if debug else meta)})
 
     reranker = relevance.reranker_status()
     reranker_meta = {"provider": reranker.get("provider") or "unavailable"}
     if reranker_meta["provider"] != "dashscope" and reranker.get("fallback_reason"):
         reranker_meta["fallback_reason"] = reranker["fallback_reason"]
 
-    return _yaml({
-        "results": [_format_paper(p, debug=debug) for p in results],
-        "_meta": _meta_block(
-            reports,
-            debug=debug,
-            total=len(results),
-            reranker=reranker_meta,
-        ),
-    })
+    meta = _meta_block(reports, debug=debug, total=len(results), reranker=reranker_meta)
+    return _yaml({"results": [_format_paper(p, debug=debug) for p in results],
+                  **({"_meta": meta} if debug else meta)})
 
 
 @mcp.tool(annotations=ToolAnnotations(
@@ -557,11 +553,13 @@ def paper_info(
     if "citations" in relation_results:
         cites, reports = relation_results["citations"]
         output["citations"] = [_format_compact(p) for p in cites]
-        output["_citations_meta"] = _meta_block(reports, total=len(cites))
+        if meta := _meta_block(reports):
+            output["citations_warning"] = meta["warning"]
     if "references" in relation_results:
         refs, reports = relation_results["references"]
         output["references"] = [_format_compact(p) for p in refs]
-        output["_references_meta"] = _meta_block(reports, total=len(refs))
+        if meta := _meta_block(reports):
+            output["references_warning"] = meta["warning"]
 
     if not output:
         return _yaml({"error": f"Could not find paper '{paper_id}'"})
