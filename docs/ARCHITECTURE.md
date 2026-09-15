@@ -33,6 +33,10 @@ Provider batch limits do not cap the candidate pool. Large pools are scored in
 batches, then ranked globally using one provider per pass. Sparse reference
 records are resolved through DOI/PMID batches, native identifiers and citation
 matching before ranking. Metadata lookups are not counted as extra search votes.
+The output limit is applied after complete-pool scoring, composite ranking and
+requested filters. arXiv DOI aliases and author-backed redeposit matches keep
+one work from occupying multiple result slots; conflicting titles are checked
+against native identifier records.
 
 `sort` selects the final ordering: relevance, citation count, or date.
 `intent` guides semantic reranking and expansion toward a research purpose such
@@ -46,7 +50,8 @@ resolution capabilities. An adapter supplies the capabilities its provider
 actually supports. Adding a source does not require another MCP tool.
 
 Crossref supplies deposited references; Europe PMC supplies citation relations
-and can recover references from its own open-access JATS full text. Both feed
+and can recover references from its own open-access JATS full text. INSPIRE-HEP
+provides native citation traversal and batched reference records. All feed
 the same graph traversal as Semantic Scholar and OpenAlex. Cached requests are
 namespaced by provider implementation and shared across concurrent callers.
 

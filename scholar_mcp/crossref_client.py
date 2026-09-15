@@ -90,12 +90,19 @@ def reference_paper(ref: dict) -> dict:
 
 
 @cached(ttl=3600)
+def reference_candidates(text: str) -> list[dict]:
+    if not text:
+        return []
+    return _get_json(BASE_URL, {"query.bibliographic": text[:1000], "rows": 3}).get("message", {}).get("items", [])
+
+
+@cached(ttl=3600)
 def match_reference(text: str, title: str = "", author: str = "", year: str = "", page: str = "") -> dict | None:
     """Resolve an exact title or a consistent author/year/first-page citation."""
     from .relevance import _normalize_title
     if not text:
         return None
-    candidates = _get_json(BASE_URL, {"query.bibliographic": text[:1000], "rows": 3}).get("message", {}).get("items", [])
+    candidates = reference_candidates(text)
     matches = []
     for candidate in candidates:
         paper = format_paper(candidate)

@@ -17,6 +17,7 @@ from . import (
     config,
     expansion,
     graph,
+    metadata,
     openalex_client,
     paper_reader,
     pdf_utils,
@@ -83,6 +84,7 @@ def _pipeline(
     expand_min_pool: int = 10,
     expand_limit: int = 20,
     expand_channels: list[str] | None = None,
+    return_all: bool = False,
     **kwargs,
 ) -> tuple[list[dict], list[dict]]:
     """Shared pipeline: parallel fetch -> dedup -> rerank -> (expand) -> rank -> truncate.
@@ -136,9 +138,10 @@ def _pipeline(
         return [], source_reports
 
     all_papers = relevance.deduplicate(all_papers)
+    metadata.hydrate(all_papers)
 
     if rerank_query:
-        all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
+        all_papers = relevance.rerank(rerank_query, all_papers, top_n=len(all_papers), intent=intent)
         all_papers = relevance.rank_final(all_papers)
 
         if expand_citations and len(all_papers) >= expand_min_pool:
@@ -155,14 +158,15 @@ def _pipeline(
                     relevance.tag_source_ranks([p], "expansion")
                 all_papers.extend(found)
                 all_papers = relevance.deduplicate(all_papers)
-                all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
+                metadata.hydrate(all_papers)
+                all_papers = relevance.rerank(rerank_query, all_papers, top_n=len(all_papers), intent=intent)
                 # Rescore the final pool with one provider, in batches when
                 # needed. Do not average final scores with the seed pass.
                 all_papers = relevance.rank_final(all_papers)
     else:
         all_papers.sort(key=lambda p: -(p.get("citation_count", 0) or 0))
 
-    return all_papers[:limit], source_reports
+    return (all_papers if return_all else all_papers[:limit]), source_reports
 
 
 def _format_paper(p: dict, *, detailed: bool = False, debug: bool = False) -> dict:
@@ -409,7 +413,7 @@ def search_papers(
     results, reports = _pipeline(
         "search", search_query, limit * 3,
         rerank_query=query, raw_query=query, intent=rank_intent,
-        expand_citations=True, **search_kwargs,
+        expand_citations=True, return_all=True, **search_kwargs,
     )
 
     s2_degraded = any(
@@ -419,6 +423,11 @@ def search_papers(
     )
     if not s2_degraded and s2_client.is_healthy():
         s2_snippet_client.enrich_metadata(results)
+
+    # Enrichment can reveal an identifier linking two previously separate
+    # candidates. Merge again before spending the user's result slots on them.
+    results = relevance.deduplicate(results)
+    metadata.hydrate(results)
 
     if year:
         results = [paper for paper in results if _year_matches(paper, year)]
@@ -435,6 +444,9 @@ def search_papers(
         ]
     if min_citations > 0:
         results = [p for p in results if (p.get("citation_count") or 0) >= min_citations]
+
+    if any(paper.get("_rerank_score") is not None for paper in results):
+        results = relevance.rank_final(results)
 
     if sort == "citations":
         results.sort(key=lambda p: -(p.get("citation_count", 0) or 0))

@@ -4,10 +4,12 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import re
 import time
+from .cache import cached
 
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 
 
+@cached(ttl=3600)
 def get_paper(paper_id: str) -> dict | None:
     value = re.sub(r"^(?:arxiv:|10\.48550/arxiv\.|https?://arxiv\.org/abs/)", "", paper_id, flags=re.I)
     if not re.fullmatch(r"(?:\d{4}\.\d{4,5}|[a-z-]+/\d{7})(?:v\d+)?", value):

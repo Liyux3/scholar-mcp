@@ -330,6 +330,10 @@ def _external_ids(paper: dict) -> dict[str, str]:
             normalized.setdefault("OpenAlex", paper_id)
         elif lowered.startswith("corpusid:"):
             normalized.setdefault("CorpusId", paper_id.split(":", 1)[1])
+    arxiv_doi = re.fullmatch(r"10\.48550/arxiv\.(\d{4}\.\d{4,5}(?:v\d+)?)",
+                             _normalized_identifier("DOI", normalized.get("DOI", "")), re.I)
+    if arxiv_doi:
+        normalized.setdefault("ArXiv", arxiv_doi[1])
     return normalized
 
 
@@ -404,6 +408,9 @@ def _merge_two(a: dict, b: dict) -> dict:
     Track source count and per-source ranks for RRF.
     """
     merged = dict(a)
+    if (a.get("title") and b.get("title")
+            and _normalize_title(a["title"]) != _normalize_title(b["title"])):
+        merged.update(_title_conflict=True, _needs_metadata=True)
     a_ids = _external_ids(merged)
     b_ids = _external_ids(b)
     merged["external_ids"] = {**b_ids, **a_ids}
@@ -411,6 +418,14 @@ def _merge_two(a: dict, b: dict) -> dict:
     for field in ("year", "publication_date", "paper_id", "url", "pdf_path"):
         if not merged.get(field) and b.get(field):
             merged[field] = b[field]
+    try:
+        if b.get("year") and merged.get("year") and int(b["year"]) < int(merged["year"]):
+            merged["year"] = int(b["year"])
+            merged["publication_date"] = b.get("publication_date") or str(b["year"])
+            if b_ids.get("DOI"):
+                merged["external_ids"]["DOI"] = b_ids["DOI"]
+    except (TypeError, ValueError):
+        pass
     if (not merged.get("venue") or str(merged.get("venue")).casefold() == "arxiv") and b.get("venue"):
         merged["venue"] = b["venue"]
     if not merged.get("title") and b.get("title"):
@@ -478,13 +493,31 @@ def deduplicate(papers: list[dict]) -> list[dict]:
 
     groups: list[dict | None] = []
     key_to_group: dict[str, int] = {}
+    title_to_groups: dict[str, set[int]] = {}
 
     def compatible_title_match(existing: dict, candidate: dict) -> bool:
         a_year, b_year = existing.get("year"), candidate.get("year")
         try:
-            return not (a_year and b_year and abs(int(a_year) - int(b_year)) > 1)
+            if not (a_year and b_year and abs(int(a_year) - int(b_year)) > 1):
+                return True
         except (TypeError, ValueError):
             return True
+        # Reprints/redeposits can be many years later. Exact, specific titles
+        # plus multiple matching author surnames can establish the same work.
+        # Generic annual report titles still stay separate across years.
+        if len(_normalize_title(existing.get("title", "")).split()) < 5:
+            return False
+        def surnames(paper):
+            names = set()
+            for author in paper.get("authors") or []:
+                tokens = re.findall(r"[^\W\d_]+", str(author).casefold())
+                meaningful = [token for token in tokens if len(token) > 1]
+                if meaningful:
+                    names.add(meaningful[0] if "," in str(author) else meaningful[-1])
+            return names
+        a_names, b_names = surnames(existing), surnames(candidate)
+        common = a_names & b_names
+        return len(common) >= 2 and len(common) >= min(len(a_names), len(b_names)) / 2
 
     for paper in papers:
         keys = paper_identity_keys(paper)
@@ -492,8 +525,7 @@ def deduplicate(papers: list[dict]) -> list[dict]:
         matched = {key_to_group[key] for key in identifier_keys if key in key_to_group}
         if not matched:
             for key in keys - identifier_keys:
-                if key in key_to_group:
-                    group = key_to_group[key]
+                for group in title_to_groups.get(key, set()):
                     existing = groups[group]
                     if existing is not None and compatible_title_match(existing, paper):
                         matched.add(group)
@@ -522,7 +554,10 @@ def deduplicate(papers: list[dict]) -> list[dict]:
                         key_to_group[key] = group_index
 
         for key in paper_identity_keys(merged):
-            key_to_group[key] = group_index
+            if key.startswith("title:"):
+                title_to_groups.setdefault(key, set()).add(group_index)
+            else:
+                key_to_group[key] = group_index
 
     return [paper for paper in groups if paper is not None]
 
@@ -886,7 +921,10 @@ def rank_final(papers: list[dict]) -> list[dict]:
         r = max(p.get("_rerank_score", 0.0), 1e-6)
         cites = p.get("citation_count", 0) or 0
         src_count = physical_source_count(p)
-        year = p.get("year") or current_year
+        try:
+            year = int(p.get("year") or current_year)
+        except (TypeError, ValueError):
+            year = current_year
         recency = max(0, 1.0 - (current_year - year) / 10.0)
 
         score = (r ** gamma) * (1 + alpha * math.log(cites + 1)) * (1 + beta * src_count / n_sources) * (1 + delta * recency)

@@ -22,7 +22,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: uv sync --locked --extra dev --extra compression --extra rerank
+        run: uv sync --locked --python "${{ matrix.python-version }}" --extra dev --extra compression --extra rerank
+
+      - name: Verify Python version
+        run: uv run python -c 'import sys; assert ".".join(map(str, sys.version_info[:2])) == "${{ matrix.python-version }}"; print(sys.version)'
 
       - name: Run tests
         run: uv run pytest tests/ -v

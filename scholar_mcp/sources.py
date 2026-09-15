@@ -6,7 +6,7 @@ structured results. Adding a new source = register() call, no other files change
 """
 
 import time as _time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -215,7 +215,7 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
     try:
         for future in as_completed(futures, timeout=budget_s):
             results.append(future.result())
-    except TimeoutError:
+    except FutureTimeoutError:
         elapsed_ms = int(budget_s * 1000)
         answered = {r.source for r in results}
         for name in futures.values():
@@ -312,7 +312,7 @@ def resolve_pdf_candidates(paper: dict, budget_s: float | None = None) -> list[t
             resolved[source.name] = [
                 str(url).strip() for url in urls if str(url).strip()
             ][:PDF_CANDIDATES_PER_SOURCE]
-    except TimeoutError:
+    except FutureTimeoutError:
         pass
     finally:
         for future in futures:
@@ -441,6 +441,9 @@ def _register_defaults():
     register(Source(
         name="inspirehep",
         search=lambda q, limit, **kw: inspirehep_client.search_papers(q, limit=limit),
+        get_paper=inspirehep_client.get_paper,
+        get_citations=inspirehep_client.get_citations,
+        get_references=inspirehep_client.get_references,
         priority=15,
         domains=["physics", "astronomy", "high-energy physics"],
     ))
