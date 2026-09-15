@@ -1,6 +1,7 @@
 name: Publish container
 
 on:
+  workflow_dispatch:
   release:
     types: [published]
 
@@ -10,7 +11,11 @@ permissions:
 
 jobs:
   smoke:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +31,7 @@ jobs:
         run: uv run python scripts/smoke_container.py
 
   publish:
+    if: github.event_name == 'release'
     needs: smoke
     runs-on: ubuntu-latest
     timeout-minutes: 30
