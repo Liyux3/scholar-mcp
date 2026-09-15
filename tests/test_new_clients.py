@@ -204,7 +204,7 @@ class TestGoogleScholarBlocking:
 
         response = httpx.Response(200, text='<div id="gs_captcha_ccl">Verify</div>',
                                   request=httpx.Request("GET", scholar_client.SCHOLAR_URL))
-        monkeypatch.setattr(scholar_client.httpx, "get", lambda *a, **kw: response)
+        monkeypatch.setattr(scholar_client.httpx.Client, "get", lambda *a, **kw: response)
         monkeypatch.setattr(scholar_client.time, "sleep", lambda *_: None)
         result = sources._timed_call("google_scholar", scholar_client.search_papers, "q", 3)
         assert result.status == "blocked"
@@ -223,7 +223,7 @@ class TestGoogleScholarBlocking:
             text = ""
             request = None
 
-        monkeypatch.setattr(scholar_client.httpx, "get", lambda *a, **kw: FakeResponse())
+        monkeypatch.setattr(scholar_client.httpx.Client, "get", lambda *a, **kw: FakeResponse())
         monkeypatch.setattr(scholar_client.time, "sleep", lambda *_: None)
 
         with pytest.raises(scholar_client.BlockedError):

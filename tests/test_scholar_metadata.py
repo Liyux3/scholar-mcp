@@ -33,10 +33,43 @@ def test_dedicated_proxy_does_not_change_global_route(monkeypatch):
     monkeypatch.setattr(scholar_client.time, "sleep", lambda *_: None)
     seen = {}
 
-    def get(url, **kwargs):
-        seen.update(kwargs)
-        return httpx.Response(200, text="<html></html>", request=httpx.Request("GET", url))
+    class Client:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
 
-    monkeypatch.setattr(httpx, "get", get)
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+        def get(self, url, **kwargs):
+            return httpx.Response(200, text="<html></html>", request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "Client", Client)
     assert scholar_client.search_papers("query") == []
     assert seen["proxy"] == "http://local-proxy:9000"
+    assert seen["follow_redirects"] is True
+
+
+def test_paginated_request_retains_cookie_and_classifies_inline_challenge(monkeypatch):
+    import pytest
+    real_client = httpx.Client
+    monkeypatch.setattr(scholar_client.time, "sleep", lambda *_: None)
+    cookies = []
+
+    def respond(request):
+        cookies.append(request.headers.get("cookie", ""))
+        if len(cookies) == 1:
+            return httpx.Response(200, headers={"set-cookie": "scholar_session=example; Path=/"},
+                                  text='<div class="gs_ri"><h3 class="gs_rt">A</h3><div class="gs_a">Author - 2024</div></div>')
+        return httpx.Response(200, text='<form id="gs_captcha_f"></form>')
+
+    def client(**kwargs):
+        kwargs.pop("proxy", None)
+        return real_client(**kwargs, transport=httpx.MockTransport(respond))
+
+    monkeypatch.setattr(httpx, "Client", client)
+    with pytest.raises(scholar_client.BlockedError):
+        scholar_client.search_papers("query", max_results=2)
+    assert cookies == ["", "scholar_session=example"]

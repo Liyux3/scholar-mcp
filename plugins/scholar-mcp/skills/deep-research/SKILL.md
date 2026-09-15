@@ -14,11 +14,11 @@ resolution, citation traversal, primary-text reading, and selected research memo
 
 | Mode | Starting scope |
 |---|---|
-| Focused verification | One bounded claim, one or two searches, a small set of decisive primary sources |
-| Technical review | Complementary search views, five to eight inspected candidates, two or three expansion seeds |
+| Focused verification | Follow a claim to the primary evidence that supports or overturns it |
+| Technical review | Compare mechanisms, assumptions and results across complementary research views |
 | Frontier scan | Recent work, active groups, weak signals, counterevidence, and follow-up activity |
 
-These are starting budgets. Walk one step, see what's there, then decide the next
+Let the question and evidence determine the depth. Walk one step, see what's there, then decide the next
 step. Expand when a new branch can change the field map or conclusion; stop a branch
 when it repeats known structure or drifts from the question.
 
@@ -34,15 +34,19 @@ when it repeats known structure or drifts from the question.
 | Find intellectual peers | `recommend_papers` with `relation=peers` |
 | Cross vocabulary boundaries | `recommend_papers` with `relation=kin` |
 | Build a lineage | Resolve stable seed IDs, then use `build_paper_graph` |
-| Read primary evidence | `read_paper`; one call returns the complete extracted paper |
+| Read primary evidence | `read_paper` starts with pages 1-10; use a page range or a returned figure/table selector to go deeper |
 | Retain a PDF | `download_paper` |
 | Curate durable evidence | `paper_library` for selected papers, notes, tags, collections, and vault export |
 
 Scholar routes raw, short, and compressed query forms to different source types.
-Keep the original question intact. Use source filters when the research question
-justifies them. Read `_meta.source_coverage`, `_meta.reranker`, and degradation
-details before interpreting an empty or thin result. Enable `debug=true` when
-source-level yield, latency, or ranking provenance changes the diagnosis.
+Keep the original question intact. Add year, venue or paper-type filters when
+the question calls for them. Normal results include a concise warning if access
+or ranking was degraded. Use `debug=true` when source coverage, latency or model
+provenance is needed to understand a thin result.
+
+Graph and library tools belong to the optional research extension. Use the
+tools available in the current harness; the core tools can still support a
+literature review without that extension.
 
 ## Adaptive research loop
 
@@ -54,7 +58,7 @@ source-level yield, latency, or ranking provenance changes the diagnosis.
 
 ### 2. Map
 
-- Start with two or three complementary views, each centered on a distinct mechanism,
+- Start with complementary views, each centered on a distinct mechanism,
   dataset, evaluation setting, or counter-position.
 - Build a field map, not just a source summary. Recover field vocabulary, major
   approaches, canonical works, datasets, benchmarks, active groups, and disagreements.

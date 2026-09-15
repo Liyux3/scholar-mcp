@@ -1,8 +1,7 @@
-.git
-.gitnexus
-.venv
-__pycache__
-*.pyc
-downloads
-eval
-tests
+# Only the inputs used by Dockerfile enter the build context.
+**
+!pyproject.toml
+!README.md
+!LICENSE
+!scholar_mcp/
+!scholar_mcp/*.py

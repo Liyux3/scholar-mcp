@@ -372,14 +372,15 @@ def search_papers(
     intent: SearchIntent = "balanced",
     debug: bool = False,
 ) -> str:
-    """Find academic papers from a topic, question, or remembered idea.
+    """Discover papers that answer a research question or match a remembered idea.
 
     Searches multiple sources, merges duplicates, follows citation connections,
     and ranks for relevance. Natural-language queries work without extra
     parameters. Use paper_info when you already have a paper identifier.
 
     Args:
-        query: Search query (e.g., "attention is all you need", "CRISPR gene editing")
+        query: Describe what you want to find. Titles, distinctive phrases,
+            and natural-language questions all work.
         limit: Maximum results to return (1-100, default 10)
         year: Filter by year or range (e.g., "2023", "2020-2024")
         venue: Filter by venue (e.g., "NeurIPS", "Nature")
@@ -480,7 +481,7 @@ def paper_info(
     include: str = "detail",
     limit: int = 20,
 ) -> str:
-    """Get a paper's metadata and optionally its citations and references.
+    """Look up a paper and trace what it builds on or what followed it.
 
     Citations are papers that cite it; references are papers it cites.
     Each relation list is ordered by citation count and limited separately.
@@ -544,7 +545,7 @@ def paper_info(
     openWorldHint=True,
 ))
 def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) -> str:
-    """Find related work starting from one paper.
+    """Explore related work around a paper, including connections across topics.
 
     similar finds semantic neighbours and is the default. peers finds papers
     cited alongside it. kin finds papers sharing its references, including
@@ -619,7 +620,7 @@ def _id_variants(paper_id: str) -> list[str]:
     openWorldHint=True,
 ))
 def search_authors(query: str, limit: int = 5) -> str:
-    """Find researchers by name, returning profiles, affiliations and identifiers.
+    """Find researchers and their profiles, affiliations and publication metrics.
 
     Compare returned affiliations to distinguish people with the same name.
 
@@ -646,7 +647,7 @@ def download_paper(
     save_dir: str = "",
     collection: str = "downloads",
 ) -> str:
-    """Save a paper's PDF locally and index it in a library collection.
+    """Keep a paper's PDF in your local research library.
 
     Resolves an accessible copy across archives and repositories. Use
     read_paper for temporary reading without keeping a PDF. A successful
@@ -705,10 +706,11 @@ def read_paper(
     pages: str = paper_reader.DEFAULT_READ_PAGES,
     visual: str = "",
 ):
-    """Read a paper as page-aware Markdown, with figure and table selectors.
+    """Read a paper's text, inspect figures and tables, or jump to its appendix.
 
-    Reads pages 1-10 by default. Pass a returned selector as visual to inspect
-    a figure or table. The temporary PDF is cleaned up; use download_paper
+    Returns page-aware Markdown from pages 1-10 by default, with selectors for
+    figures and tables. Use visual to inspect a selected item.
+    The temporary PDF is cleaned up; use download_paper
     to keep a local copy.
 
     Args:
@@ -782,7 +784,7 @@ def build_paper_graph(
     min_citations: int = 0,
     topic_filter: str = "",
 ) -> str:
-    """Trace citation connections from seed papers into a bounded graph.
+    """Map a research thread by following citations from a set of seed papers.
 
     Returns nodes, edges, PageRank, bridge papers and a Mermaid diagram.
     Each extra hop follows another layer of citations or references.
@@ -838,7 +840,7 @@ def paper_library(
     limit: int = 20,
     link_citations: bool = False,
 ) -> str:
-    """Manage saved papers, collections, notes and tags in the local library.
+    """Carry research across sessions with saved papers, collections and notes.
 
     Search queries your saved papers. save/update/remove change persistent
     records; remove permanently deletes matching entries. export writes an
