@@ -1,6 +1,7 @@
 """Tests for arXiv fallback client."""
 
 import pytest
+import httpx
 from scholar_mcp import arxiv_client
 
 
@@ -19,8 +20,16 @@ def test_get_pdf_url():
     assert url == "https://arxiv.org/pdf/1706.03762.pdf"
 
 
-def test_output_format_matches_s2():
-    """arXiv results should have the same keys as S2 results."""
+def test_output_format_matches_s2(monkeypatch):
+    """Validate the Atom-to-paper contract without consuming live API quota."""
+    atom = '''<feed xmlns="http://www.w3.org/2005/Atom"><entry>
+      <id>https://arxiv.org/abs/1810.04805</id><title>BERT</title>
+      <published>2018-10-11T00:00:00Z</published><summary>Pre-training language representations.</summary>
+      <author><name>Jacob Devlin</name></author><category term="cs.CL"/>
+      <link href="https://arxiv.org/pdf/1810.04805" type="application/pdf"/>
+      </entry></feed>'''
+    response = httpx.Response(200, text=atom, request=httpx.Request("GET", arxiv_client.ARXIV_API_URL))
+    monkeypatch.setattr(arxiv_client.httpx, "get", lambda *a, **kw: response)
     results = arxiv_client.search_papers("BERT", max_results=1)
     assert len(results) > 0
     paper = results[0]

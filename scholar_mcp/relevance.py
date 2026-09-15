@@ -6,6 +6,7 @@ import sys
 import time
 from datetime import datetime
 from html import unescape
+from urllib.parse import urlsplit
 
 from . import config
 
@@ -562,6 +563,7 @@ INTENT_INSTRUCTS = {
 _dashscope_warning_shown = False
 _reranker_state = {
     "provider": None,
+    "model": None,
     "dashscope_configured": bool(config.DASHSCOPE_API_KEY),
     "fallback_reason": None,
     "latency_ms": None,
@@ -584,68 +586,91 @@ def _warn_dashscope_down(reason: str) -> None:
     global _dashscope_warning_shown
     if not _dashscope_warning_shown:
         _dashscope_warning_shown = True
-        print(f"scholar-mcp: DashScope reranker unavailable ({reason}), "
-              f"falling back to FlashRank (slower, lower quality)",
+        print(f"scholar-mcp: Primary reranker unavailable ({reason}), "
+              f"trying the local FlashRank fallback",
               file=sys.stderr)
 
 
-def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = "") -> list[dict] | None:
-    """Rerank via DashScope qwen3-rerank API. Returns None on failure."""
-    api_key = config.DASHSCOPE_API_KEY
-    if not api_key:
-        _reranker_state.update(
-            provider=None,
-            dashscope_configured=False,
-            fallback_reason="not configured",
-            latency_ms=None,
-        )
-        return None
+def rerank_document(paper: dict) -> str:
+    """Stable model input shared by hosted rerankers and offline evaluation."""
+    parts = [f"Title: {paper.get('title') or ''}"]
+    venue = paper.get("venue") or ""
+    date = paper.get("publication_date") or str(paper.get("year") or "")
+    if venue or date:
+        parts.append(f"Venue: {venue}, Published: {date}".strip(", "))
+    if paper.get("abstract"):
+        parts.append(f"Abstract: {paper['abstract']}")
+    return "\n".join(parts)[:2000]
 
-    documents = []
-    for p in papers:
-        title = p.get("title") or ""
-        abstract = p.get("abstract") or ""
-        venue = p.get("venue") or ""
-        year = p.get("year") or ""
-        parts = [f"Title: {title}"]
-        pub_date = p.get("publication_date") or str(year) if year else ""
-        if venue or pub_date:
-            parts.append(f"Venue: {venue}, Published: {pub_date}".strip(", "))
-        if abstract:
-            parts.append(f"Abstract: {abstract}")
-        documents.append("\n".join(parts)[:2000])
 
-    instruct = INTENT_INSTRUCTS.get(intent, INTENT_INSTRUCTS[""])
+def _apply_rerank_results(items: list[dict], papers: list[dict], top_n: int,
+                          provider: str, model: str) -> list[dict]:
+    """Validate a complete response before mutating any candidate scores.
 
+    The fusion policy expects finite 0-1 relevance scores, not raw logits.
+    Normalization belongs to the serving model, where its score semantics
+    are known. A partial or malformed response must not erase candidates.
+    """
+    expected = min(top_n, len(papers))
+    if not isinstance(items, list) or len(items) < expected:
+        raise ValueError("Incomplete reranker response")
+    checked = []
+    seen = set()
+    for item in items:
+        index = item["index"]
+        raw = item["relevance_score"]
+        if type(index) is not int or not 0 <= index < len(papers) or index in seen:
+            raise ValueError("Invalid or repeated reranker index")
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            raise ValueError("Invalid reranker score")
+        score = float(raw)
+        if not math.isfinite(score) or not 0 <= score <= 1:
+            raise ValueError("Reranker must return finite scores in [0, 1]")
+        seen.add(index)
+        checked.append((index, score))
+    checked.sort(key=lambda item: -item[1])
+    result = []
+    for rank, (index, score) in enumerate(checked[:expected], 1):
+        paper = papers[index]
+        paper.update(_rerank_score=score, _rerank_rank=rank,
+                     _reranker_provider=provider, _reranker_model=model)
+        result.append(paper)
+    return result
+
+
+def _rerank_remote(query: str, papers: list[dict], top_n: int, intent: str,
+                   *, url: str, model: str, api_key: str | None,
+                   provider: str, timeout: float) -> list[dict] | None:
+    """One compatible HTTP contract for cloud and self-hosted rerankers."""
     started = time.monotonic()
     try:
         import httpx
+        body = {
+            "query": query[:500],
+            "documents": [rerank_document(paper) for paper in papers],
+            "top_n": min(top_n, len(papers)),
+        }
+        if model:
+            body["model"] = model
+        if provider == "dashscope":
+            body["instruct"] = INTENT_INSTRUCTS.get(intent, INTENT_INSTRUCTS[""])
+        elif intent:
+            # Standard rerank APIs have no shared `instruct` field.
+            body["query"] = INTENT_INSTRUCTS.get(intent, "") + "\n" + query[:500]
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         resp = httpx.post(
-            "https://dashscope.aliyuncs.com/compatible-api/v1/reranks",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": "qwen3-rerank",
-                "query": query[:500],
-                "documents": documents[:500],
-                "top_n": min(top_n, len(documents)),
-                "instruct": instruct,
-            },
-            timeout=15,
+            url, headers=headers, json=body, timeout=timeout,
+            trust_env=urlsplit(url).hostname not in {"localhost", "127.0.0.1", "::1"},
         )
         resp.raise_for_status()
         data = resp.json()
-
-        reranked = []
-        for item in data.get("results", []):
-            idx = item["index"]
-            score = float(item["relevance_score"])
-            paper = papers[idx]
-            paper["_rerank_score"] = score
-            paper["_reranker_provider"] = "dashscope"
-            reranked.append(paper)
+        reranked = _apply_rerank_results(data.get("results"), papers, top_n, provider, model)
         _reranker_state.update(
-            provider="dashscope",
-            dashscope_configured=True,
+            provider=provider,
+            model=model or None,
+            dashscope_configured=bool(config.DASHSCOPE_API_KEY),
             fallback_reason=None,
             latency_ms=round((time.monotonic() - started) * 1000),
         )
@@ -654,12 +679,27 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = 
         reason = _dashscope_reason(e)
         _reranker_state.update(
             provider=None,
-            dashscope_configured=True,
+            model=None,
+            dashscope_configured=bool(config.DASHSCOPE_API_KEY),
             fallback_reason=reason,
             latency_ms=round((time.monotonic() - started) * 1000),
         )
         _warn_dashscope_down(reason)
         return None
+
+
+def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = "") -> list[dict] | None:
+    """Existing default, using the same adapter as a self-hosted model."""
+    if not config.DASHSCOPE_API_KEY:
+        _reranker_state.update(provider=None, model=None, dashscope_configured=False,
+                               fallback_reason="not configured", latency_ms=None)
+        return None
+    return _rerank_remote(
+        query, papers, top_n, intent,
+        url="https://dashscope.aliyuncs.com/compatible-api/v1/reranks",
+        model="qwen3-rerank", api_key=config.DASHSCOPE_API_KEY,
+        provider="dashscope", timeout=15,
+    )
 
 
 def _dashscope_reason(exc: Exception) -> str:
@@ -677,38 +717,35 @@ def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
     started = time.monotonic()
     try:
         from flashrank import Ranker, RerankRequest
-    except ImportError:
+        global _flashrank_ranker
+        if _flashrank_ranker is None:
+            # Keep the measured portable fallback. A different input format
+            # or token budget needs paired ranking evidence before promotion.
+            _flashrank_ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2",
+                                       max_length=FLASHRANK_MAX_TOKENS)
+        passages = [{"id": i, "text": ((p.get("title") or "") + ". " + (p.get("abstract") or ""))[:1000]} for i, p in enumerate(papers)]
+        request = RerankRequest(query=query, passages=passages)
+        ranked = _flashrank_ranker.rerank(request)
+        reranked = _apply_rerank_results(
+            [{"index": item["id"], "relevance_score": float(item["score"])} for item in ranked],
+            papers, top_n, "flashrank", "ms-marco-MiniLM-L-12-v2",
+        )
+    except Exception as error:
         for p in papers:
             p["_rerank_score"] = 0.5
             p["_reranker_provider"] = "unavailable"
+            p["_reranker_model"] = None
+            p.pop("_rerank_rank", None)
         _reranker_state.update(
             provider="unavailable",
+            model=None,
+            fallback_reason=f"local reranker unavailable ({type(error).__name__})",
             latency_ms=round((time.monotonic() - started) * 1000),
         )
         return papers[:top_n]
-
-    global _flashrank_ranker
-    if _flashrank_ranker is None:
-        # 128 tokens covers the title and the head of the abstract, which
-        # carries the ranking signal: measured against max_length=512 over 100
-        # real candidates, Spearman is 1.0000 with an identical top 5, at
-        # 2.39s versus 3.42s. Attention is quadratic in sequence length, so
-        # the gap widens on a loaded machine.
-        _flashrank_ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2",
-                                   max_length=FLASHRANK_MAX_TOKENS)
-
-    passages = [{"id": i, "text": ((p.get("title") or "") + ". " + (p.get("abstract") or ""))[:1000]} for i, p in enumerate(papers)]
-    request = RerankRequest(query=query, passages=passages)
-    ranked = _flashrank_ranker.rerank(request)
-
-    reranked = []
-    for item in ranked[:top_n]:
-        paper = papers[item["id"]]
-        paper["_rerank_score"] = float(item["score"])
-        paper["_reranker_provider"] = "flashrank"
-        reranked.append(paper)
     _reranker_state.update(
         provider="flashrank",
+        model="ms-marco-MiniLM-L-12-v2",
         latency_ms=round((time.monotonic() - started) * 1000),
     )
     return reranked
@@ -782,7 +819,14 @@ def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") ->
         return papers
     if len(papers) > DASHSCOPE_CAP:
         papers = _pre_rank_cap(papers, DASHSCOPE_CAP)
-    result = _rerank_dashscope(query, papers, top_n, intent=intent)
+    if config.RERANK_URL:
+        result = _rerank_remote(
+            query, papers, top_n, intent, url=config.RERANK_URL,
+            model=config.RERANK_MODEL, api_key=config.RERANK_API_KEY,
+            provider="custom", timeout=config.RERANK_TIMEOUT,
+        )
+    else:
+        result = _rerank_dashscope(query, papers, top_n, intent=intent)
     if result is not None:
         return result
     # Cap by metadata rank, not by list position. Papers arrive concatenated

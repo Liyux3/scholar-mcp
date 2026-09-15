@@ -71,29 +71,6 @@ def _lookup_title(paper_id: str) -> str:
 # lever on how much traffic expansion generates.
 EXPANSION_SEEDS = 3
 
-# Weight kept from the first reranking pass when a paper was scored twice.
-# Both passes score the same paper against the same query, so disagreement is
-# noise from a different candidate set rather than new information; averaging
-# damps it.
-PASS_BLEND = 0.2
-
-
-def _smooth_across_passes(papers: list[dict]) -> None:
-    """Average a paper's two rerank scores, where it has two.
-
-    Only papers present before expansion have a first-pass score. Blending a
-    missing one as zero would multiply every expanded paper by 1 - PASS_BLEND,
-    a flat 20% penalty applied for no reason other than arriving late, which
-    works directly against the point of expanding.
-    """
-    for paper in papers:
-        first = paper.get("_iter1_score")
-        if first is None:
-            continue
-        second = paper.get("_rerank_score", 0.0)
-        paper["_rerank_score"] = PASS_BLEND * first + (1 - PASS_BLEND) * second
-
-
 def _pipeline(
     dispatch: str,
     query_or_id: str,
@@ -164,9 +141,6 @@ def _pipeline(
         all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
         all_papers = relevance.rank_final(all_papers)
 
-        for p in all_papers:
-            p["_iter1_score"] = p.get("_rerank_score", 0.0)
-
         if expand_citations and len(all_papers) >= expand_min_pool:
             by_channel = expansion.expand(
                 all_papers[:EXPANSION_SEEDS],
@@ -190,7 +164,9 @@ def _pipeline(
                     new_keep = new_ranked[:500 - len(old_keep)]
                     all_papers = old_keep + new_keep
                 all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
-                _smooth_across_passes(all_papers)
+                # The final pool is scored together. Averaging with seed-pass
+                # scores would mix models after a fallback, and mix contexts
+                # for listwise rerankers whose scores depend on the whole pool.
                 all_papers = relevance.rank_final(all_papers)
     else:
         all_papers.sort(key=lambda p: -(p.get("citation_count", 0) or 0))
@@ -396,17 +372,11 @@ def search_papers(
     intent: SearchIntent = "balanced",
     debug: bool = False,
 ) -> str:
-    """Search for academic papers across many sources (OpenAlex, Semantic Scholar,
-    arXiv, PubMed, OpenReview, Crossref and more), merge duplicates across
-    DOI/arXiv/S2/OpenAlex identities, and rerank for relevance.
+    """Find academic papers from a topic, question, or remembered idea.
 
-    Use this to find papers from a topic, a question, or a half-remembered
-    title. Use paper_info when you already hold an identifier,
-    recommend_papers to expand from one known paper, and search_authors for
-    people. Read-only. Each call fans out to live APIs under a time budget;
-    sources that time out are reported as degraded coverage instead of
-    failing the call. Put years, venues and filters in the parameters, not in
-    the query text.
+    Searches multiple sources, merges duplicates, follows citation connections,
+    and ranks for relevance. Natural-language queries work without extra
+    parameters. Use paper_info when you already have a paper identifier.
 
     Args:
         query: Search query (e.g., "attention is all you need", "CRISPR gene editing")
@@ -424,6 +394,7 @@ def search_papers(
             method, and dataset.
         debug: Include per-source latency, provenance, and internal ranking diagnostics.
     """
+    limit = min(max(limit, 1), 100)
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
     type_list = [t.strip() for t in paper_types.split(",") if t.strip()] if paper_types else None
     search_query = relevance.optimize_query(query)
@@ -487,6 +458,8 @@ def search_papers(
 
     reranker = relevance.reranker_status()
     reranker_meta = {"provider": reranker.get("provider") or "unavailable"}
+    if reranker.get("model"):
+        reranker_meta["model"] = reranker["model"]
     if reranker_meta["provider"] != "dashscope" and reranker.get("fallback_reason"):
         reranker_meta["fallback_reason"] = reranker["fallback_reason"]
 
@@ -507,14 +480,10 @@ def paper_info(
     include: str = "detail",
     limit: int = 20,
 ) -> str:
-    """Get metadata for one known paper, optionally with the papers that cite it
-    and the papers it references.
+    """Get a paper's metadata and optionally its citations and references.
 
-    Use this when you already have an identifier; use search_papers to find
-    one first, and recommend_papers for related work that is not a direct
-    citation. Read-only, one upstream lookup per requested section. An
-    unresolvable identifier returns a not-found message rather than an error.
-    Citation and reference lists are ordered by influence and cut at limit.
+    Citations are papers that cite it; references are papers it cites.
+    Each relation list is ordered by citation count and limited separately.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex W-ID, etc.)
@@ -575,30 +544,18 @@ def paper_info(
     openWorldHint=True,
 ))
 def recommend_papers(paper_id: str, relation: str = "similar", limit: int = 10) -> str:
-    """Find related papers by a chosen citation-graph relation.
+    """Find related work starting from one paper.
 
-    Use this when you hold one paper and want its neighbourhood. Use
-    search_papers for a topic and paper_info for a paper's direct citation
-    lists. Read-only; results come from embedding and citation data, so very
-    new or uncited papers return few or no neighbours.
-
-    "Related" is several different questions, and which one you want depends
-    on what you are doing:
-
-        similar     embedding neighbours (SPECTER2). Same topic, possibly
-                    different vocabulary. Good default.
-        peers       what is cited alongside this paper. Its intellectual
-                    cohort, which is usually what "related work" means.
-        kin         what cites the same works this paper does. Shared method
-                    rather than shared topic, so this is the relation that
-                    crosses field boundaries: two papers can be coupled
-                    without sharing any vocabulary.
+    similar finds semantic neighbours and is the default. peers finds papers
+    cited alongside it. kin finds papers sharing its references, including
+    connections across topics. For direct citation lists, use paper_info.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, OpenAlex ID, etc.)
         relation: similar | peers | kin
         limit: Maximum results (default 10)
     """
+    limit = min(max(limit, 1), 100)
     title = _lookup_title(paper_id)
 
     if relation == "peers":
@@ -662,20 +619,16 @@ def _id_variants(paper_id: str) -> list[str]:
     openWorldHint=True,
 ))
 def search_authors(query: str, limit: int = 5) -> str:
-    """Search for researchers by name and return profiles with affiliations,
-    paper counts, h-index and identifiers.
+    """Find researchers by name, returning profiles, affiliations and identifiers.
 
-    Use this for people, not papers: use search_papers for papers and
-    paper_info for a paper's own author list. Read-only. Name matching is
-    fuzzy, so common names return many candidates; add an affiliation or
-    field word to the query and keep limit small to disambiguate.
+    Compare returned affiliations to distinguish people with the same name.
 
     Args:
         query: Author name to search for
         limit: Maximum results (1-1000, default 5)
     """
     try:
-        results = s2_client.search_authors(query, limit=limit)
+        results = s2_client.search_authors(query, limit=min(max(limit, 1), 1000))
         return _yaml(results)
     except Exception as e:
         return _yaml({"error": f"Author search failed: {e}"})
@@ -693,15 +646,11 @@ def download_paper(
     save_dir: str = "",
     collection: str = "downloads",
 ) -> str:
-    """Resolve one paper to an open-access PDF and save it to disk, optionally
-    indexing it into a library collection.
+    """Save a paper's PDF locally and index it in a library collection.
 
-    Writes a file under save_dir (default: the configured papers directory);
-    a repeat call for the same paper overwrites the same path. Use read_paper
-    instead when you only need the text once. Resolution tries the canonical
-    archive (arXiv, Europe PMC), repository resolvers, preprint servers and
-    Unpaywall in order; a paywalled paper with no open copy returns a clear
-    failure and writes nothing.
+    Resolves an accessible copy across archives and repositories. Use
+    read_paper for temporary reading without keeping a PDF. A successful
+    download may replace the file at the returned path.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
@@ -756,14 +705,11 @@ def read_paper(
     pages: str = paper_reader.DEFAULT_READ_PAGES,
     visual: str = "",
 ):
-    """Fetch a paper's PDF into a temporary file and return page-aware Markdown
-    text plus selectors for its figures and tables.
+    """Read a paper as page-aware Markdown, with figure and table selectors.
 
-    Use this to read; use download_paper to keep the PDF. Nothing persists
-    after the call. Resolution follows the same open-access chain as
-    download_paper, so paywalled papers without an open copy fail cleanly.
-    Pass a selector from a previous response as visual to get one figure or
-    table with its surrounding text.
+    Reads pages 1-10 by default. Pass a returned selector as visual to inspect
+    a figure or table. The temporary PDF is cleaned up; use download_paper
+    to keep a local copy.
 
     Args:
         paper_id: Paper identifier (S2 ID, DOI, ArXiv:ID, etc.)
@@ -836,14 +782,10 @@ def build_paper_graph(
     min_citations: int = 0,
     topic_filter: str = "",
 ) -> str:
-    """Build a bounded citation graph from explicit seed papers and return nodes,
-    edges, PageRank, bridge papers and a Mermaid diagram.
+    """Trace citation connections from seed papers into a bounded graph.
 
-    Use this after search_papers or paper_info once you have seed
-    identifiers and want structure rather than a list; use recommend_papers
-    for a flat set of related papers. Read-only but the most expensive tool
-    here: cost grows with max_hops times max_papers and every hop calls live
-    citation APIs. Start with max_hops=1 and max_papers=20, then widen.
+    Returns nodes, edges, PageRank, bridge papers and a Mermaid diagram.
+    Each extra hop follows another layer of citations or references.
 
     Args:
         paper_ids: Comma-separated DOI, arXiv, OpenAlex, S2, or exact-title seeds.
@@ -896,15 +838,11 @@ def paper_library(
     limit: int = 20,
     link_citations: bool = False,
 ) -> str:
-    """Manage the local paper library: save, get, list, search, update, remove,
-    list collections, or export a collection as a Markdown vault.
+    """Manage saved papers, collections, notes and tags in the local library.
 
-    This is the only tool that writes persistent state. save/update/remove
-    change the SQLite library on disk (default under ~/.scholar-mcp/kb);
-    remove deletes entries permanently; export writes Markdown files into
-    the target vault directory. Use save after search_papers or paper_info to
-    keep papers, and search here to query what you saved; use search_papers
-    for the open literature.
+    Search queries your saved papers. save/update/remove change persistent
+    records; remove permanently deletes matching entries. export writes an
+    Obsidian-compatible Markdown vault. Use download_paper to save a PDF.
 
     Args:
         action: save/add, get, list, search, update, remove, collections, or export
@@ -916,11 +854,8 @@ def paper_library(
         notes: Notes for save/update
         tags: Comma-separated tags for save/update
         limit: Maximum papers to return
-        link_citations: for action="export", resolve each paper's reference
-            list so notes link along real citations. Costs one request per
-            paper, and is what actually connects the graph: on a 71-paper
-            collection, stored metadata yields 26 links and 13% of notes
-            connected, while reference lists yield 342 links and 73%.
+        link_citations: For export, fetch reference lists to link notes along
+            real citations. Adds network requests for papers in the collection.
     """
     from . import knowledge_base as kb
     from . import vault

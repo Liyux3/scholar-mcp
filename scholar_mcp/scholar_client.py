@@ -3,11 +3,13 @@
 import time
 import random
 import hashlib
+import re
 from datetime import datetime
 from typing import Optional
 
 import httpx
 from bs4 import BeautifulSoup
+from . import config
 
 SCHOLAR_URL = "https://scholar.google.com/scholar"
 USER_AGENTS = [
@@ -22,8 +24,8 @@ class BlockedError(PermissionError):
 
 
 def _extract_year(text: str) -> Optional[int]:
-    for word in text.split():
-        if word.isdigit() and 1900 <= int(word) <= datetime.now().year:
+    for word in re.findall(r"\b(?:19|20)\d{2}\b", text):
+        if int(word) <= datetime.now().year:
             return int(word)
     return None
 
@@ -42,7 +44,7 @@ def _parse_paper(item) -> Optional[dict]:
         if not title_elem or not info_elem:
             return None
 
-        title = title_elem.get_text(strip=True)
+        title = title_elem.get_text(" ", strip=True)
         for tag in ["[PDF]", "[HTML]", "[BOOK]"]:
             title = title.replace(tag, "").strip()
 
@@ -53,6 +55,15 @@ def _parse_paper(item) -> Optional[dict]:
         parts = info_text.split(" - ")
         authors = [a.strip() for a in parts[0].split(",")] if parts else []
         year = _extract_year(info_text)
+        venue = parts[1].strip() if len(parts) > 1 else ""
+        if year:
+            venue = re.sub(rf",?\s*\b{year}\b\s*$", "", venue).strip()
+        cited = item.select_one("a[href*='cites=']")
+        count = re.search(r"\d[\d,]*", cited.get_text()) if cited else None
+        # The PDF link is a sibling of gs_ri inside the result card.
+        card = item.find_parent("div", class_="gs_r")
+        attachment = card.select_one(".gs_or_ggsm a[href]") if card else None
+        pdf_url = attachment.get("href") if attachment else None
 
         return {
             "paper_id": _stable_id(url) if url else _stable_id(title),
@@ -60,12 +71,12 @@ def _parse_paper(item) -> Optional[dict]:
             "authors": authors,
             "abstract": abstract_elem.get_text() if abstract_elem else "",
             "year": year,
-            "venue": parts[1].strip() if len(parts) > 1 else "",
-            "citation_count": 0,
-            "_citation_count_known": False,
+            "venue": venue,
+            "citation_count": int(count[0].replace(",", "")) if count else 0,
+            "_citation_count_known": count is not None,
             "influential_citations": 0,
-            "is_open_access": False,
-            "open_access_url": None,
+            "is_open_access": bool(pdf_url),
+            "open_access_url": pdf_url,
             "fields_of_study": [],
             "publication_date": f"{year}-01-01" if year else None,
             "tldr": None,
@@ -92,7 +103,8 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
         time.sleep(random.uniform(1.5, 3.0))
 
         params = {"q": query, "start": start, "hl": "en", "as_sdt": "0,5"}
-        response = httpx.get(SCHOLAR_URL, params=params, headers=headers, timeout=15)
+        response = httpx.get(SCHOLAR_URL, params=params, headers=headers, timeout=15,
+                             proxy=config.GOOGLE_SCHOLAR_PROXY)
 
         # Google redirects scraped requests to a /sorry interstitial rather
         # than returning an error, so a bare status check reads it as a normal

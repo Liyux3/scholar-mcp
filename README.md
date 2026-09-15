@@ -126,6 +126,20 @@ Results are canonicalized across DOI, arXiv, Semantic Scholar, OpenAlex, PubMed,
 
 DashScope `qwen3-rerank` is the primary reranker when configured; FlashRank is the local fallback. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set.
 
+<details>
+<summary>Bring your own reranker</summary>
+
+Set `SCHOLAR_RERANK_URL` to the full endpoint and `SCHOLAR_RERANK_MODEL` to its model name. Add `SCHOLAR_RERANK_API_KEY` if needed. Cloud and self-hosted models use the same Cohere-style contract:
+
+```text
+Request:  query, documents, top_n, model
+Response: results: [{index, relevance_score}]
+```
+
+Scores must be finite and in `[0, 1]`. Raw logits need model-specific normalization in the serving backend. Changing models can change the balance with citation and recency ranking. A custom endpoint replaces DashScope and falls back only to the local model.
+
+</details>
+
 Normal responses focus on papers, with a short warning if availability affected the search. `debug=true` adds `_meta` with source coverage, the actual reranker, per-source yield, latency, provenance, and detailed errors. Each parallel search round waits up to 30 seconds by default; `SCHOLAR_SOURCE_BUDGET_S` adjusts this budget.
 
 ## Measured retrieval quality
@@ -208,11 +222,14 @@ All credentials are optional and remain in the MCP process environment.
 | `OPENALEX_API_KEY` / `OPENALEX_API_KEYS` | OpenAlex search, semantic search, and graph calls |
 | `OPENALEX_EMAIL` | OpenAlex polite pool and Unpaywall |
 | `DASHSCOPE_API_KEY` | Qwen reranker |
+| `SCHOLAR_RERANK_URL`, `SCHOLAR_RERANK_MODEL`, `SCHOLAR_RERANK_API_KEY` | Compatible hosted or local reranker; separate credential |
+| `SCHOLAR_RERANK_TIMEOUT` | Custom reranker request timeout; default 120 seconds |
+| `SCHOLAR_GOOGLE_PROXY` | Dedicated Google Scholar proxy; other sources keep their existing route |
 | `SCOPUS_API_KEY` | Optional Scopus metadata source |
 | `CORE_API_KEY` | Optional CORE repository source |
 | `EXA_API_KEY` | Optional Exa research-paper source |
 | `OPENREVIEW_USERNAME`, `OPENREVIEW_PASSWORD` | OpenReview API |
-| `SCHOLAR_SOURCE_BUDGET_S` | Initial source fan-out budget; default 8 seconds |
+| `SCHOLAR_SOURCE_BUDGET_S` | Per-round source fan-out budget; default 30 seconds |
 | `SCHOLAR_DOWNLOAD_DIR` | Persistent PDF directory; default `<data>/papers` |
 | `SCHOLAR_MCP_EXTENSIONS` | Use `research` for graph and paper-library tools |
 | `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` | Zotero Web API or authorized local API connector |

@@ -11,6 +11,13 @@ OPENALEX_EMAILS: list[str] = [e.strip() for e in (os.environ.get("OPENALEX_EMAIL
 OPENREVIEW_USERNAME: str | None = os.environ.get("OPENREVIEW_USERNAME") or None
 OPENREVIEW_PASSWORD: str | None = os.environ.get("OPENREVIEW_PASSWORD") or None
 DASHSCOPE_API_KEY: str | None = os.environ.get("DASHSCOPE_API_KEY") or None
+# A Cohere-style rerank endpoint, including a locally hosted model. Custom
+# endpoints never inherit the DashScope credential or fall back to its cloud.
+RERANK_URL: str = os.environ.get("SCHOLAR_RERANK_URL", "")
+RERANK_MODEL: str = os.environ.get("SCHOLAR_RERANK_MODEL", "")
+RERANK_API_KEY: str | None = os.environ.get("SCHOLAR_RERANK_API_KEY") or None
+RERANK_TIMEOUT: float = float(os.environ.get("SCHOLAR_RERANK_TIMEOUT", "120"))
+GOOGLE_SCHOLAR_PROXY: str | None = os.environ.get("SCHOLAR_GOOGLE_PROXY") or None
 EXA_API_KEY: str | None = os.environ.get("EXA_API_KEY") or None
 SCOPUS_API_KEY: str | None = os.environ.get("SCOPUS_API_KEY") or None
 DATA_DIR: str = os.path.expanduser(
