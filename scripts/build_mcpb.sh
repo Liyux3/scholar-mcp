@@ -34,7 +34,7 @@ PY
 cp -R "$ROOT/scholar_mcp" "$BUILD_DIR/server/scholar_mcp"
 
 REQUIREMENTS="$BUILD_DIR/requirements.txt"
-uv export --quiet --locked --no-dev --no-emit-project \
+uv export --quiet --locked --no-dev --no-emit-project --extra rerank \
   --format requirements-txt --output-file "$REQUIREMENTS"
 uv pip install --quiet --python "$PYTHON_BIN" --target "$BUILD_DIR/server/vendor" \
   --requirement "$REQUIREMENTS"

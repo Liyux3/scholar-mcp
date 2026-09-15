@@ -19,10 +19,11 @@ Use this MCP configuration:
 }
 ```
 
-The default profile exposes six compact research primitives. The `research`
-extension adds `build_paper_graph` and `paper_library`. Start without credentials;
+This configuration exposes eight tools: the six core tools plus
+`build_paper_graph` and `paper_library`. Remove `SCHOLAR_MCP_EXTENSIONS` for
+the compact six-tool profile. Start without credentials;
 add source keys only when the user wants higher limits or optional paid channels.
 
 After installation, verify that the server starts and exposes `search_papers`,
 `paper_info`, `recommend_papers`, `search_authors`, `read_paper`, and
-`download_paper`.
+`download_paper`, plus the two research tools when the extension is enabled.

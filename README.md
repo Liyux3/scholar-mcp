@@ -26,7 +26,7 @@
   <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-8C714C.svg?style=flat-square" alt="MCP compatible"></a>
 </p>
 
-Scholar MCP turns a research question into a connected body of evidence. It recovers papers from vague descriptions, reaches the work one hop beyond search, opens the primary text, maps the lineage, and carries the selected field into a library that grows with every session.
+Scholar MCP finds papers from natural-language questions, follows citations and related work, and opens the primary text. Save selected papers and notes in a local library that carries your research across sessions.
 
 `Natural-language discovery` · `Related-work discovery` · `Primary evidence` · `Field maps` · `Zotero · Obsidian · Notion connectors`
 
@@ -99,7 +99,7 @@ Release artifacts also include the PyPI package, multi-architecture GHCR image, 
 | Core | `paper_info` | Paper detail, citations, and references through one selective call |
 | Core | `recommend_papers` | Related work through semantic and citation connections |
 | Core | `search_authors` | Author profiles, affiliations, paper counts, and h-index |
-| Core | `read_paper` | Temporarily fetch and read a complete paper in one call |
+| Core | `read_paper` | Read paper text, tables, and selected figures; pages 1-10 by default |
 | Core | `download_paper` | Persist a PDF and index it in a collection |
 | Research | `build_paper_graph` | Bounded citation graph with PageRank, bridges, nodes, edges, and Mermaid |
 | Research | `paper_library` | Collections, FTS search, notes, tags, PDFs, and Markdown vault export |
@@ -124,13 +124,29 @@ Keyword APIs receive measured source-specific query budgets. Semantic endpoints 
 
 Results are canonicalized across DOI, arXiv, Semantic Scholar, OpenAlex, PubMed, and OpenReview identities. Duplicate records contribute complementary metadata and independent source evidence instead of appearing several times.
 
-DashScope `qwen3-rerank` is the primary reranker when configured; FlashRank is the local fallback. The normal response shows only source coverage, the actual reranker, and actionable degradation. `debug=true` adds per-source yield, latency, provenance, and internal ranking diagnostics.
+DashScope `qwen3-rerank` is the primary reranker when configured. Install the `rerank` extra for the FlashRank local fallback: `uvx --from 'scholar-mcp[rerank]' scholar-mcp`. Containers and MCPB bundles include this extra; the local model downloads on first use. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set.
+
+<details>
+<summary>Bring your own reranker</summary>
+
+Set `SCHOLAR_RERANK_URL` to the full endpoint and `SCHOLAR_RERANK_MODEL` to its model name. Add `SCHOLAR_RERANK_API_KEY` if needed. Cloud and self-hosted models use the same Cohere-style contract:
+
+```text
+Request:  query, documents, top_n, model
+Response: results: [{index, relevance_score}]
+```
+
+Scores must be finite and in `[0, 1]`. Raw logits need model-specific normalization in the serving backend. Changing models can change the balance with citation and recency ranking. A custom endpoint replaces DashScope and falls back only to the local model.
+
+</details>
+
+Normal responses focus on papers, with a short warning if availability affected the search. `debug=true` adds `_meta` with source coverage, the actual reranker, per-source yield, latency, provenance, and detailed errors. Each parallel search round waits up to 30 seconds by default; `SCHOLAR_SOURCE_BUDGET_S` adjusts this budget.
 
 ## Measured retrieval quality
 
 ![LitSearch quality comparison](docs/assets/litsearch-quality.svg)
 
-Scholar leads the Exa research-paper baseline by **10 points at R@5** and **6 points at R@20** on matched LitSearch.
+In the frozen matched LitSearch run, Scholar achieved a **10-percentage-point higher top-five query hit rate** and **6 points higher at top twenty** than Exa research-paper search.
 
 | System | R@5 | R@10 | R@20 | MRR |
 |---|---:|---:|---:|---:|
@@ -142,6 +158,8 @@ Scholar recovered nine R@5 hits that Exa missed; Exa recovered four that Scholar
 
 <details>
 <summary>Benchmark protocol</summary>
+
+R@k here measures the fraction of queries with at least one ground-truth paper in the top k results. MRR averages the reciprocal rank of the first match, with zero for a miss.
 
 The comparison uses the same first 50 LitSearch inline-ACL queries, ground-truth titles, title matcher, and top-20 cutoff. Exa ran with category `research paper`. Scholar used its standard retrieval pipeline with Qwen reranking. BM25 follows the official LitSearch title+abstract implementation: lowercase tokenization, English stopword removal, Porter stemming, and `BM25Okapi` over the 64K-paper corpus. The Scholar/Exa run was collected on 12 May 2026; BM25 was reproduced on 25 August 2026. The frozen summary is in [`docs/benchmarks/litsearch-inline-acl-50.json`](docs/benchmarks/litsearch-inline-acl-50.json), with [raw BM25 results](docs/benchmarks/bm25_title_abstract_inline_acl_50.jsonl) and their [hash manifest](docs/benchmarks/bm25_title_abstract_inline_acl_50.summary.json).
 
@@ -189,7 +207,6 @@ The shared resolution chain covers:
 2. Registered repository resolvers: CORE, OpenAIRE, HAL, Zenodo, and DOAJ
 3. bioRxiv, medRxiv, SSRN, ChemRxiv, and other preprint servers
 4. Unpaywall and an optional institutional proxy
-5. an explicit local fallback when enabled
 
 `scholar-mcp sources` prints the live registry-derived capability matrix. Zenodo participates in PDF resolution but stays out of default discovery because its broad publication records add more candidate noise than retrieval value.
 
@@ -206,11 +223,14 @@ All credentials are optional and remain in the MCP process environment.
 | `OPENALEX_API_KEY` / `OPENALEX_API_KEYS` | OpenAlex search, semantic search, and graph calls |
 | `OPENALEX_EMAIL` | OpenAlex polite pool and Unpaywall |
 | `DASHSCOPE_API_KEY` | Qwen reranker |
+| `SCHOLAR_RERANK_URL`, `SCHOLAR_RERANK_MODEL`, `SCHOLAR_RERANK_API_KEY` | Compatible hosted or local reranker; separate credential |
+| `SCHOLAR_RERANK_TIMEOUT` | Custom reranker request timeout; default 120 seconds |
+| `SCHOLAR_GOOGLE_PROXY` | Dedicated Google Scholar proxy; other sources keep their existing route |
 | `SCOPUS_API_KEY` | Optional Scopus metadata source |
 | `CORE_API_KEY` | Optional CORE repository source |
 | `EXA_API_KEY` | Optional Exa research-paper source |
 | `OPENREVIEW_USERNAME`, `OPENREVIEW_PASSWORD` | OpenReview API |
-| `SCHOLAR_SOURCE_BUDGET_S` | Initial source fan-out budget; default 8 seconds |
+| `SCHOLAR_SOURCE_BUDGET_S` | Per-round source fan-out budget; default 30 seconds |
 | `SCHOLAR_DOWNLOAD_DIR` | Persistent PDF directory; default `<data>/papers` |
 | `SCHOLAR_MCP_EXTENSIONS` | Use `research` for graph and paper-library tools |
 | `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` | Zotero Web API or authorized local API connector |
@@ -228,7 +248,7 @@ uv sync --extra dev
 uv run pytest
 ```
 
-Unit tests are the default. Live API tests are marked `integration` and run separately with `uv run pytest -m integration`; pytest reports them as `deselected` during the deterministic unit run because the marker filter intentionally leaves network-dependent cases out of that invocation.
+Unit tests run by default. Run live API tests separately with `uv run pytest -m integration`.
 
 Connector and feature contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues through the private process in [SECURITY.md](SECURITY.md); citation metadata is available in [CITATION.cff](CITATION.cff).
 
