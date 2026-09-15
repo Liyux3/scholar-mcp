@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scholar-mcp"
-version = "0.8.4"
+version = "0.8.5"
 description = "Scholar MCP: multi-source academic search, citation traversal, and deep research"
 authors = [{ name = "Yuxian Li" }]
 readme = "README.md"
@@ -33,6 +33,7 @@ dependencies = [
     "pillow>=11.0",
     "pypdf>=4.0.0",
     "httpx>=0.27.0",
+    "filelock>=3.17",
     "beautifulsoup4>=4.12.0",
     "lxml>=4.9.0",
     "networkx>=3.4.2",
@@ -40,6 +41,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Optional browser verification; requires an installed Chrome and ffmpeg.
+google = ["DrissionPage>=4.1.1.4,<5", "SpeechRecognition>=3.14,<4"]
 # Query compression. optimize_query degrades to plain keyword extraction
 # without these, which the 2026-05 sweep measured as materially worse.
 compression = [

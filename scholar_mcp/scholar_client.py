@@ -9,7 +9,7 @@ from typing import Optional
 
 import httpx
 from bs4 import BeautifulSoup
-from . import config
+from . import scholar_session
 
 SCHOLAR_URL = "https://scholar.google.com/scholar"
 USER_AGENTS = [
@@ -45,13 +45,13 @@ def _parse_paper(item) -> Optional[dict]:
             return None
 
         title = title_elem.get_text(" ", strip=True)
-        for tag in ["[PDF]", "[HTML]", "[BOOK]"]:
+        for tag in ["[PDF]", "[HTML]", "[BOOK]", "[CITATION]"]:
             title = title.replace(tag, "").strip()
 
         link = title_elem.find("a", href=True)
         url = link["href"] if link else ""
 
-        info_text = info_elem.get_text()
+        info_text = re.sub(r"\s+", " ", info_elem.get_text(" ", strip=True))
         parts = info_text.split(" - ")
         authors = [a.strip() for a in parts[0].split(",")] if parts else []
         year = _extract_year(info_text)
@@ -90,30 +90,42 @@ def _parse_paper(item) -> Optional[dict]:
 
 def search_papers(query: str, max_results: int = 10) -> list[dict]:
     """Search Scholar using one HTTP session for the complete result set."""
+    if max_results <= 0:
+        return []
+    session = scholar_session.current()
     headers = {
-        "User-Agent": random.choice(USER_AGENTS),
+        "User-Agent": session.get("user_agent") or random.choice(USER_AGENTS),
         "Accept": "text/html,application/xhtml+xml",
         "Accept-Language": "en-US,en;q=0.9",
     }
     papers = []
     start = 0
+    recovered = False
+    endpoint = f'https://{session["host"]}/scholar' if session else SCHOLAR_URL
     # Preserve cookies and the selected route across pagination and redirects.
     # A fresh client for every page discards the session established by page one.
-    with httpx.Client(headers=headers, timeout=15, follow_redirects=True,
-                      proxy=config.GOOGLE_SCHOLAR_PROXY) as client:
+    with httpx.Client(headers=headers, timeout=15, follow_redirects=True, trust_env=False,
+                      cookies=scholar_session.cookie_jar(session), proxy=scholar_session.proxy()) as client:
         while len(papers) < max_results:
             time.sleep(random.uniform(1.5, 3.0))
             params = {"q": query, "start": start, "hl": "en", "as_sdt": "0,5"}
-            response = client.get(SCHOLAR_URL, params=params)
-            if "/sorry/" in str(response.url):
-                raise BlockedError("Google Scholar redirected to its verification page")
-
+            response = client.get(endpoint, params=params)
             soup = BeautifulSoup(response.text, "html.parser")
-            if soup.select_one("#gs_captcha_ccl, #gs_captcha_f, form[action*='/sorry/']") or any(
+            if response.status_code in (403, 429) or "/sorry/" in str(response.url) or soup.select_one("#gs_captcha_ccl, #gs_captcha_f, form[action*='/sorry/']") or any(
                 marker in response.text.lower()
                 for marker in ("unusual traffic from your computer network", "g-recaptcha")
             ):
-                raise BlockedError("Google Scholar blocked this connection")
+                if recovered:
+                    raise BlockedError("Google Scholar rejected the recovered session")
+                try:
+                    session = scholar_session.recover(query, session)
+                except PermissionError as error:
+                    raise BlockedError(str(error)) from None
+                client.headers["User-Agent"] = session["user_agent"]
+                client.cookies = scholar_session.cookie_jar(session)
+                endpoint = f'https://{session["host"]}/scholar'
+                recovered = True
+                continue
             response.raise_for_status()
             results = soup.find_all("div", class_="gs_ri")
             if not results:

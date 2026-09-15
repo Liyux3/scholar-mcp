@@ -48,7 +48,7 @@ TOP_VENUES = frozenset({
 WEAK_WORDS = frozenset({
     "wondering", "simply", "question", "whether", "think", "believe",
     "approach", "problem", "paper", "work", "method", "proposed", "propose",
-    "study", "research", "results", "recent", "existing", "current",
+    "study", "studies", "explore", "any", "research", "results", "recent", "existing", "current",
     "different", "various", "several", "multiple", "many", "possible",
     "important", "significant", "main", "key", "novel", "particular",
     "general", "specific", "common", "typical", "standard", "basic",

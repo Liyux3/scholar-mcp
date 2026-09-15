@@ -50,13 +50,19 @@ def test_keyword_query_preserves_multiword_proper_names():
     assert "Amazon Mechanical Turk" in optimized
 
 
-def test_optimize_query_targets_ek_kb_2_length():
+def test_optimize_query_targets_ek_kb_2_length(monkeypatch):
     """ek_kb_2 yields ~6 words. Longer output means we regressed to kb_5,
     which scored OA=0 on the 20q sweep. Guard the upper bound tightly.
     """
     long_q = ("Are there any research papers on methods to compress large-scale "
               "language models while preserving their task-agnostic knowledge "
               "through distillation techniques")
+    class Model:
+        def extract_keywords(self, text, **kwargs):
+            assert kwargs["top_n"] == 2
+            assert kwargs["keyphrase_ngram_range"] == (1, 3)
+            return [("language model compression", 0.8), ("task agnostic knowledge", 0.7)]
+    monkeypatch.setattr(relevance, "_load_keybert", lambda: Model())
     optimized = relevance.optimize_query(long_q)
     words = optimized.split()
     assert 3 <= len(words) <= 8, f"expected ~6 words, got {len(words)}: {optimized}"

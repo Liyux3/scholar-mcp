@@ -173,6 +173,16 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
 
     if budget_s is None:
         budget_s = config.SOURCE_BUDGET_S
+        if any(s.name == "google_scholar" for s in sources):
+            from . import scholar_session
+            # Scholar serves ten results per page. A one-page timeout must
+            # not discard a successful multi-page search at the final join.
+            pages = (_scale_limit(limit, len(sources)) + 9) // 10
+            budget_s = max(budget_s, min(120, 15 + pages * 6))
+            if scholar_session.recovery_available() and not scholar_session.current():
+                # First-use verification is exceptional setup work. Let its
+                # bounded worker finish before discarding recovered papers.
+                budget_s = max(budget_s, scholar_session.RECOVERY_TIMEOUT + 30)
 
     # Without API keys most of the fleet is unavailable: OpenAlex now bills per
     # request and returns 429 unauthenticated, and S2 snippet needs a key too.

@@ -44,6 +44,13 @@ Sources run through shared bounded executors. A failed source is recorded
 separately from a successful search with no matches. Each search round has a
 configurable 30-second budget; pending work can be cancelled when it expires.
 
+arXiv can fall back from Atom to its own HTTPS search. DBLP completes bounded
+same-origin verification redirects. The optional Google recovery worker runs
+in a separate process, saves a private route-bound session and exits; normal
+searches reuse that session through HTTP. A cold default fan-out allows 150
+seconds for this setup. Warm Google searches receive a page-count-aware budget
+up to 120 seconds. Explicit caller budgets remain authoritative.
+
 DashScope `qwen3-rerank` is the configured cloud default. A compatible hosted or
 local reranker can be selected through `SCHOLAR_RERANK_URL`; FlashRank provides
 the portable local fallback when the `rerank` extra is installed. Custom

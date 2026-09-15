@@ -2,6 +2,7 @@
 
 import re
 import time
+from html import unescape
 
 import httpx
 from bs4 import BeautifulSoup
@@ -30,10 +31,13 @@ def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
                       headers={"Accept": "application/json"}) as client:
         r = client.get(BASE_URL, params=params)
         r.raise_for_status()
-        if "text/html" in r.headers.get("content-type", "").lower():
+        for _ in range(2):
+            if "text/html" not in r.headers.get("content-type", "").lower():
+                break
             # Anubis's documented metarefresh mode asks clients to keep the
             # verification cookie and revisit a same-origin URL after a delay.
-            # Follow that one refresh inside the existing request budget.
+            # A renewed challenge can arrive after the first redirect. Bound
+            # the exchange and keep both verification cookies in this client.
             soup = BeautifulSoup(r.text, "html.parser")
             refresh = soup.find("meta", attrs={"http-equiv": re.compile("^refresh$", re.I)})
             match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*;\s*url=(.+)",
@@ -44,9 +48,11 @@ def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
                 if (0 <= delay <= 5 and target.scheme == "https"
                         and target.host == r.url.host and target.port == r.url.port
                         and target.path == "/.within.website/x/cmd/anubis/api/pass-challenge"):
-                    time.sleep(delay + 0.5)
+                    time.sleep(delay + 1)
                     r = client.get(target)
                     r.raise_for_status()
+                    continue
+            break
     if "text/html" in r.headers.get("content-type", "").lower():
         page = r.text.lower()
         if any(marker in page for marker in (
@@ -60,7 +66,7 @@ def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
     hits = data.get("result", {}).get("hits", {}).get("hit", [])
     for item in hits:
         info = item.get("info", {})
-        title = info.get("title", "")
+        title = unescape(info.get("title", ""))
         if not title:
             continue
         if title.endswith("."):

@@ -118,7 +118,7 @@ The bundled Deep Research skill turns search, paper inspection, graph traversal,
 | Preprints and conferences | arXiv, OpenReview | Recent work and conference records |
 | Biomedical | PubMed, Europe PMC | Medicine, biology, and full-text repositories |
 | Domain and repository | DBLP, INSPIRE-HEP, DOAJ, CORE, OpenAIRE, HAL | CS, physics, open journals, and repositories |
-| Web fallback | Google Scholar | Best effort; blocking is reported as degradation |
+| Web fallback | Google Scholar | HTTP search with optional automatic session recovery |
 
 Keyword APIs receive measured source-specific query budgets. Semantic endpoints keep the original question. Every source contributes independently to one canonical evidence pool.
 
@@ -140,7 +140,16 @@ Scores must be finite and in `[0, 1]`. Raw logits need model-specific normalizat
 
 </details>
 
-Normal responses focus on papers, with a short warning if availability affected the search. `debug=true` adds `_meta` with source coverage, the actual reranker, per-source yield, latency, provenance, and detailed errors. Each parallel search round waits up to 30 seconds by default; `SCHOLAR_SOURCE_BUDGET_S` adjusts this budget.
+Normal responses focus on papers, with a short warning if availability affected the search. `debug=true` adds `_meta` with source coverage, the actual reranker, per-source yield, latency, provenance, and detailed errors. The base parallel-search budget is 30 seconds, configurable through `SCHOLAR_SOURCE_BUDGET_S`. Google Scholar pagination can extend it up to 120 seconds to retain completed multi-page results.
+
+<details>
+<summary>Google Scholar session recovery</summary>
+
+With Chrome and ffmpeg installed, run `uvx --from 'scholar-mcp[google]' scholar-mcp` to enable automatic verification recovery. A short-lived browser establishes the session, then ordinary HTTP handles searches and pagination. It uses a fresh browser profile, never your personal Chrome profile, and online audio recognition rather than a local model.
+
+Sessions are stored privately under `<data>/sessions/` and tied to the configured proxy. A cold search can wait up to 150 seconds for the bounded recovery worker and the subsequent search. Warm sessions use the normal budget. Set `SCHOLAR_GOOGLE_RECOVERY=off` to disable browser recovery. Headless servers need a graphical display for this optional path. Google can still refuse a connection; failed recovery is reported and briefly backed off.
+
+</details>
 
 ## Measured retrieval quality
 
@@ -208,7 +217,7 @@ The shared resolution chain covers:
 3. bioRxiv, medRxiv, SSRN, ChemRxiv, and other preprint servers
 4. Unpaywall and an optional institutional proxy
 
-`scholar-mcp sources` prints the live registry-derived capability matrix. Zenodo participates in PDF resolution but stays out of default discovery because its broad publication records add more candidate noise than retrieval value.
+`scholar-mcp sources` prints the registry-derived capability matrix. Add `--check` to test configured search providers, or `--check --source arxiv --query "retrieval augmented generation"` to inspect one. arXiv falls back to its own HTTPS search when its Atom API is unavailable. Zenodo participates in PDF resolution but stays out of default discovery because its broad publication records add more candidate noise than retrieval value.
 
 ## Configuration
 

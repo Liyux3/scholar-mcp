@@ -32,6 +32,11 @@ include query-compression dependencies with
 Hosted reranking uses environment configuration and does not require local
 model weights.
 
+The optional `google` extra adds browser-based session recovery. It needs a
+local Chrome installation, ffmpeg and a graphical display. Browser dependencies
+are not bundled into the default server, container or MCPB. DrissionPage and
+SpeechRecognition retain their own licensing terms.
+
 ## Release artifacts
 
 GitHub Release workflows build and validate Python packages, publish the

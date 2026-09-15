@@ -128,7 +128,7 @@ class TestDBLP:
         monkeypatch.setattr(dblp_client.time, "sleep", delays.append)
         papers = dblp_client.search_papers("transformer", limit=3)
         assert papers[0]["title"] == "Transformer"
-        assert delays == [2.5]
+        assert delays == [3]
         assert len(calls) == 2
 
     def test_metarefresh_keeps_requests_on_dblp(self, monkeypatch):
