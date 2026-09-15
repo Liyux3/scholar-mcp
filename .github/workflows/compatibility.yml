@@ -1,0 +1,44 @@
+name: Portable runtime
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-15-intel, macos-latest, windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Install native runtime and dependencies
+        run: uv sync --locked --python 3.12 --extra dev --extra rerank
+      - name: Record native platform and load binary dependencies
+        run: uv run python -c "import platform,sys,onnxruntime,pypdfium2; assert sys.version_info[:2] == (3,12); print(platform.platform(),platform.machine()); print(onnxruntime.get_available_providers())"
+      - name: Exercise offline functionality including PDF parsing and rendering
+        run: uv run pytest -q
+      - name: Build and install candidate in isolation
+        run: uv build
+      - name: Exercise installed MCP package
+        run: uv run python scripts/smoke_release.py
+      - name: Exercise POSIX launcher arguments
+        if: runner.os != 'Windows'
+        run: uv run pytest -q tests/test_portable_launch.py
+      - name: Exercise Windows launcher
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $wheel = Get-ChildItem dist/*.whl | Select-Object -First 1
+          $env:SCHOLAR_PACKAGE = "scholar-mcp[rerank] @ " + ([Uri]$wheel.FullName).AbsoluteUri
+          & ./scripts/launch.ps1 --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

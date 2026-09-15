@@ -21,6 +21,20 @@ acceptance into a vendor-curated marketplace.
 
 ## Package and runtime
 
+The repository includes `scripts/launch.sh` for macOS/Linux and
+`scripts/launch.ps1` for Windows. They reuse uv when available, otherwise
+bootstrap it into an application-specific directory using the official
+installer, without editing shell profiles. uv then prepares isolated managed
+Python 3.12 and the `rerank` dependencies before starting the server. Normal
+server arguments pass through unchanged. `SCHOLAR_PACKAGE` can select a
+version or candidate wheel; the default launches the published PyPI package,
+not unpublished development code.
+
+These launchers need network access on first use. They do not yet make the
+desktop bundles self-contained or provision browser/display dependencies for
+Google verification. Native Windows x64/ARM64 acceptance is part of the new
+portable-runtime CI matrix and must pass before claiming those targets tested.
+
 Python 3.10 or newer is required. The server supports stdio and Streamable HTTP.
 The core profile has six tools; the research extension adds graph and library
 operations.
