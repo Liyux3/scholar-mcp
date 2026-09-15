@@ -61,7 +61,7 @@ def _get_any_id(paper: dict) -> str:
         val = ext.get(key, "")
         if val:
             return val
-    return paper.get("paper_id", "")
+    return relevance.best_paper_id(paper)
 
 
 def _fetch_related(paper: dict, relation: str, limit: int, delay: float = 0) -> list[dict]:

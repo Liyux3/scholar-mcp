@@ -469,23 +469,21 @@ class TestRerankCapping:
         pool = self._pool(n=10, n_good=2)
         assert len(relevance._pre_rank_cap(pool, 150)) == 10
 
-    def test_flashrank_fallback_caps_by_rank_not_position(self, monkeypatch):
-        """Regression guard: with DashScope unavailable, the papers handed to
-        FlashRank must be the metadata-best ones, not the first 150.
-        """
+    def test_flashrank_fallback_scores_every_candidate(self, monkeypatch):
+        """Provider batch size does not truncate the candidate pool."""
         monkeypatch.setattr(relevance, "_rerank_dashscope",
                             lambda *a, **kw: None)
-        seen = {}
+        seen = {"papers": []}
 
         def fake_flashrank(query, papers, top_n):
-            seen["papers"] = papers
+            seen["papers"].extend(papers)
             return papers[:top_n]
 
         monkeypatch.setattr(relevance, "_rerank_flashrank", fake_flashrank)
         relevance.rerank("q", self._pool(), top_n=20)
 
         handed = seen["papers"]
-        assert len(handed) == relevance.FLASHRANK_CAP
+        assert len(handed) == 200
         kept = sum(1 for p in handed if p["title"].startswith("good"))
         assert kept == 40, f"only {kept}/40 strong candidates survived the cap"
 

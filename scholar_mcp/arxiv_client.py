@@ -8,6 +8,31 @@ import time
 ARXIV_API_URL = "https://export.arxiv.org/api/query"
 
 
+def get_paper(paper_id: str) -> dict | None:
+    value = re.sub(r"^(?:arxiv:|10\.48550/arxiv\.|https?://arxiv\.org/abs/)", "", paper_id, flags=re.I)
+    if not re.fullmatch(r"(?:\d{4}\.\d{4,5}|[a-z-]+/\d{7})(?:v\d+)?", value):
+        return None
+    response = httpx.get(f"https://arxiv.org/abs/{value}", timeout=20, follow_redirects=True)
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    def meta(name):
+        return [m.get("content", "") for m in soup.select(f'meta[name="{name}"]')]
+    titles = meta("citation_title")
+    if not titles:
+        return None
+    dates = meta("citation_date")
+    date = dates[0].replace("/", "-") if dates else ""
+    abstract = soup.select_one("blockquote.abstract")
+    return {"paper_id": value, "title": titles[0], "authors": meta("citation_author"),
+            "year": int(date[:4]) if date[:4].isdigit() else None, "publication_date": date or None,
+            "venue": "arXiv", "abstract": abstract.get_text(" ", strip=True).removeprefix("Abstract:").strip() if abstract else "",
+            "external_ids": {"ArXiv": value}, "source": "arxiv", "citation_count": 0,
+            "_citation_count_known": False, "is_open_access": True,
+            "open_access_url": f"https://arxiv.org/pdf/{value}", "url": f"https://arxiv.org/abs/{value}"}
+
+
 def search_papers(query: str, max_results: int = 10) -> list[dict]:
     """Search arXiv. Returns results in the same dict format as s2_client."""
     words = query.split()

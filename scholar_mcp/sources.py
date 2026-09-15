@@ -255,7 +255,7 @@ def parallel_citations(paper_id: str, limit: int = 20, title: str = "") -> list[
         }
         for future in as_completed(futures):
             results.append(future.result())
-    return results
+    return _hydrate_relations(results)
 
 
 def parallel_references(paper_id: str, limit: int = 20) -> list[SourceResult]:
@@ -270,6 +270,17 @@ def parallel_references(paper_id: str, limit: int = 20) -> list[SourceResult]:
         }
         for future in as_completed(futures):
             results.append(future.result())
+    return _hydrate_relations(results)
+
+
+def _hydrate_relations(results: list[SourceResult]) -> list[SourceResult]:
+    from .metadata import hydrate
+    hydrate([paper for result in results for paper in result.results])
+    for result in results:
+        unresolved = sum(not paper.get("title") for paper in result.results)
+        if unresolved:
+            result.error = f"{unresolved} reference identities could not be resolved"
+        result.results = [paper for paper in result.results if paper.get("title")]
     return results
 
 
@@ -386,6 +397,7 @@ def _register_defaults():
     register(Source(
         name="arxiv",
         search=lambda q, limit, **kw: arxiv_client.search_papers(q, max_results=limit),
+        get_paper=arxiv_client.get_paper,
         priority=70,
         domains=["computer science", "physics", "mathematics", "statistics"],
         keyword_words=10,
@@ -401,6 +413,9 @@ def _register_defaults():
     register(Source(
         name="europepmc",
         search=lambda q, limit, **kw: europepmc_client.search_papers(q, limit=limit),
+        get_paper=europepmc_client.get_paper,
+        get_citations=europepmc_client.get_citations,
+        get_references=europepmc_client.get_references,
         resolve_pdf=europepmc_client.resolve_pdf,
         priority=35,
         domains=["medicine", "biology", "healthcare", "biochemistry"],
@@ -409,6 +424,8 @@ def _register_defaults():
     register(Source(
         name="crossref",
         search=lambda q, limit, **kw: crossref_client.search_papers(q, limit=limit),
+        get_paper=crossref_client.get_paper,
+        get_references=crossref_client.get_references,
         priority=30,
         domains=["all"],
         keyword_words=12,

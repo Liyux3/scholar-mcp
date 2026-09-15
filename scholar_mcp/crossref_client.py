@@ -1,8 +1,14 @@
-"""Crossref API client. 150M+ works, no API key, no rate limit with polite pool."""
+"""Crossref metadata and deposited references, respecting the provider's request limits."""
 
 import httpx
+import re
+import threading
+import time
+from urllib.parse import quote
+from html import unescape
 
 from . import config
+from .cache import cached
 
 BASE_URL = "https://api.crossref.org/works"
 
@@ -10,11 +16,99 @@ BASE_URL = "https://api.crossref.org/works"
 # limit because format_paper drops entries with no title (datasets, errata).
 CROSSREF_MAX_ROWS = 1000
 OVERFETCH_FACTOR = 2
+_gate = threading.Semaphore(3)
+_public_gate = threading.Semaphore(1)
+_retry_at = 0.0
 
 
 def _headers() -> dict:
-    email = config.OPENALEX_EMAIL or "scholar-mcp@example.com"
-    return {"User-Agent": f"scholar-mcp/0.3 (mailto:{email})"}
+    contact = f"; mailto:{config.OPENALEX_EMAIL}" if config.OPENALEX_EMAIL else ""
+    return {"User-Agent": f"scholar-mcp (https://github.com/Liyux3/scholar-mcp{contact})"}
+
+
+def doi_id(value: str) -> str:
+    value = re.sub(r"^(?:https?://(?:dx\.)?doi\.org/|doi:|cr_)", "", str(value).strip(), flags=re.I)
+    return value if re.fullmatch(r"10\.\d{4,9}/\S+", value, flags=re.I) else ""
+
+
+@cached(ttl=3600)
+def _get_work(doi: str) -> dict:
+    return _get_json(f"{BASE_URL}/{quote(doi, safe='/')}").get("message") or {}
+
+
+def _get_json(url: str, params: dict | None = None) -> dict:
+    global _retry_at
+    gate = _gate if config.OPENALEX_EMAIL else _public_gate
+    with gate:
+        if time.monotonic() < _retry_at:
+            raise RuntimeError("Crossref is temporarily unavailable")
+        for attempt in range(2):
+            try:
+                response = httpx.get(url, params=params, headers=_headers(), timeout=25)
+            except httpx.TransportError:
+                _retry_at = time.monotonic() + 30
+                raise
+            if response.status_code == 404:
+                return {}
+            if response.status_code in {429, 502, 503, 504} and attempt == 0:
+                try:
+                    pause = float(response.headers.get("retry-after", "2"))
+                except ValueError:
+                    pause = 2
+                if 0 <= pause <= 5:
+                    time.sleep(pause)
+                    continue
+            if response.status_code in {429, 502, 503, 504}:
+                _retry_at = time.monotonic() + 30
+            response.raise_for_status()
+            return response.json()
+    return {}
+
+
+def get_paper(paper_id: str) -> dict | None:
+    doi = doi_id(paper_id)
+    return format_paper(_get_work(doi)) if doi else None
+
+
+def get_references(paper_id: str, limit: int = 20, **kwargs) -> list[dict]:
+    doi = doi_id(paper_id)
+    if not doi or limit <= 0:
+        return []
+    return [reference_paper(ref) for ref in _get_work(doi).get("reference", [])[:limit]]
+
+
+def reference_paper(ref: dict) -> dict:
+    doi = doi_id(ref.get("DOI", ""))
+    text = ref.get("unstructured") or ""
+    arxiv = re.search(r"arxiv(?:\.org/abs/|\s*:\s*)(\d{4}\.\d{4,5}(?:v\d+)?)", text, re.I)
+    ids = {"DOI": doi} if doi else {}
+    if arxiv:
+        ids["ArXiv"] = arxiv[1]
+    return {"paper_id": doi, "title": ref.get("article-title") or "",
+            "external_ids": ids, "source": "crossref", "_needs_metadata": True,
+            "_reference": ref, "citation_count": 0, "_citation_count_known": False}
+
+
+@cached(ttl=3600)
+def match_reference(text: str, title: str = "", author: str = "", year: str = "", page: str = "") -> dict | None:
+    """Resolve an exact title or a consistent author/year/first-page citation."""
+    from .relevance import _normalize_title
+    if not text:
+        return None
+    candidates = _get_json(BASE_URL, {"query.bibliographic": text[:1000], "rows": 3}).get("message", {}).get("items", [])
+    matches = []
+    for candidate in candidates:
+        paper = format_paper(candidate)
+        if not paper:
+            continue
+        exact_title = bool(title) and _normalize_title(title) == _normalize_title(paper["title"])
+        surname = author.split()[-1].casefold().strip(",.") if author else ""
+        coordinates = (surname and year and page and str(paper.get("year")) == str(year)
+                       and str(candidate.get("page", "")).split("-")[0] == str(page)
+                       and any(surname == str(a.get("family", "")).casefold() for a in candidate.get("author", [])))
+        if exact_title or coordinates:
+            matches.append(paper)
+    return matches[0] if len(matches) == 1 else None
 
 
 def format_paper(item: dict) -> dict | None:
@@ -22,7 +116,7 @@ def format_paper(item: dict) -> dict | None:
     title_list = item.get("title") or []
     if not title_list:
         return None
-    title = title_list[0]
+    title = unescape(title_list[0])
 
     authors = []
     for a in item.get("author") or []:
@@ -100,9 +194,7 @@ def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
         "sort": "relevance",
         "order": "desc",
     }
-    r = httpx.get(BASE_URL, params=params, headers=_headers(), timeout=30)
-    r.raise_for_status()
-    data = r.json()
+    data = _get_json(BASE_URL, params)
 
     results = []
     for item in (data.get("message") or {}).get("items") or []:

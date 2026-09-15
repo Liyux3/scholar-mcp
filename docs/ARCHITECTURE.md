@@ -29,6 +29,11 @@ The first ranking selects promising seeds. Expansion adds connected papers, and
 the final ranking scores the combined candidates together. It does not average
 scores from different model passes.
 
+Provider batch limits do not cap the candidate pool. Large pools are scored in
+batches, then ranked globally using one provider per pass. Sparse reference
+records are resolved through DOI/PMID batches, native identifiers and citation
+matching before ranking. Metadata lookups are not counted as extra search votes.
+
 `sort` selects the final ordering: relevance, citation count, or date.
 `intent` guides semantic reranking and expansion toward a research purpose such
 as foundational work, recent work, methods, surveys, or datasets.
@@ -39,6 +44,11 @@ The default is relevance ordering with balanced intent.
 The source registry declares search, paper lookup, citation, reference and PDF
 resolution capabilities. An adapter supplies the capabilities its provider
 actually supports. Adding a source does not require another MCP tool.
+
+Crossref supplies deposited references; Europe PMC supplies citation relations
+and can recover references from its own open-access JATS full text. Both feed
+the same graph traversal as Semantic Scholar and OpenAlex. Cached requests are
+namespaced by provider implementation and shared across concurrent callers.
 
 Sources run through shared bounded executors. A failed source is recorded
 separately from a successful search with no matches. Each search round has a
@@ -107,6 +117,7 @@ Bibliographic fields remain present independently of debug output.
 | `server.py`, `cli.py` | MCP tools, orchestration and command-line entry points |
 | `sources.py`, `*_client.py` | Source contracts, query routing and provider access |
 | `relevance.py`, `expansion.py` | Query preparation, identity merge and ranking |
+| `metadata.py` | Automatic hydration of sparse relation records |
 | `traversal.py`, `graph.py` | Citation relationships and graph construction |
 | `pdf_utils.py`, `paper_reader.py` | PDF access, structured reading and visuals |
 | `knowledge_base.py`, `library_store.py` | Persistent research records and search |

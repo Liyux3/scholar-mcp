@@ -35,17 +35,13 @@ class ExpansionContext:
     seeds: list[dict] = field(default_factory=list)
 
 
-# Minimum citations an expanded paper needs to be worth carrying, by intent.
-# A search for foundational work has no use for a two-week-old preprint with
-# no citations; a search for recent method papers does.
-_MIN_CITATIONS_BY_INTENT = {"foundational": 10, "survey": 5, "method": 3}
-
-
 def _seed_id(paper: dict) -> str:
     ext = paper.get("external_ids") or {}
     for key in ("DOI", "OpenAlex", "ArXiv"):
         if ext.get(key):
             return ext[key]
+    if ext.get("PMID") or ext.get("PubMed"):
+        return "PMID:" + str(ext.get("PMID") or ext["PubMed"])
     pid = paper.get("paper_id", "")
     if pid and not pid.startswith("W"):
         return pid
@@ -71,12 +67,12 @@ def citations(seed: dict, ctx: ExpansionContext) -> list[dict]:
     pid = _seed_id(seed)
     if not pid:
         return []
-    floor = _MIN_CITATIONS_BY_INTENT.get(ctx.intent, 1)
     out = []
     for sr in sources.parallel_citations(pid, limit=ctx.per_seed_limit,
                                          title=seed.get("title", "")):
-        out.extend(p for p in sr.results
-                   if (p.get("citation_count") or 0) >= floor)
+        # Intent is a ranking preference, not an implicit pre-rerank citation
+        # filter. New or sparsely indexed descendants deserve semantic scoring.
+        out.extend(sr.results)
     return out
 
 

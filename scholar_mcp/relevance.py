@@ -278,6 +278,7 @@ def _normalize_title(title: str) -> str:
 
 
 _EXTERNAL_ID_ALIASES = {
+    "PMID": "PubMed",
     "ArXivId": "ArXiv",
     "CorpusID": "CorpusId",
     "S2CorpusId": "CorpusId",
@@ -812,27 +813,54 @@ def _pre_rank_cap(papers: list[dict], cap: int) -> list[dict]:
     return kept + recent_overflow
 
 def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") -> list[dict]:
-    """Rerank papers. Pre-ranks with the metadata formula if the pool exceeds
-    what the reranker accepts. DashScope takes up to 500 docs, FlashRank 150.
-    """
+    """Score every candidate in provider-sized batches, then select globally."""
     if not papers:
         return papers
     if len(papers) > DASHSCOPE_CAP:
-        papers = _pre_rank_cap(papers, DASHSCOPE_CAP)
+        from concurrent.futures import ThreadPoolExecutor
+        batches = [papers[start:start + DASHSCOPE_CAP] for start in range(0, len(papers), DASHSCOPE_CAP)]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(lambda batch: _remote_batch(query, batch, len(batch), intent), batches))
+        if any(result is None for result in outcomes):
+            # All cloud work has joined before one consistent local fallback.
+            return _local_batches(query, papers, top_n)
+        ranked = [paper for result in outcomes for paper in result]
+        ranked.sort(key=lambda p: -(p.get("_rerank_score") or 0))
+        for rank, paper in enumerate(ranked, 1):
+            paper["_rerank_rank"] = rank
+        return ranked[:top_n]
+    result = _remote_batch(query, papers, top_n, intent)
+    if result is not None:
+        return result
+    return _local_batches(query, papers, top_n)
+
+
+def _remote_batch(query: str, papers: list[dict], top_n: int, intent: str) -> list[dict] | None:
     if config.RERANK_URL:
-        result = _rerank_remote(
+        return _rerank_remote(
             query, papers, top_n, intent, url=config.RERANK_URL,
             model=config.RERANK_MODEL, api_key=config.RERANK_API_KEY,
             provider="custom", timeout=config.RERANK_TIMEOUT,
         )
-    else:
-        result = _rerank_dashscope(query, papers, top_n, intent=intent)
-    if result is not None:
-        return result
-    # Cap by metadata rank, not by list position. Papers arrive concatenated
-    # in source order, so slicing would discard candidates arbitrarily rather
-    # than keeping the most promising ones.
-    return _rerank_flashrank(query, _pre_rank_cap(papers, FLASHRANK_CAP), top_n)
+    return _rerank_dashscope(query, papers, top_n, intent=intent)
+
+
+def _local_batches(query: str, papers: list[dict], top_n: int) -> list[dict]:
+    if len(papers) <= FLASHRANK_CAP:
+        return _rerank_flashrank(query, papers, top_n)
+    ranked = []
+    for start in range(0, len(papers), FLASHRANK_CAP):
+        batch = papers[start:start + FLASHRANK_CAP]
+        ranked.extend(_rerank_flashrank(query, batch, len(batch)))
+    if any(p.get("_reranker_provider") == "unavailable" for p in ranked):
+        for paper in ranked:
+            paper.update(_rerank_score=0.5, _reranker_provider="unavailable", _reranker_model=None)
+            paper.pop("_rerank_rank", None)
+        return rank_final(ranked)[:top_n]
+    ranked.sort(key=lambda p: -(p.get("_rerank_score") or 0))
+    for rank, paper in enumerate(ranked, 1):
+        paper["_rerank_rank"] = rank
+    return ranked[:top_n]
 
 
 def rank_final(papers: list[dict]) -> list[dict]:

@@ -155,18 +155,9 @@ def _pipeline(
                     relevance.tag_source_ranks([p], "expansion")
                 all_papers.extend(found)
                 all_papers = relevance.deduplicate(all_papers)
-                if len(all_papers) > 500:
-                    old = [p for p in all_papers if p.get("_rerank_score")]
-                    new = [p for p in all_papers if not p.get("_rerank_score")]
-                    old.sort(key=lambda p: -p.get("_rerank_score", 0))
-                    old_keep = old[:100]
-                    new_ranked = relevance.rank_final(new)
-                    new_keep = new_ranked[:500 - len(old_keep)]
-                    all_papers = old_keep + new_keep
                 all_papers = relevance.rerank(rerank_query, all_papers, top_n=min(limit * 3, len(all_papers)), intent=intent)
-                # The final pool is scored together. Averaging with seed-pass
-                # scores would mix models after a fallback, and mix contexts
-                # for listwise rerankers whose scores depend on the whole pool.
+                # Rescore the final pool with one provider, in batches when
+                # needed. Do not average final scores with the seed pass.
                 all_papers = relevance.rank_final(all_papers)
     else:
         all_papers.sort(key=lambda p: -(p.get("citation_count", 0) or 0))
