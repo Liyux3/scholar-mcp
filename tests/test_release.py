@@ -3,11 +3,15 @@
 import json
 from pathlib import Path
 import re
-import tomllib
 from urllib.parse import parse_qs, urlparse
 import base64
 
 import yaml
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10; provided by pytest's dependencies.
+    import tomli as tomllib
 
 from scholar_mcp import __version__
 
@@ -72,6 +76,8 @@ def test_registry_and_release_workflows_are_wired():
     mcpb = (ROOT / ".github/workflows/mcpb.yml").read_text(encoding="utf-8")
     assert "scripts/build_mcpb.sh" in mcpb
     assert "scripts/smoke_mcpb.py" in mcpb
+    bundle = (ROOT / "scripts/build_mcpb.sh").read_text(encoding="utf-8")
+    assert "--extra rerank" in bundle
 
 
 def test_readme_contains_valid_one_click_install_urls():

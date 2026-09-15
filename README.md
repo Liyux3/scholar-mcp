@@ -124,7 +124,7 @@ Keyword APIs receive measured source-specific query budgets. Semantic endpoints 
 
 Results are canonicalized across DOI, arXiv, Semantic Scholar, OpenAlex, PubMed, and OpenReview identities. Duplicate records contribute complementary metadata and independent source evidence instead of appearing several times.
 
-DashScope `qwen3-rerank` is the primary reranker when configured; FlashRank is the local fallback. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set.
+DashScope `qwen3-rerank` is the primary reranker when configured. Install the `rerank` extra for the FlashRank local fallback: `uvx --from 'scholar-mcp[rerank]' scholar-mcp`. Containers and MCPB bundles include this extra; the local model downloads on first use. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set.
 
 <details>
 <summary>Bring your own reranker</summary>
@@ -146,7 +146,7 @@ Normal responses focus on papers, with a short warning if availability affected 
 
 ![LitSearch quality comparison](docs/assets/litsearch-quality.svg)
 
-In the frozen matched LitSearch run, Scholar recovered **10 percentage points more papers at R@5** and **6 points more at R@20** than Exa research-paper search.
+In the frozen matched LitSearch run, Scholar achieved a **10-percentage-point higher top-five query hit rate** and **6 points higher at top twenty** than Exa research-paper search.
 
 | System | R@5 | R@10 | R@20 | MRR |
 |---|---:|---:|---:|---:|
@@ -158,6 +158,8 @@ Scholar recovered nine R@5 hits that Exa missed; Exa recovered four that Scholar
 
 <details>
 <summary>Benchmark protocol</summary>
+
+R@k here measures the fraction of queries with at least one ground-truth paper in the top k results. MRR averages the reciprocal rank of the first match, with zero for a miss.
 
 The comparison uses the same first 50 LitSearch inline-ACL queries, ground-truth titles, title matcher, and top-20 cutoff. Exa ran with category `research paper`. Scholar used its standard retrieval pipeline with Qwen reranking. BM25 follows the official LitSearch title+abstract implementation: lowercase tokenization, English stopword removal, Porter stemming, and `BM25Okapi` over the 64K-paper corpus. The Scholar/Exa run was collected on 12 May 2026; BM25 was reproduced on 25 August 2026. The frozen summary is in [`docs/benchmarks/litsearch-inline-acl-50.json`](docs/benchmarks/litsearch-inline-acl-50.json), with [raw BM25 results](docs/benchmarks/bm25_title_abstract_inline_acl_50.jsonl) and their [hash manifest](docs/benchmarks/bm25_title_abstract_inline_acl_50.summary.json).
 
@@ -205,7 +207,6 @@ The shared resolution chain covers:
 2. Registered repository resolvers: CORE, OpenAIRE, HAL, Zenodo, and DOAJ
 3. bioRxiv, medRxiv, SSRN, ChemRxiv, and other preprint servers
 4. Unpaywall and an optional institutional proxy
-5. an explicit local fallback when enabled
 
 `scholar-mcp sources` prints the live registry-derived capability matrix. Zenodo participates in PDF resolution but stays out of default discovery because its broad publication records add more candidate noise than retrieval value.
 
@@ -247,7 +248,7 @@ uv sync --extra dev
 uv run pytest
 ```
 
-Unit tests are the default. Live API tests are marked `integration` and run separately with `uv run pytest -m integration`; pytest reports them as `deselected` during the deterministic unit run because the marker filter intentionally leaves network-dependent cases out of that invocation.
+Unit tests run by default. Run live API tests separately with `uv run pytest -m integration`.
 
 Connector and feature contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues through the private process in [SECURITY.md](SECURITY.md); citation metadata is available in [CITATION.cff](CITATION.cff).
 

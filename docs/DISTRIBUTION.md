@@ -25,7 +25,8 @@ Python 3.10 or newer is required. The server supports stdio and Streamable HTTP.
 The core profile has six tools; the research extension adds graph and library
 operations.
 
-The container includes the portable `rerank` extra. A custom build can also
+Containers and MCPB bundles include the portable `rerank` extra. Its local
+model downloads on first use. A custom container build can also
 include query-compression dependencies with
 `--build-arg SCHOLAR_EXTRAS=compression,rerank`.
 Hosted reranking uses environment configuration and does not require local

@@ -46,9 +46,9 @@ configurable 30-second budget; pending work can be cancelled when it expires.
 
 DashScope `qwen3-rerank` is the configured cloud default. A compatible hosted or
 local reranker can be selected through `SCHOLAR_RERANK_URL`; FlashRank provides
-the portable local fallback. Custom endpoints use a separate credential and do
-not silently fall back to the cloud. See the [README](../README.md#retrieval) for
-the request contract.
+the portable local fallback when the `rerank` extra is installed. Custom
+endpoints use a separate credential and do not silently fall back to the cloud.
+See the [README](../README.md#retrieval) for the request contract.
 
 Reranker responses are validated before candidate scores are updated. Final
 relevance ordering also considers citations, source agreement and recency.
