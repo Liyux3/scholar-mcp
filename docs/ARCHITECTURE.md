@@ -29,6 +29,15 @@ The first ranking selects promising seeds. Expansion adds connected papers, and
 the final ranking scores the combined candidates together. It does not average
 scores from different model passes.
 
+Provider batch limits do not cap the candidate pool. Large pools are scored in
+batches, then ranked globally using one provider per pass. Sparse reference
+records are resolved through DOI/PMID batches, native identifiers and citation
+matching before ranking. Metadata lookups are not counted as extra search votes.
+The output limit is applied after complete-pool scoring, composite ranking and
+requested filters. arXiv DOI aliases and author-backed redeposit matches keep
+one work from occupying multiple result slots; conflicting titles are checked
+against native identifier records.
+
 `sort` selects the final ordering: relevance, citation count, or date.
 `intent` guides semantic reranking and expansion toward a research purpose such
 as foundational work, recent work, methods, surveys, or datasets.
@@ -40,9 +49,22 @@ The source registry declares search, paper lookup, citation, reference and PDF
 resolution capabilities. An adapter supplies the capabilities its provider
 actually supports. Adding a source does not require another MCP tool.
 
+Crossref supplies deposited references; Europe PMC supplies citation relations
+and can recover references from its own open-access JATS full text. INSPIRE-HEP
+provides native citation traversal and batched reference records. All feed
+the same graph traversal as Semantic Scholar and OpenAlex. Cached requests are
+namespaced by provider implementation and shared across concurrent callers.
+
 Sources run through shared bounded executors. A failed source is recorded
 separately from a successful search with no matches. Each search round has a
 configurable 30-second budget; pending work can be cancelled when it expires.
+
+arXiv can fall back from Atom to its own HTTPS search. DBLP completes bounded
+same-origin verification redirects. The optional Google recovery worker runs
+in a separate process, saves a private route-bound session and exits; normal
+searches reuse that session through HTTP. A cold default fan-out allows 150
+seconds for this setup. Warm Google searches receive a page-count-aware budget
+up to 120 seconds. Explicit caller budgets remain authoritative.
 
 DashScope `qwen3-rerank` is the configured cloud default. A compatible hosted or
 local reranker can be selected through `SCHOLAR_RERANK_URL`; FlashRank provides
@@ -100,6 +122,7 @@ Bibliographic fields remain present independently of debug output.
 | `server.py`, `cli.py` | MCP tools, orchestration and command-line entry points |
 | `sources.py`, `*_client.py` | Source contracts, query routing and provider access |
 | `relevance.py`, `expansion.py` | Query preparation, identity merge and ranking |
+| `metadata.py` | Automatic hydration of sparse relation records |
 | `traversal.py`, `graph.py` | Citation relationships and graph construction |
 | `pdf_utils.py`, `paper_reader.py` | PDF access, structured reading and visuals |
 | `knowledge_base.py`, `library_store.py` | Persistent research records and search |

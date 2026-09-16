@@ -6,7 +6,7 @@ structured results. Adding a new source = register() call, no other files change
 """
 
 import time as _time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -173,6 +173,16 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
 
     if budget_s is None:
         budget_s = config.SOURCE_BUDGET_S
+        if any(s.name == "google_scholar" for s in sources):
+            from . import scholar_session
+            # Scholar serves ten results per page. A one-page timeout must
+            # not discard a successful multi-page search at the final join.
+            pages = (_scale_limit(limit, len(sources)) + 9) // 10
+            budget_s = max(budget_s, min(120, 15 + pages * 6))
+            if scholar_session.recovery_available() and not scholar_session.current():
+                # First-use verification is exceptional setup work. Let its
+                # bounded worker finish before discarding recovered papers.
+                budget_s = max(budget_s, scholar_session.RECOVERY_TIMEOUT + 30)
 
     # Without API keys most of the fleet is unavailable: OpenAlex now bills per
     # request and returns 429 unauthenticated, and S2 snippet needs a key too.
@@ -205,7 +215,7 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
     try:
         for future in as_completed(futures, timeout=budget_s):
             results.append(future.result())
-    except TimeoutError:
+    except FutureTimeoutError:
         elapsed_ms = int(budget_s * 1000)
         answered = {r.source for r in results}
         for name in futures.values():
@@ -245,7 +255,7 @@ def parallel_citations(paper_id: str, limit: int = 20, title: str = "") -> list[
         }
         for future in as_completed(futures):
             results.append(future.result())
-    return results
+    return _hydrate_relations(results)
 
 
 def parallel_references(paper_id: str, limit: int = 20) -> list[SourceResult]:
@@ -260,6 +270,17 @@ def parallel_references(paper_id: str, limit: int = 20) -> list[SourceResult]:
         }
         for future in as_completed(futures):
             results.append(future.result())
+    return _hydrate_relations(results)
+
+
+def _hydrate_relations(results: list[SourceResult]) -> list[SourceResult]:
+    from .metadata import hydrate
+    hydrate([paper for result in results for paper in result.results])
+    for result in results:
+        unresolved = sum(not paper.get("title") for paper in result.results)
+        if unresolved:
+            result.error = f"{unresolved} reference identities could not be resolved"
+        result.results = [paper for paper in result.results if paper.get("title")]
     return results
 
 
@@ -291,7 +312,7 @@ def resolve_pdf_candidates(paper: dict, budget_s: float | None = None) -> list[t
             resolved[source.name] = [
                 str(url).strip() for url in urls if str(url).strip()
             ][:PDF_CANDIDATES_PER_SOURCE]
-    except TimeoutError:
+    except FutureTimeoutError:
         pass
     finally:
         for future in futures:
@@ -376,6 +397,7 @@ def _register_defaults():
     register(Source(
         name="arxiv",
         search=lambda q, limit, **kw: arxiv_client.search_papers(q, max_results=limit),
+        get_paper=arxiv_client.get_paper,
         priority=70,
         domains=["computer science", "physics", "mathematics", "statistics"],
         keyword_words=10,
@@ -391,6 +413,9 @@ def _register_defaults():
     register(Source(
         name="europepmc",
         search=lambda q, limit, **kw: europepmc_client.search_papers(q, limit=limit),
+        get_paper=europepmc_client.get_paper,
+        get_citations=europepmc_client.get_citations,
+        get_references=europepmc_client.get_references,
         resolve_pdf=europepmc_client.resolve_pdf,
         priority=35,
         domains=["medicine", "biology", "healthcare", "biochemistry"],
@@ -399,6 +424,8 @@ def _register_defaults():
     register(Source(
         name="crossref",
         search=lambda q, limit, **kw: crossref_client.search_papers(q, limit=limit),
+        get_paper=crossref_client.get_paper,
+        get_references=crossref_client.get_references,
         priority=30,
         domains=["all"],
         keyword_words=12,
@@ -414,6 +441,9 @@ def _register_defaults():
     register(Source(
         name="inspirehep",
         search=lambda q, limit, **kw: inspirehep_client.search_papers(q, limit=limit),
+        get_paper=inspirehep_client.get_paper,
+        get_citations=inspirehep_client.get_citations,
+        get_references=inspirehep_client.get_references,
         priority=15,
         domains=["physics", "astronomy", "high-energy physics"],
     ))

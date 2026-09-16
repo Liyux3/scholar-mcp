@@ -89,6 +89,7 @@ def test_metadata_enrichment_skips_an_overloaded_s2(monkeypatch):
 
 def test_similar_recommendations_fail_cleanly_during_s2_cooldown(monkeypatch):
     monkeypatch.setattr(server, "_lookup_title", lambda paper_id: "Seed Paper")
+    monkeypatch.setattr(server, "_id_variants", lambda paper_id: [paper_id])
     monkeypatch.setattr(
         server.s2_client,
         "get_recommendations",

@@ -39,24 +39,24 @@ class TestSeedId:
 
 
 class TestCitationsChannel:
-    def test_filters_by_intent_citation_floor(self, monkeypatch):
-        """A search for foundational work has no use for uncited preprints."""
+    def test_intent_does_not_drop_candidates_before_reranking(self, monkeypatch):
+        """Intent weights relevance later, rather than hiding candidates here."""
         returned = [_paper("Established", cites=50), _paper("Brand New", cites=0)]
         monkeypatch.setattr(expansion.sources, "parallel_citations",
                             lambda *a, **kw: [_SourceResult(returned)])
 
         ctx = expansion.ExpansionContext(intent="foundational")
         titles = [p["title"] for p in expansion.citations(_paper(), ctx)]
-        assert titles == ["Established"]
+        assert titles == ["Established", "Brand New"]
 
-    def test_default_intent_keeps_anything_cited_once(self, monkeypatch):
+    def test_default_intent_retains_uncited_descendants(self, monkeypatch):
         returned = [_paper("Cited Once", cites=1), _paper("Uncited", cites=0)]
         monkeypatch.setattr(expansion.sources, "parallel_citations",
                             lambda *a, **kw: [_SourceResult(returned)])
 
         titles = [p["title"] for p in
                   expansion.citations(_paper(), expansion.ExpansionContext())]
-        assert titles == ["Cited Once"]
+        assert titles == ["Cited Once", "Uncited"]
 
     def test_passes_the_title_through(self, monkeypatch):
         """OpenAlex cannot resolve an arXiv id without it, and losing OpenAlex

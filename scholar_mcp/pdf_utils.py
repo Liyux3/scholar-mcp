@@ -2,7 +2,7 @@ import os
 import re
 import hashlib
 import tempfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 from pathlib import Path
 
 import httpx
@@ -163,7 +163,7 @@ def _prioritize_pdf_candidates(
         for future in as_completed(futures, timeout=budget_s):
             if future.result():
                 confirmed.add(futures[future])
-    except TimeoutError:
+    except FutureTimeoutError:
         pass
     finally:
         for future in futures:

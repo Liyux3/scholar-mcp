@@ -412,7 +412,6 @@ class TestReadPaper:
 
 class TestPublishedToolMetadata:
     def test_server_version_matches_package(self):
-        assert __version__ == "0.8.4"
         assert server.mcp.version == __version__
 
     def test_search_modes_are_schema_enums(self):

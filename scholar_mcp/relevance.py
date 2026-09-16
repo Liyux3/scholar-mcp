@@ -48,7 +48,7 @@ TOP_VENUES = frozenset({
 WEAK_WORDS = frozenset({
     "wondering", "simply", "question", "whether", "think", "believe",
     "approach", "problem", "paper", "work", "method", "proposed", "propose",
-    "study", "research", "results", "recent", "existing", "current",
+    "study", "studies", "explore", "any", "research", "results", "recent", "existing", "current",
     "different", "various", "several", "multiple", "many", "possible",
     "important", "significant", "main", "key", "novel", "particular",
     "general", "specific", "common", "typical", "standard", "basic",
@@ -278,6 +278,7 @@ def _normalize_title(title: str) -> str:
 
 
 _EXTERNAL_ID_ALIASES = {
+    "PMID": "PubMed",
     "ArXivId": "ArXiv",
     "CorpusID": "CorpusId",
     "S2CorpusId": "CorpusId",
@@ -329,6 +330,10 @@ def _external_ids(paper: dict) -> dict[str, str]:
             normalized.setdefault("OpenAlex", paper_id)
         elif lowered.startswith("corpusid:"):
             normalized.setdefault("CorpusId", paper_id.split(":", 1)[1])
+    arxiv_doi = re.fullmatch(r"10\.48550/arxiv\.(\d{4}\.\d{4,5}(?:v\d+)?)",
+                             _normalized_identifier("DOI", normalized.get("DOI", "")), re.I)
+    if arxiv_doi:
+        normalized.setdefault("ArXiv", arxiv_doi[1])
     return normalized
 
 
@@ -403,6 +408,9 @@ def _merge_two(a: dict, b: dict) -> dict:
     Track source count and per-source ranks for RRF.
     """
     merged = dict(a)
+    if (a.get("title") and b.get("title")
+            and _normalize_title(a["title"]) != _normalize_title(b["title"])):
+        merged.update(_title_conflict=True, _needs_metadata=True)
     a_ids = _external_ids(merged)
     b_ids = _external_ids(b)
     merged["external_ids"] = {**b_ids, **a_ids}
@@ -410,6 +418,14 @@ def _merge_two(a: dict, b: dict) -> dict:
     for field in ("year", "publication_date", "paper_id", "url", "pdf_path"):
         if not merged.get(field) and b.get(field):
             merged[field] = b[field]
+    try:
+        if b.get("year") and merged.get("year") and int(b["year"]) < int(merged["year"]):
+            merged["year"] = int(b["year"])
+            merged["publication_date"] = b.get("publication_date") or str(b["year"])
+            if b_ids.get("DOI"):
+                merged["external_ids"]["DOI"] = b_ids["DOI"]
+    except (TypeError, ValueError):
+        pass
     if (not merged.get("venue") or str(merged.get("venue")).casefold() == "arxiv") and b.get("venue"):
         merged["venue"] = b["venue"]
     if not merged.get("title") and b.get("title"):
@@ -477,13 +493,31 @@ def deduplicate(papers: list[dict]) -> list[dict]:
 
     groups: list[dict | None] = []
     key_to_group: dict[str, int] = {}
+    title_to_groups: dict[str, set[int]] = {}
 
     def compatible_title_match(existing: dict, candidate: dict) -> bool:
         a_year, b_year = existing.get("year"), candidate.get("year")
         try:
-            return not (a_year and b_year and abs(int(a_year) - int(b_year)) > 1)
+            if not (a_year and b_year and abs(int(a_year) - int(b_year)) > 1):
+                return True
         except (TypeError, ValueError):
             return True
+        # Reprints/redeposits can be many years later. Exact, specific titles
+        # plus multiple matching author surnames can establish the same work.
+        # Generic annual report titles still stay separate across years.
+        if len(_normalize_title(existing.get("title", "")).split()) < 5:
+            return False
+        def surnames(paper):
+            names = set()
+            for author in paper.get("authors") or []:
+                tokens = re.findall(r"[^\W\d_]+", str(author).casefold())
+                meaningful = [token for token in tokens if len(token) > 1]
+                if meaningful:
+                    names.add(meaningful[0] if "," in str(author) else meaningful[-1])
+            return names
+        a_names, b_names = surnames(existing), surnames(candidate)
+        common = a_names & b_names
+        return len(common) >= 2 and len(common) >= min(len(a_names), len(b_names)) / 2
 
     for paper in papers:
         keys = paper_identity_keys(paper)
@@ -491,8 +525,7 @@ def deduplicate(papers: list[dict]) -> list[dict]:
         matched = {key_to_group[key] for key in identifier_keys if key in key_to_group}
         if not matched:
             for key in keys - identifier_keys:
-                if key in key_to_group:
-                    group = key_to_group[key]
+                for group in title_to_groups.get(key, set()):
                     existing = groups[group]
                     if existing is not None and compatible_title_match(existing, paper):
                         matched.add(group)
@@ -521,7 +554,10 @@ def deduplicate(papers: list[dict]) -> list[dict]:
                         key_to_group[key] = group_index
 
         for key in paper_identity_keys(merged):
-            key_to_group[key] = group_index
+            if key.startswith("title:"):
+                title_to_groups.setdefault(key, set()).add(group_index)
+            else:
+                key_to_group[key] = group_index
 
     return [paper for paper in groups if paper is not None]
 
@@ -812,27 +848,54 @@ def _pre_rank_cap(papers: list[dict], cap: int) -> list[dict]:
     return kept + recent_overflow
 
 def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") -> list[dict]:
-    """Rerank papers. Pre-ranks with the metadata formula if the pool exceeds
-    what the reranker accepts. DashScope takes up to 500 docs, FlashRank 150.
-    """
+    """Score every candidate in provider-sized batches, then select globally."""
     if not papers:
         return papers
     if len(papers) > DASHSCOPE_CAP:
-        papers = _pre_rank_cap(papers, DASHSCOPE_CAP)
+        from concurrent.futures import ThreadPoolExecutor
+        batches = [papers[start:start + DASHSCOPE_CAP] for start in range(0, len(papers), DASHSCOPE_CAP)]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = list(pool.map(lambda batch: _remote_batch(query, batch, len(batch), intent), batches))
+        if any(result is None for result in outcomes):
+            # All cloud work has joined before one consistent local fallback.
+            return _local_batches(query, papers, top_n)
+        ranked = [paper for result in outcomes for paper in result]
+        ranked.sort(key=lambda p: -(p.get("_rerank_score") or 0))
+        for rank, paper in enumerate(ranked, 1):
+            paper["_rerank_rank"] = rank
+        return ranked[:top_n]
+    result = _remote_batch(query, papers, top_n, intent)
+    if result is not None:
+        return result
+    return _local_batches(query, papers, top_n)
+
+
+def _remote_batch(query: str, papers: list[dict], top_n: int, intent: str) -> list[dict] | None:
     if config.RERANK_URL:
-        result = _rerank_remote(
+        return _rerank_remote(
             query, papers, top_n, intent, url=config.RERANK_URL,
             model=config.RERANK_MODEL, api_key=config.RERANK_API_KEY,
             provider="custom", timeout=config.RERANK_TIMEOUT,
         )
-    else:
-        result = _rerank_dashscope(query, papers, top_n, intent=intent)
-    if result is not None:
-        return result
-    # Cap by metadata rank, not by list position. Papers arrive concatenated
-    # in source order, so slicing would discard candidates arbitrarily rather
-    # than keeping the most promising ones.
-    return _rerank_flashrank(query, _pre_rank_cap(papers, FLASHRANK_CAP), top_n)
+    return _rerank_dashscope(query, papers, top_n, intent=intent)
+
+
+def _local_batches(query: str, papers: list[dict], top_n: int) -> list[dict]:
+    if len(papers) <= FLASHRANK_CAP:
+        return _rerank_flashrank(query, papers, top_n)
+    ranked = []
+    for start in range(0, len(papers), FLASHRANK_CAP):
+        batch = papers[start:start + FLASHRANK_CAP]
+        ranked.extend(_rerank_flashrank(query, batch, len(batch)))
+    if any(p.get("_reranker_provider") == "unavailable" for p in ranked):
+        for paper in ranked:
+            paper.update(_rerank_score=0.5, _reranker_provider="unavailable", _reranker_model=None)
+            paper.pop("_rerank_rank", None)
+        return rank_final(ranked)[:top_n]
+    ranked.sort(key=lambda p: -(p.get("_rerank_score") or 0))
+    for rank, paper in enumerate(ranked, 1):
+        paper["_rerank_rank"] = rank
+    return ranked[:top_n]
 
 
 def rank_final(papers: list[dict]) -> list[dict]:
@@ -858,7 +921,10 @@ def rank_final(papers: list[dict]) -> list[dict]:
         r = max(p.get("_rerank_score", 0.0), 1e-6)
         cites = p.get("citation_count", 0) or 0
         src_count = physical_source_count(p)
-        year = p.get("year") or current_year
+        try:
+            year = int(p.get("year") or current_year)
+        except (TypeError, ValueError):
+            year = current_year
         recency = max(0, 1.0 - (current_year - year) / 10.0)
 
         score = (r ** gamma) * (1 + alpha * math.log(cites + 1)) * (1 + beta * src_count / n_sources) * (1 + delta * recency)

@@ -6,8 +6,13 @@ in a workflow loop. Cache is per-process (resets on server restart).
 
 import time
 from functools import wraps
+from copy import deepcopy
+from concurrent.futures import Future
+import threading
 
 _cache: dict[str, tuple[float, any]] = {}
+_pending: dict[str, Future] = {}
+_guard = threading.RLock()
 DEFAULT_TTL = 300  # 5 minutes
 
 # A cached search result holds up to 100 papers with abstracts, roughly 28 KB,
@@ -20,18 +25,34 @@ def cached(ttl: int = DEFAULT_TTL):
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
-            key = f"{fn.__name__}:{args}:{sorted(kwargs.items())}"
-            now = time.time()
-            if key in _cache:
-                expires, value = _cache[key]
-                if now < expires:
-                    return value
-            result = fn(*args, **kwargs)
-            if _is_cacheable(result):
-                _cache[key] = (now + ttl, result)
-            if len(_cache) > MAX_ENTRIES:
-                _evict()
-            return result
+            key = f"{fn.__module__}.{fn.__qualname__}:{args}:{sorted(kwargs.items())}"
+            with _guard:
+                if key in _cache:
+                    expires, value = _cache[key]
+                    if time.time() < expires:
+                        return deepcopy(value)
+                pending = _pending.get(key)
+                owner = pending is None
+                if owner:
+                    pending = _pending[key] = Future()
+            if not owner:
+                return deepcopy(pending.result())
+            try:
+                result = fn(*args, **kwargs)
+                snapshot = deepcopy(result)
+                with _guard:
+                    if _is_cacheable(result):
+                        _cache[key] = (time.time() + ttl, snapshot)
+                    if len(_cache) > MAX_ENTRIES:
+                        _evict()
+                pending.set_result(snapshot)
+                return result
+            except BaseException as error:
+                pending.set_exception(error)
+                raise
+            finally:
+                with _guard:
+                    _pending.pop(key, None)
         return wrapper
     return decorator
 
@@ -67,4 +88,5 @@ def _evict():
 
 def clear():
     """Clear all cached entries."""
-    _cache.clear()
+    with _guard:
+        _cache.clear()

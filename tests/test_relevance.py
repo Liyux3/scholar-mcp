@@ -50,13 +50,19 @@ def test_keyword_query_preserves_multiword_proper_names():
     assert "Amazon Mechanical Turk" in optimized
 
 
-def test_optimize_query_targets_ek_kb_2_length():
+def test_optimize_query_targets_ek_kb_2_length(monkeypatch):
     """ek_kb_2 yields ~6 words. Longer output means we regressed to kb_5,
     which scored OA=0 on the 20q sweep. Guard the upper bound tightly.
     """
     long_q = ("Are there any research papers on methods to compress large-scale "
               "language models while preserving their task-agnostic knowledge "
               "through distillation techniques")
+    class Model:
+        def extract_keywords(self, text, **kwargs):
+            assert kwargs["top_n"] == 2
+            assert kwargs["keyphrase_ngram_range"] == (1, 3)
+            return [("language model compression", 0.8), ("task agnostic knowledge", 0.7)]
+    monkeypatch.setattr(relevance, "_load_keybert", lambda: Model())
     optimized = relevance.optimize_query(long_q)
     words = optimized.split()
     assert 3 <= len(words) <= 8, f"expected ~6 words, got {len(words)}: {optimized}"
@@ -463,23 +469,21 @@ class TestRerankCapping:
         pool = self._pool(n=10, n_good=2)
         assert len(relevance._pre_rank_cap(pool, 150)) == 10
 
-    def test_flashrank_fallback_caps_by_rank_not_position(self, monkeypatch):
-        """Regression guard: with DashScope unavailable, the papers handed to
-        FlashRank must be the metadata-best ones, not the first 150.
-        """
+    def test_flashrank_fallback_scores_every_candidate(self, monkeypatch):
+        """Provider batch size does not truncate the candidate pool."""
         monkeypatch.setattr(relevance, "_rerank_dashscope",
                             lambda *a, **kw: None)
-        seen = {}
+        seen = {"papers": []}
 
         def fake_flashrank(query, papers, top_n):
-            seen["papers"] = papers
+            seen["papers"].extend(papers)
             return papers[:top_n]
 
         monkeypatch.setattr(relevance, "_rerank_flashrank", fake_flashrank)
         relevance.rerank("q", self._pool(), top_n=20)
 
         handed = seen["papers"]
-        assert len(handed) == relevance.FLASHRANK_CAP
+        assert len(handed) == 200
         kept = sum(1 for p in handed if p["title"].startswith("good"))
         assert kept == 40, f"only {kept}/40 strong candidates survived the cap"
 

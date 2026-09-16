@@ -61,7 +61,7 @@ def _get_any_id(paper: dict) -> str:
         val = ext.get(key, "")
         if val:
             return val
-    return paper.get("paper_id", "")
+    return relevance.best_paper_id(paper)
 
 
 def _fetch_related(paper: dict, relation: str, limit: int, delay: float = 0) -> list[dict]:
@@ -85,6 +85,8 @@ def _fetch_related(paper: dict, relation: str, limit: int, delay: float = 0) -> 
         all_results.extend(sr.results)
 
     deduplicated = relevance.deduplicate(all_results)
+    from .metadata import hydrate
+    hydrate(deduplicated)
     deduplicated.sort(
         key=lambda paper: (
             relevance.physical_source_count(paper),

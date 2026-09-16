@@ -16,6 +16,8 @@ supported only until their corresponding public release is published.
 - Paper text, abstracts, LaTeX, metadata, URLs, and provider errors are untrusted input.
 - MCP stdio reserves stdout for protocol messages.
 - API keys remain process environment or secure MCPB user configuration values.
+- Optional Google sessions use private files bound to the selected network
+  route. Verification runs in a temporary browser profile, not a personal one.
 - Downloaded files are validated as PDFs and atomically published from staging files.
 - Persistent paths derive from explicit configuration and remain outside the repository.
 - Streamable HTTP binds to loopback by default; public hosting requires an explicit

@@ -130,17 +130,44 @@ def main(argv: list[str] | None = None) -> int:
     if arguments[0] == "library":
         return _run_library(arguments[1:])
     if arguments[0] == "sources":
-        _emit({"sources": sources.capabilities()}, compact=False)
-        return 0
+        return _run_sources(arguments[1:])
     if arguments[0] in {"-h", "--help"}:
         print(
             "usage: scholar-mcp [library ... | sources]\n\n"
             "Without arguments, starts the Scholar MCP server.\n"
             "Use 'scholar-mcp sources' for the source capability matrix or "
+            "'scholar-mcp sources --check' to test configured providers.\n"
             "'scholar-mcp library --help' for local library and connectors."
         )
         return 0
     raise SystemExit(f"unknown command: {arguments[0]}")
+
+
+def _run_sources(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="scholar-mcp sources")
+    parser.add_argument("--check", action="store_true", help="send a small live search to configured sources")
+    parser.add_argument("--query", default="machine learning", help="query for the live check")
+    parser.add_argument("--source", help="check one named provider")
+    args = parser.parse_args(argv)
+    if args.source and not sources.get(args.source):
+        parser.error(f"unknown source: {args.source}")
+    rows = [r for r in sources.capabilities() if not args.source or r["name"] == args.source]
+    if args.check:
+        from concurrent.futures import ThreadPoolExecutor
+        def check(row):
+            if not row["search"]:
+                return {**row, "status": "not_searchable"}
+            if not row["available"]:
+                return {**row, "status": "not_configured"}
+            source = sources.get(row["name"])
+            result = sources._timed_call(source.name, source.search, args.query, 1)
+            return {**row, "status": result.status, "count": len(result.results),
+                    "latency_ms": result.latency_ms,
+                    **({"error_type": result.error.split(":", 1)[0]} if result.error else {})}
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            rows = list(pool.map(check, rows))
+    _emit({"sources": rows}, compact=False)
+    return 1 if any(r.get("status") in {"error", "blocked", "timeout"} for r in rows) else 0
 
 
 if __name__ == "__main__":
