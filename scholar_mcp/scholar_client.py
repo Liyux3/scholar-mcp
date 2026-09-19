@@ -100,9 +100,12 @@ def _parse_paper(item) -> Optional[dict]:
                 match = re.fullmatch(r"/(?:abs|pdf)/((?:\d{4}\.\d{4,5}|[a-z-]+/\d{7})(?:v\d+)?)(?:\.pdf)?/?", path)
                 if match:
                     identifiers.setdefault("ArXiv", match[1])
-            doi = re.search(r"(?:^|/)(10\.\d{4,9}/[^?#]+)", path, re.I)
-            if doi:
-                identifiers.setdefault("DOI", doi[1])
+            # Publisher PDF paths can append /full or .pdf to a DOI-looking
+            # string. Only explicit resolver URLs establish an exact DOI here.
+            if parsed.hostname in {"doi.org", "dx.doi.org"}:
+                doi = re.fullmatch(r"/(10\.\d{4,9}/.+)", path, re.I)
+                if doi:
+                    identifiers.setdefault("DOI", doi[1])
 
         return {
             "paper_id": _stable_id(url) if url else _stable_id(title),

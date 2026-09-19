@@ -41,7 +41,7 @@ jobs:
           uv export --locked --no-hashes --no-emit-project --extra dev --extra rerank --output-file runtime-requirements.txt
           uv pip install --only-binary cryptography --find-links .compat-wheels --requirement runtime-requirements.txt --editable .
       - name: Record native platform and load binary dependencies
-        run: uv run python -c "import platform,sys,onnxruntime,pypdfium2; assert sys.version_info[:2] == (3,12); print(platform.platform(),platform.machine()); print(onnxruntime.get_available_providers())"
+        run: uv run python -c "import platform,sys,onnxruntime,pypdfium2; from cryptography.hazmat.primitives.ciphers.aead import AESGCM; assert sys.version_info[:2] == (3,12); cipher=AESGCM(bytes(32)); token=cipher.encrypt(bytes(12),b'runtime probe',None); assert cipher.decrypt(bytes(12),token,None)==b'runtime probe'; print(platform.platform(),platform.machine()); print(onnxruntime.get_available_providers())"
       - name: Exercise offline functionality including PDF parsing and rendering
         run: uv run pytest -q
       - name: Build and install candidate in isolation
