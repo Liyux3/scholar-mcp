@@ -164,6 +164,34 @@ def test_failed_recovery_sets_bounded_retry_cooldown(monkeypatch):
     assert "retry_after" in json.loads(scholar_session._path().read_text())
 
 
+def test_failed_recovery_does_not_destroy_the_last_verified_session(monkeypatch):
+    previous = session()
+    scholar_session._write(previous)
+    monkeypatch.setattr(scholar_session, "recovery_available", lambda: True)
+    process = Mock(returncode=1)
+    process.communicate.return_value = ('{"error":"challenge_declined"}', None)
+    monkeypatch.setattr(scholar_session.subprocess, "Popen", Mock(return_value=process))
+    with pytest.raises(PermissionError, match="challenge_declined"):
+        scholar_session.recover("q", previous)
+    assert scholar_session.current()["cookies"] == previous["cookies"]
+
+
+def test_google_preserves_and_caches_completed_pages_after_blocking(monkeypatch):
+    monkeypatch.setattr(scholar_client, "_wait_for_request", lambda: None)
+    calls = []
+    def get(client, url, **kwargs):
+        calls.append(1)
+        response = '<div class="gs_ri"><h3 class="gs_rt">A recovered paper</h3></div>' if len(calls) == 1 else '<form id="gs_captcha_f"></form>'
+        return httpx.Response(200, text=response, request=httpx.Request("GET", url))
+    monkeypatch.setattr(httpx.Client, "get", get)
+    monkeypatch.setattr(scholar_session, "recover", Mock(side_effect=PermissionError("verification unavailable")))
+    first = sources._timed_call("google_scholar", scholar_client.search_papers, "q", 20)
+    assert first.status == "partial" and len(first.results) == 1
+    second = sources._timed_call("google_scholar", scholar_client.search_papers, "q", 20)
+    assert second.status == "partial" and len(second.results) == 1
+    assert len(calls) == 2
+
+
 def test_search_recovers_once_and_reuses_session_across_calls(monkeypatch):
     real_client = httpx.Client
     monkeypatch.setattr(scholar_client.time, "sleep", lambda *_: None)

@@ -321,12 +321,12 @@ def _clean_error(message: str) -> str:
 
 def _meta_block(source_reports: list[dict], *, debug: bool = False, **extra) -> dict:
     """Return detailed diagnostics on request, otherwise only result caveats."""
-    healthy = [r for r in source_reports if r["status"] == "ok"]
-    degraded = [r for r in source_reports if r["status"] in {"error", "timeout", "blocked"}]
+    healthy = [r for r in source_reports if r["status"] in {"ok", "partial"}]
+    degraded = [r for r in source_reports if r["status"] in {"error", "timeout", "blocked", "partial"}]
     if not debug:
         warnings = []
         if degraded:
-            warnings.append("Some sources were unavailable; results may be incomplete.")
+            warnings.append("Some sources were unavailable or incomplete.")
         if extra.get("reranker", {}).get("provider") == "unavailable":
             warnings.append("Results were ranked without semantic reranking.")
         return {"warning": " ".join(warnings)} if warnings else {}

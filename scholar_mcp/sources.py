@@ -150,7 +150,8 @@ def _timed_call(source_name: str, fn: Callable, *args, **kwargs) -> SourceResult
         results = fn(*args, **kwargs)
         ms = int((_time.monotonic() - t0) * 1000)
         if results:
-            return SourceResult(source_name, "ok", results, ms)
+            warning = getattr(results, "partial_warning", None)
+            return SourceResult(source_name, "partial" if warning else "ok", results, ms, warning)
         return SourceResult(source_name, "empty", [], ms)
     except Exception as e:
         ms = int((_time.monotonic() - t0) * 1000)

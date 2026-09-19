@@ -195,7 +195,13 @@ def recover(query: str, previous: dict) -> dict:
                         process.communicate()
                     raise TimeoutError("Google verification exceeded its time budget") from None
                 if process.returncode:
-                    raise PermissionError("Google did not complete verification on this connection")
+                    try:
+                        reason = json.loads(output).get("error")
+                    except (ValueError, AttributeError):
+                        reason = None
+                    allowed = {"verification_unavailable", "challenge_declined", "no_paper_results", "timeout"}
+                    reason = reason if reason in allowed else "worker_error"
+                    raise PermissionError(f"Google verification failed ({reason})")
                 data = json.loads(output)
                 data.update(route=_route(), created=time.time())
                 _write(data)
@@ -203,7 +209,7 @@ def recover(query: str, previous: dict) -> dict:
                     raise ValueError("Invalid Google session returned by recovery worker")
                 return data
             except Exception:
-                _write({"route": _route(), "retry_after": time.time() + 180})
+                _write({**previous, "route": _route(), "retry_after": time.time() + 180})
                 raise
     except Timeout:
         raise TimeoutError("Google verification is already running") from None
@@ -299,5 +305,10 @@ if __name__ == "__main__":
         with redirect_stdout(sys.stderr):
             result = _bootstrap(request["query"], request.get("proxy"))
         print(json.dumps(result))
-    except Exception:
+    except Exception as error:
+        reasons = {"Google verification widget unavailable": "verification_unavailable",
+                   "Google declined the audio verification": "challenge_declined",
+                   "Google verification did not return paper results": "no_paper_results"}
+        reason = "timeout" if isinstance(error, TimeoutError) else reasons.get(str(error), "worker_error")
+        print(json.dumps({"error": reason}))
         sys.exit(1)
