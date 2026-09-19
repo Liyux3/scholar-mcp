@@ -19,8 +19,8 @@ except ModuleNotFoundError:  # Python 3.10; provided by pytest's dependencies.
 from scholar_mcp import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
-CONSTRAINTS_URL = f"https://github.com/Liyux3/scholar-mcp/releases/download/v{__version__}/runtime-constraints.txt"
-INSTALL_ARGS = ["--python", "3.12", "--constraints", CONSTRAINTS_URL,
+WHEEL_INDEX_URL = f"https://github.com/Liyux3/scholar-mcp/releases/download/v{__version__}/wheel-index.html"
+INSTALL_ARGS = ["--python", "3.12", "--find-links", WHEEL_INDEX_URL,
                 "--from", f"scholar-mcp[rerank]=={__version__}", "scholar-mcp"]
 
 
@@ -66,7 +66,7 @@ def test_registry_and_release_workflows_are_wired():
     assert package["registryType"] == "pypi"
     assert package["runtimeHint"] == "uvx"
     assert package["runtimeArguments"] == [
-        {"type": "named", "name": "--constraints", "value": CONSTRAINTS_URL},
+        {"type": "named", "name": "--find-links", "value": WHEEL_INDEX_URL},
         {"type": "named", "name": "--python", "value": "3.12"},
         {"type": "named", "name": "--with", "value": f"scholar-mcp[rerank]=={__version__}"},
     ]
@@ -129,18 +129,16 @@ def test_readme_contains_valid_one_click_install_urls():
     }
 
 
-def test_runtime_constraints_require_both_native_wheels_and_pin_hashes(tmp_path):
-    from packaging.requirements import Requirement
-    spec = importlib.util.spec_from_file_location("runtime_constraints", ROOT / "scripts/runtime_constraints.py")
+def test_runtime_wheel_index_requires_both_platforms_and_pins_hashes(tmp_path):
+    from bs4 import BeautifulSoup
+    spec = importlib.util.spec_from_file_location("runtime_constraints", ROOT / "scripts/runtime_wheels.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     with pytest.raises(ValueError, match="Both"):
-        module.constraints(tmp_path, __version__)
+        module.wheel_index(tmp_path, __version__)
     for platform in ("macosx_11_0_x86_64", "win_arm64"):
         (tmp_path / f"cryptography-50.0.1-cp311-abi3-{platform}.whl").write_bytes(b"fixture")
-    lines = module.constraints(tmp_path, __version__).splitlines()[1:]
-    assert len(lines) == 2
-    for line in lines:
-        requirement = Requirement(line)
-        assert requirement.name == "cryptography" and "#sha256=" in requirement.url
-        assert not requirement.marker.evaluate({"sys_platform": "linux", "platform_machine": "x86_64"})
+    links = BeautifulSoup(module.wheel_index(tmp_path, __version__), "html.parser").select("a")
+    assert len(links) == 2
+    assert all("#sha256=" in link["href"] for link in links)
+    assert all("/releases/download/" in link["href"] for link in links)

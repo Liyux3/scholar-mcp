@@ -21,8 +21,8 @@
       "runtimeArguments": [
         {
           "type": "named",
-          "name": "--constraints",
-          "value": "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/runtime-constraints.txt"
+          "name": "--find-links",
+          "value": "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html"
         },
         {
           "type": "named",

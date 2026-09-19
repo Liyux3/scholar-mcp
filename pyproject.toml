@@ -40,7 +40,7 @@ dependencies = [
     "pyyaml>=6.0",
     # Compatibility wheels are built from this patched upstream release for
     # platforms no longer receiving upstream binaries.
-    "cryptography>=50.0.1",
+    "cryptography==50.0.1",
 ]
 
 [project.optional-dependencies]

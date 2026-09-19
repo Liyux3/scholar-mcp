@@ -36,11 +36,11 @@ existing Python or uv installation. Optional Google browser/codec components
 remain separate. The portable-runtime CI matrix exercises macOS, Linux and
 Windows on x64 and ARM64.
 
-Release runtime constraints select hash-pinned native `cryptography` wheels
+The release wheel index provides hash-pinned native `cryptography` wheels
 for Intel macOS and Windows ARM, where current upstream releases do not ship
 binaries. CI builds the unmodified upstream source with static OpenSSL and
 uploads those wheels before publishing PyPI. The recommended configurations
-apply these constraints automatically; users do not need Rust or an OpenSSL
+use this index automatically; users do not need Rust or an OpenSSL
 development installation. Other platforms use the upstream PyPI wheels.
 
 Python 3.10 or newer is required. The server supports stdio and Streamable HTTP.
@@ -56,7 +56,10 @@ model weights.
 
 The optional `google` extra adds browser-based session recovery. It needs
 Chrome, Edge, or Chromium and ffmpeg. Recovery is headless by default; a graphical
-display is needed only for the explicit `SCHOLAR_GOOGLE_RECOVERY=headed` mode.
+display is needed only for desktop verification. Auto mode first tries headless;
+on macOS, a declined challenge can retry in a hidden, non-activating browser.
+Set `SCHOLAR_GOOGLE_RECOVERY=headless` to forbid this retry, or `headed` to
+explicitly permit a visible window.
 `SCHOLAR_GOOGLE_BROWSER` selects a nonstandard browser executable. Browser
 dependencies are not bundled into the default server, container or MCPB.
 DrissionPage and SpeechRecognition retain their own licensing terms.

@@ -92,6 +92,20 @@ def test_headless_recovery_needs_no_display_but_still_needs_a_browser(monkeypatc
     assert not scholar_session.recovery_available()
 
 
+def test_auto_retry_is_hidden_and_explicit_headless_never_uses_it(monkeypatch):
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "auto")
+    monkeypatch.setattr(scholar_session.sys, "platform", "darwin")
+    monkeypatch.setattr(scholar_session, "_bootstrap", Mock(side_effect=PermissionError("challenge declined")))
+    hidden = Mock(return_value={"host": "scholar.google.co.uk"})
+    monkeypatch.setattr(scholar_session, "_background_bootstrap", hidden)
+    assert scholar_session._establish_session("q", None)["recovery_mode"] == "background"
+    assert hidden.call_count == 1
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "headless")
+    with pytest.raises(PermissionError):
+        scholar_session._establish_session("q", None)
+    assert hidden.call_count == 1
+
+
 def test_browser_override_and_windows_user_install(monkeypatch, tmp_path):
     browser = tmp_path / "Microsoft/Edge/Application/msedge.exe"
     browser.parent.mkdir(parents=True)

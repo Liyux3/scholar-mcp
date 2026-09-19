@@ -12,6 +12,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -142,12 +143,12 @@ def browser_path() -> str | None:
 
 
 def _recovery_mode() -> str:
-    # Legacy auto/on values remain quiet. Never escalate to a visible window
-    # after a headless failure: that is an explicit desktop user choice.
-    mode = os.environ.get("SCHOLAR_GOOGLE_RECOVERY", "headless").strip().lower()
+    # Auto remains quiet: only the macOS no-activation launcher is eligible
+    # for a hidden retry. A visible window always requires explicit opt-in.
+    mode = os.environ.get("SCHOLAR_GOOGLE_RECOVERY", "auto").strip().lower()
     if mode in {"0", "false", "off"}:
         return "off"
-    return "headed" if mode == "headed" else "headless"
+    return mode if mode in {"auto", "headed", "headless"} else "headless"
 
 
 def recovery_available() -> bool:
@@ -156,7 +157,7 @@ def recovery_available() -> bool:
             and importlib.util.find_spec("DrissionPage") is not None
             and importlib.util.find_spec("speech_recognition") is not None
             and bool(shutil.which("ffmpeg")) and bool(browser_path())
-            and (mode == "headless" or sys.platform != "linux"
+            and (mode != "headed" or sys.platform != "linux"
                  or bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))))
 
 
@@ -236,7 +237,7 @@ def _audio_answer(url: str, route: str | None) -> str:
     return recognizer.recognize_google(audio)
 
 
-def _bootstrap(query: str, route: str | None) -> dict:
+def _bootstrap(query: str, route: str | None, *, headless: bool | None = None) -> dict:
     from DrissionPage import ChromiumOptions, ChromiumPage
 
     def interrupted(*_):
@@ -248,7 +249,8 @@ def _bootstrap(query: str, route: str | None) -> dict:
         signal.alarm(RECOVERY_TIMEOUT)
     with tempfile.TemporaryDirectory(prefix="scholar-verify-", ignore_cleanup_errors=True) as directory:
         options = ChromiumOptions(read_file=False).set_browser_path(browser_path())
-        options.set_tmp_path(directory).auto_port().headless(_recovery_mode() != "headed")
+        options.set_tmp_path(directory).auto_port().headless(
+            _recovery_mode() != "headed" if headless is None else headless)
         options.set_timeouts(base=4, page_load=20, script=5)
         if route:
             options.set_proxy(route)
@@ -299,11 +301,64 @@ def _bootstrap(query: str, route: str | None) -> dict:
                 signal.alarm(0)
 
 
+def _background_bootstrap(query: str, route: str | None) -> dict:
+    """Use the tested native desktop engine without activating its macOS app.
+
+    This hook exists only inside the disposable verification worker. It does
+    not patch browser behavior in the MCP process or touch personal profiles.
+    """
+    import DrissionPage._functions.browser as browser_module
+    original = browser_module._run_browser
+    profiles = set()
+
+    def launch(port, path, args):
+        app = Path(path).parents[2]
+        if app.suffix != ".app":
+            raise PermissionError("No non-activating launcher for this browser")
+        profiles.update(arg.split("=", 1)[1] for arg in args if arg.startswith("--user-data-dir="))
+        return subprocess.Popen(["/usr/bin/open", "-g", "-j", "-n", "-a", str(app), "--args",
+                                 f"--remote-debugging-port={port}", *args],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    browser_module._run_browser = launch
+    try:
+        return _bootstrap(query, route, headless=False)
+    finally:
+        browser_module._run_browser = original
+        # LaunchServices children can outlive the worker process group. Only
+        # reap processes carrying this invocation's unique temporary profile.
+        for profile in profiles:
+            try:
+                found = subprocess.run(["pgrep", "-f", "--", re.escape("--user-data-dir=" + profile)],
+                                       capture_output=True, text=True, timeout=3)
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+            for value in found.stdout.split():
+                try:
+                    os.kill(int(value), signal.SIGTERM)
+                except (OSError, ValueError):
+                    pass
+
+
+def _establish_session(query: str, route: str | None) -> dict:
+    mode = _recovery_mode()
+    try:
+        result = _bootstrap(query, route)
+        result["recovery_mode"] = "headed" if mode == "headed" else "headless"
+        return result
+    except PermissionError:
+        if mode != "auto" or sys.platform != "darwin":
+            raise
+        result = _background_bootstrap(query, route)
+        result["recovery_mode"] = "background"
+        return result
+
+
 if __name__ == "__main__":
     try:
         request = json.loads(sys.stdin.read(16384))
         with redirect_stdout(sys.stderr):
-            result = _bootstrap(request["query"], request.get("proxy"))
+            result = _establish_session(request["query"], request.get("proxy"))
         print(json.dumps(result))
     except Exception as error:
         reasons = {"Google verification widget unavailable": "verification_unavailable",

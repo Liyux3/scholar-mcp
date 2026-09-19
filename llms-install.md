@@ -11,7 +11,7 @@ Use this MCP configuration:
   "mcpServers": {
     "scholar": {
       "command": "uvx",
-      "args": ["--python", "3.12", "--constraints", "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/runtime-constraints.txt", "--from", "scholar-mcp[rerank]==0.8.5", "scholar-mcp"],
+      "args": ["--python", "3.12", "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html", "--from", "scholar-mcp[rerank]==0.8.5", "scholar-mcp"],
       "env": {
         "SCHOLAR_MCP_EXTENSIONS": "research"
       }

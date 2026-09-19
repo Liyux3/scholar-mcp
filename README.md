@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--constraints%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fruntime-constraints.txt%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.8.5%22%2C%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
-  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tY29uc3RyYWludHMiLCJodHRwczovL2dpdGh1Yi5jb20vTGl5dXgzL3NjaG9sYXItbWNwL3JlbGVhc2VzL2Rvd25sb2FkL3YwLjguNS9ydW50aW1lLWNvbnN0cmFpbnRzLnR4dCIsIi0tZnJvbSIsInNjaG9sYXItbWNwW3JlcmFua109PTAuOC41Iiwic2Nob2xhci1tY3AiXX19"><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
-  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--constraints%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fruntime-constraints.txt%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.8.5%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
+  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.8.5%22%2C%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
+  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZmluZC1saW5rcyIsImh0dHBzOi8vZ2l0aHViLmNvbS9MaXl1eDMvc2Nob2xhci1tY3AvcmVsZWFzZXMvZG93bmxvYWQvdjAuOC41L3doZWVsLWluZGV4Lmh0bWwiLCItLWZyb20iLCJzY2hvbGFyLW1jcFtyZXJhbmtdPT0wLjguNSIsInNjaG9sYXItbWNwIl19fQ=="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
+  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.8.5%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
 </p>
 
@@ -58,7 +58,7 @@ Claude Code:
 
 ```bash
 claude mcp add scholar -- uvx --python 3.12 \
-  --constraints https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/runtime-constraints.txt \
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html \
   --from 'scholar-mcp[rerank]==0.8.5' scholar-mcp
 ```
 
@@ -71,7 +71,7 @@ Claude Desktop or any stdio MCP client:
       "command": "uvx",
       "args": [
         "--python", "3.12",
-        "--constraints", "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/runtime-constraints.txt",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html",
         "--from", "scholar-mcp[rerank]==0.8.5", "scholar-mcp"
       ]
     }
@@ -151,9 +151,9 @@ Normal responses focus on papers, with a short warning if availability affected 
 <details>
 <summary>Google Scholar session recovery</summary>
 
-With Chrome, Edge, or Chromium and ffmpeg installed, run `uvx --from 'scholar-mcp[google]' scholar-mcp` to enable automatic verification recovery. A short-lived headless browser establishes the session, then ordinary HTTP handles searches and pagination. It uses a fresh browser profile, never your personal browser profile, and online audio recognition rather than a local model. Normal searches never open a browser window.
+With Chrome, Edge, or Chromium and ffmpeg installed, select `scholar-mcp[google,rerank]==0.8.5` in the quick-start configuration to enable automatic verification recovery. A short-lived browser establishes the session, then ordinary HTTP handles searches and pagination. It uses a fresh browser profile, never your personal browser profile, and online audio recognition rather than a local model. Auto mode tries headless first; on macOS, a declined challenge can retry in a hidden browser without activating it.
 
-Sessions are stored privately under `<data>/sessions/` and tied to the configured proxy. A cold search can wait up to 150 seconds for the bounded recovery worker and the subsequent search. Warm sessions use the normal budget. Set `SCHOLAR_GOOGLE_RECOVERY=off` to disable recovery, or `headed` to explicitly allow a visible verification window. Headless recovery needs no graphical display and never switches to a visible window on failure. `SCHOLAR_GOOGLE_BROWSER` selects a browser executable when it is outside standard install locations. No browser is downloaded at server startup; without one, ordinary HTTP search remains available but browser recovery is unavailable. Google can still refuse a connection; failed recovery is reported and briefly backed off.
+Sessions are stored privately under `<data>/sessions/` and tied to the configured proxy. A cold search can wait up to 150 seconds for the bounded recovery worker and the subsequent search. Warm sessions use the normal budget. Set `SCHOLAR_GOOGLE_RECOVERY=off` to disable recovery, `headless` to require strictly headless operation, or `headed` to explicitly allow a visible verification window. `SCHOLAR_GOOGLE_BROWSER` selects a browser executable outside standard install locations. No browser is downloaded at server startup. If pagination is interrupted, completed pages remain usable and the response reports partial coverage. Failed recovery backs off while retaining the last verified session.
 
 </details>
 

@@ -93,8 +93,9 @@ configurable 30-second budget; pending work can be cancelled when it expires.
 arXiv can fall back from Atom to its own HTTPS search. DBLP completes bounded
 same-origin verification redirects. The optional Google recovery worker runs
 in a separate process, saves a private route-bound session and exits; normal
-searches reuse that session through HTTP. Recovery is headless by default;
-only `SCHOLAR_GOOGLE_RECOVERY=headed` permits a visible browser. Missing optional
+searches reuse that session through HTTP. Recovery starts headless; macOS can
+retry a declined challenge with a hidden, non-activating desktop browser.
+Only `SCHOLAR_GOOGLE_RECOVERY=headed` permits a visible browser. Missing optional
 browser dependencies do not prevent the MCP server from starting. A cold default fan-out allows 150
 seconds for this setup. Warm Google searches receive a page-count-aware budget
 up to 120 seconds. Explicit caller budgets remain authoritative.

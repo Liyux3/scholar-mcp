@@ -10,9 +10,9 @@ esac
 
 runtime_dir="${SCHOLAR_RUNTIME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/scholar-mcp/runtime}"
 package="${SCHOLAR_PACKAGE:-scholar-mcp[rerank]==0.8.5}"
-constraints="${SCHOLAR_CONSTRAINTS:-}"
+constraints="${SCHOLAR_WHEEL_INDEX:-}"
 if [ -z "${SCHOLAR_PACKAGE:-}" ]; then
-  constraints="${constraints:-https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/runtime-constraints.txt}"
+  constraints="${constraints:-https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html}"
 fi
 uv_bin="${SCHOLAR_UV:-}"
 if [ -z "$uv_bin" ]; then
@@ -42,7 +42,7 @@ fi
 # stdout belongs exclusively to MCP. uv setup diagnostics use stderr.
 if [ -n "$constraints" ]; then
   exec "$uv_bin" tool run --no-config --managed-python --python 3.12 \
-    --constraints "$constraints" --from "$package" scholar-mcp "$@"
+    --find-links "$constraints" --from "$package" scholar-mcp "$@"
 fi
 exec "$uv_bin" tool run --no-config --managed-python --python 3.12 \
   --from "$package" scholar-mcp "$@"

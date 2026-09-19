@@ -37,9 +37,9 @@ jobs:
       - name: Install native runtime and dependencies
         run: |
           uv venv --python 3.12
-          uv run --no-project python scripts/runtime_constraints.py --local
+          uv run --no-project python scripts/runtime_wheels.py --local
           uv export --locked --no-hashes --no-emit-project --extra dev --extra rerank --output-file runtime-requirements.txt
-          uv pip install --only-binary cryptography --constraint .compat-wheels/runtime-constraints.txt --requirement runtime-requirements.txt --editable .
+          uv pip install --only-binary cryptography --find-links .compat-wheels --requirement runtime-requirements.txt --editable .
       - name: Record native platform and load binary dependencies
         run: uv run python -c "import platform,sys,onnxruntime,pypdfium2; assert sys.version_info[:2] == (3,12); print(platform.platform(),platform.machine()); print(onnxruntime.get_available_providers())"
       - name: Exercise offline functionality including PDF parsing and rendering
@@ -57,7 +57,7 @@ jobs:
         run: |
           $wheel = Get-ChildItem dist/*.whl | Select-Object -First 1
           $env:SCHOLAR_PACKAGE = "scholar-mcp[rerank] @ " + ([Uri]$wheel.FullName).AbsoluteUri
-          $env:SCHOLAR_CONSTRAINTS = Join-Path $env:GITHUB_WORKSPACE '.compat-wheels/runtime-constraints.txt'
+          $env:SCHOLAR_WHEEL_INDEX = Join-Path $env:GITHUB_WORKSPACE '.compat-wheels'
           & ./scripts/launch.ps1 --help
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./scripts/launch.cmd --help

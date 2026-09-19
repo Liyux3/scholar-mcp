@@ -25,7 +25,8 @@ def test_launcher_preserves_arguments_and_uses_managed_python(tmp_path):
 
 def test_windows_launcher_uses_the_same_runtime_contract():
     script = (ROOT / "scripts/launch.ps1").read_text()
-    assert "--managed-python --python 3.12" in script
+    assert '--managed-python --python $runtimePython' in script
+    assert 'cpython-3.12-windows-aarch64-none' in script
     assert "UV_UNMANAGED_INSTALL" in script
     assert "scholar-mcp @args" in script
     command = (ROOT / "scripts/launch.cmd").read_text()

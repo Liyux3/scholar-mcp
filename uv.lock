@@ -3360,7 +3360,7 @@ rerank = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12.0" },
-    { name = "cryptography", specifier = ">=50.0.1" },
+    { name = "cryptography", specifier = "==50.0.1" },
     { name = "drissionpage", marker = "extra == 'google'", specifier = ">=4.1.1.4,<5" },
     { name = "fastmcp", specifier = ">=3.0.0,<4" },
     { name = "feedparser", specifier = ">=6.0.0" },
