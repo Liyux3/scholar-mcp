@@ -45,14 +45,16 @@ def test_cache_expiry():
 
 
 def test_cache_clear():
+    calls = []
     @cached(ttl=60)
     def fn():
-        return time.time()
+        calls.append(1)
+        return len(calls)
 
     t1 = fn()
     clear()
     t2 = fn()
-    assert t2 > t1
+    assert (t1, t2) == (1, 2)
 
 
 def test_same_function_name_in_different_sources_has_separate_cache():

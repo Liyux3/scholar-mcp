@@ -296,7 +296,7 @@ class TestCallersRouteQueries:
         pkg = Path(sources.__file__).parent
         offenders = []
         for path in sorted(pkg.glob("*.py")):
-            tree = ast.parse(path.read_text())
+            tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):
                     continue
