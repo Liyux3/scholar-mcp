@@ -12,8 +12,38 @@ from scholar_mcp import config, relevance, server, sources
 @pytest.fixture(autouse=True)
 def isolated_config(monkeypatch):
     monkeypatch.setattr(config, "RERANK_URL", "")
+    monkeypatch.setattr(config, "RERANK_BATCH_SIZE", 500)
     monkeypatch.setattr(relevance, "_reranker_state", dict(relevance._reranker_state))
     monkeypatch.setattr(relevance, "_dashscope_warning_shown", True)
+
+
+def test_custom_capacity_changes_batches_not_candidate_coverage(monkeypatch):
+    monkeypatch.setattr(config, "RERANK_URL", "http://localhost/rerank")
+    monkeypatch.setattr(config, "RERANK_BATCH_SIZE", 2)
+    seen = []
+
+    def remote(query, papers, top_n, intent):
+        seen.append(len(papers))
+        return relevance._apply_rerank_results([
+            {"index": index, "relevance_score": paper["value"] / 10}
+            for index, paper in enumerate(papers)
+        ], papers, top_n, "custom", "model")
+
+    monkeypatch.setattr(relevance, "_remote_batch", remote)
+    result = relevance.rerank("q", [{"value": i} for i in range(5)], 5)
+    assert sorted(seen) == [1, 2, 2]
+    assert [paper["value"] for paper in result] == [4, 3, 2, 1, 0]
+
+
+def test_custom_capacity_does_not_change_builtin_qwen_limit(monkeypatch):
+    monkeypatch.setattr(config, "RERANK_BATCH_SIZE", 1)
+    seen = []
+    def remote(query, papers, top_n, intent):
+        seen.append(len(papers))
+        return papers
+    monkeypatch.setattr(relevance, "_remote_batch", remote)
+    relevance.rerank("q", [{"title": "A"}, {"title": "B"}], 2)
+    assert seen == [2]
 
 
 def test_custom_endpoint_does_not_inherit_cloud_credentials(monkeypatch):

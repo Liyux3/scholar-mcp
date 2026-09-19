@@ -17,6 +17,8 @@ RERANK_URL: str = os.environ.get("SCHOLAR_RERANK_URL", "")
 RERANK_MODEL: str = os.environ.get("SCHOLAR_RERANK_MODEL", "")
 RERANK_API_KEY: str | None = os.environ.get("SCHOLAR_RERANK_API_KEY") or None
 RERANK_TIMEOUT: float = float(os.environ.get("SCHOLAR_RERANK_TIMEOUT", "120"))
+# Endpoint capacity, not a retrieval cutoff. The built-in Qwen limit stays 500.
+RERANK_BATCH_SIZE: int = max(1, int(os.environ.get("SCHOLAR_RERANK_BATCH_SIZE", "500")))
 GOOGLE_SCHOLAR_PROXY: str | None = os.environ.get("SCHOLAR_GOOGLE_PROXY") or None
 EXA_API_KEY: str | None = os.environ.get("EXA_API_KEY") or None
 SCOPUS_API_KEY: str | None = os.environ.get("SCOPUS_API_KEY") or None

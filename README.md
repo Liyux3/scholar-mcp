@@ -136,7 +136,7 @@ Request:  query, documents, top_n, model
 Response: results: [{index, relevance_score}]
 ```
 
-Scores must be finite and in `[0, 1]`. Raw logits need model-specific normalization in the serving backend. Changing models can change the balance with citation and recency ranking. A custom endpoint replaces DashScope and falls back only to the local model.
+Scores must be finite and in `[0, 1]`, with each query-document score comparable across batches. Raw logits need model-specific normalization in the serving backend. Changing models can change the balance with citation and recency ranking. A custom endpoint replaces DashScope and falls back only to the local model. Set `SCHOLAR_RERANK_BATCH_SIZE` to its per-request document capacity (default 500). Larger candidate pools are scored in batches, not discarded at that limit.
 
 </details>
 
@@ -145,9 +145,9 @@ Normal responses focus on papers, with a short warning if availability affected 
 <details>
 <summary>Google Scholar session recovery</summary>
 
-With Chrome and ffmpeg installed, run `uvx --from 'scholar-mcp[google]' scholar-mcp` to enable automatic verification recovery. A short-lived browser establishes the session, then ordinary HTTP handles searches and pagination. It uses a fresh browser profile, never your personal Chrome profile, and online audio recognition rather than a local model.
+With Chrome, Edge, or Chromium and ffmpeg installed, run `uvx --from 'scholar-mcp[google]' scholar-mcp` to enable automatic verification recovery. A short-lived headless browser establishes the session, then ordinary HTTP handles searches and pagination. It uses a fresh browser profile, never your personal browser profile, and online audio recognition rather than a local model. Normal searches never open a browser window.
 
-Sessions are stored privately under `<data>/sessions/` and tied to the configured proxy. A cold search can wait up to 150 seconds for the bounded recovery worker and the subsequent search. Warm sessions use the normal budget. Set `SCHOLAR_GOOGLE_RECOVERY=off` to disable browser recovery. Headless servers need a graphical display for this optional path. Google can still refuse a connection; failed recovery is reported and briefly backed off.
+Sessions are stored privately under `<data>/sessions/` and tied to the configured proxy. A cold search can wait up to 150 seconds for the bounded recovery worker and the subsequent search. Warm sessions use the normal budget. Set `SCHOLAR_GOOGLE_RECOVERY=off` to disable recovery, or `headed` to explicitly allow a visible verification window. Headless recovery needs no graphical display and never switches to a visible window on failure. `SCHOLAR_GOOGLE_BROWSER` selects a browser executable when it is outside standard install locations. No browser is downloaded at server startup; without one, ordinary HTTP search remains available but browser recovery is unavailable. Google can still refuse a connection; failed recovery is reported and briefly backed off.
 
 </details>
 
@@ -234,6 +234,7 @@ All credentials are optional and remain in the MCP process environment.
 | `DASHSCOPE_API_KEY` | Qwen reranker |
 | `SCHOLAR_RERANK_URL`, `SCHOLAR_RERANK_MODEL`, `SCHOLAR_RERANK_API_KEY` | Compatible hosted or local reranker; separate credential |
 | `SCHOLAR_RERANK_TIMEOUT` | Custom reranker request timeout; default 120 seconds |
+| `SCHOLAR_RERANK_BATCH_SIZE` | Custom reranker's per-request document capacity; default 500 |
 | `SCHOLAR_GOOGLE_PROXY` | Dedicated Google Scholar proxy; other sources keep their existing route |
 | `SCOPUS_API_KEY` | Optional Scopus metadata source |
 | `CORE_API_KEY` | Optional CORE repository source |

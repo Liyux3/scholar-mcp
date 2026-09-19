@@ -3,11 +3,70 @@ import json
 import os
 import time
 from unittest.mock import Mock
+from types import SimpleNamespace
+import sys
 
 import httpx
 import pytest
 
 from scholar_mcp import arxiv_client, scholar_client, scholar_session, sources
+
+
+@pytest.mark.parametrize("mode, headless", [(None, True), ("auto", True), ("headless", True), ("headed", False)])
+def test_browser_window_requires_explicit_opt_in(monkeypatch, mode, headless):
+    if mode is None:
+        monkeypatch.delenv("SCHOLAR_GOOGLE_RECOVERY", raising=False)
+    else:
+        monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", mode)
+    options = Mock()
+    for name in ("set_browser_path", "set_tmp_path", "auto_port", "headless"):
+        getattr(options, name).return_value = options
+    page = Mock(url="https://scholar.google.co.uk/scholar")
+    page.eles.return_value = [object()]
+    page.cookies.return_value = []
+    page.run_js.return_value = "Test browser"
+    monkeypatch.setitem(sys.modules, "DrissionPage", SimpleNamespace(
+        ChromiumOptions=Mock(return_value=options), ChromiumPage=Mock(return_value=page)))
+    monkeypatch.setattr(scholar_session, "browser_path", lambda: "/fake/chrome")
+    monkeypatch.setattr(scholar_session.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(scholar_session.signal, "signal", lambda *_: None)
+    monkeypatch.setattr(scholar_session.signal, "alarm", lambda *_: None, raising=False)
+    assert scholar_session._bootstrap("query", None)["user_agent"] == "Test browser"
+    options.headless.assert_called_once_with(headless)
+    page.quit.assert_called_once()
+
+
+def test_headless_recovery_needs_no_display_but_still_needs_a_browser(monkeypatch):
+    monkeypatch.setattr(scholar_session.sys, "platform", "linux")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "auto")
+    monkeypatch.setattr(scholar_session.importlib.util, "find_spec", lambda _: object())
+    monkeypatch.setattr(scholar_session.shutil, "which", lambda _: "/fake/ffmpeg")
+    monkeypatch.setattr(scholar_session, "browser_path", lambda: "/fake/chrome")
+    assert scholar_session.recovery_available()
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "headed")
+    assert not scholar_session.recovery_available()
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "off")
+    assert not scholar_session.recovery_available()
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "headless")
+    monkeypatch.setattr(scholar_session, "browser_path", lambda: None)
+    assert not scholar_session.recovery_available()
+
+
+def test_browser_override_and_windows_user_install(monkeypatch, tmp_path):
+    browser = tmp_path / "Microsoft/Edge/Application/msedge.exe"
+    browser.parent.mkdir(parents=True)
+    browser.touch()
+    monkeypatch.setenv("SCHOLAR_GOOGLE_BROWSER", str(browser))
+    assert scholar_session.browser_path() == str(browser)
+    monkeypatch.delenv("SCHOLAR_GOOGLE_BROWSER")
+    monkeypatch.setattr(scholar_session.sys, "platform", "win32")
+    monkeypatch.delenv("PROGRAMFILES", raising=False)
+    monkeypatch.delenv("PROGRAMFILES(X86)", raising=False)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr(scholar_session.shutil, "which", lambda _: None)
+    assert scholar_session.browser_path() == str(browser)
 
 
 def session():

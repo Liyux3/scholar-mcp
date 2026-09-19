@@ -115,26 +115,54 @@ def _write(data: dict) -> None:
 
 
 def browser_path() -> str | None:
-    candidates = [
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-        os.path.join(os.environ.get("PROGRAMFILES", ""), "Google/Chrome/Application/chrome.exe"),
-        shutil.which("google-chrome"), shutil.which("chromium"), shutil.which("chromium-browser"),
-    ]
+    configured = os.environ.get("SCHOLAR_GOOGLE_BROWSER")
+    if configured:
+        path = Path(configured).expanduser()
+        return str(path) if path.is_file() else shutil.which(configured)
+    candidates = []
+    if sys.platform == "darwin":
+        for root in (Path("/Applications"), Path.home() / "Applications"):
+            candidates.extend(str(root / app) for app in (
+                "Google Chrome.app/Contents/MacOS/Google Chrome",
+                "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+                "Chromium.app/Contents/MacOS/Chromium",
+            ))
+    elif sys.platform == "win32":
+        for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+            if root := os.environ.get(variable):
+                candidates.extend(str(Path(root) / app) for app in (
+                    "Google/Chrome/Application/chrome.exe",
+                    "Microsoft/Edge/Application/msedge.exe",
+                    "Chromium/Application/chrome.exe",
+                ))
+    candidates.extend(shutil.which(name) for name in (
+        "google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "msedge",
+    ))
     return next((p for p in candidates if p and Path(p).is_file()), None)
 
 
+def _recovery_mode() -> str:
+    # Legacy auto/on values remain quiet. Never escalate to a visible window
+    # after a headless failure: that is an explicit desktop user choice.
+    mode = os.environ.get("SCHOLAR_GOOGLE_RECOVERY", "headless").strip().lower()
+    if mode in {"0", "false", "off"}:
+        return "off"
+    return "headed" if mode == "headed" else "headless"
+
+
 def recovery_available() -> bool:
-    return (os.environ.get("SCHOLAR_GOOGLE_RECOVERY", "auto").lower() not in {"0", "false", "off"}
+    mode = _recovery_mode()
+    return (mode != "off"
             and importlib.util.find_spec("DrissionPage") is not None
             and importlib.util.find_spec("speech_recognition") is not None
             and bool(shutil.which("ffmpeg")) and bool(browser_path())
-            and (sys.platform != "linux" or bool(os.environ.get("DISPLAY"))))
+            and (mode == "headless" or sys.platform != "linux"
+                 or bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))))
 
 
 def recover(query: str, previous: dict) -> dict:
     if not recovery_available():
-        raise PermissionError("Google Scholar needs verification; install scholar-mcp[google] with Chrome and ffmpeg for automatic recovery")
+        raise PermissionError("Google Scholar needs verification; recovery requires scholar-mcp[google], Chrome/Edge/Chromium and ffmpeg, with SCHOLAR_GOOGLE_RECOVERY enabled")
     route = proxy()
     if route and urlsplit(route).username:
         raise PermissionError("Google verification requires a local unauthenticated proxy gateway")
@@ -214,7 +242,7 @@ def _bootstrap(query: str, route: str | None) -> dict:
         signal.alarm(RECOVERY_TIMEOUT)
     with tempfile.TemporaryDirectory(prefix="scholar-verify-", ignore_cleanup_errors=True) as directory:
         options = ChromiumOptions(read_file=False).set_browser_path(browser_path())
-        options.set_tmp_path(directory).auto_port().headless(False)
+        options.set_tmp_path(directory).auto_port().headless(_recovery_mode() != "headed")
         options.set_timeouts(base=4, page_load=20, script=5)
         if route:
             options.set_proxy(route)

@@ -851,9 +851,10 @@ def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") ->
     """Score every candidate in provider-sized batches, then select globally."""
     if not papers:
         return papers
-    if len(papers) > DASHSCOPE_CAP:
+    batch_size = config.RERANK_BATCH_SIZE if config.RERANK_URL else DASHSCOPE_CAP
+    if len(papers) > batch_size:
         from concurrent.futures import ThreadPoolExecutor
-        batches = [papers[start:start + DASHSCOPE_CAP] for start in range(0, len(papers), DASHSCOPE_CAP)]
+        batches = [papers[start:start + batch_size] for start in range(0, len(papers), batch_size)]
         with ThreadPoolExecutor(max_workers=2) as pool:
             outcomes = list(pool.map(lambda batch: _remote_batch(query, batch, len(batch), intent), batches))
         if any(result is None for result in outcomes):

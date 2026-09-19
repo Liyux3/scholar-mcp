@@ -31,7 +31,7 @@ version or candidate wheel; the default launches the published PyPI package,
 not unpublished development code.
 
 These launchers need network access on first use. They do not yet make the
-desktop bundles self-contained or provision browser/display dependencies for
+desktop bundles self-contained or provision browser/codec dependencies for
 Google verification. Native Windows x64/ARM64 acceptance is part of the new
 portable-runtime CI matrix and must pass before claiming those targets tested.
 
@@ -46,10 +46,12 @@ include query-compression dependencies with
 Hosted reranking uses environment configuration and does not require local
 model weights.
 
-The optional `google` extra adds browser-based session recovery. It needs a
-local Chrome installation, ffmpeg and a graphical display. Browser dependencies
-are not bundled into the default server, container or MCPB. DrissionPage and
-SpeechRecognition retain their own licensing terms.
+The optional `google` extra adds browser-based session recovery. It needs
+Chrome, Edge, or Chromium and ffmpeg. Recovery is headless by default; a graphical
+display is needed only for the explicit `SCHOLAR_GOOGLE_RECOVERY=headed` mode.
+`SCHOLAR_GOOGLE_BROWSER` selects a nonstandard browser executable. Browser
+dependencies are not bundled into the default server, container or MCPB.
+DrissionPage and SpeechRecognition retain their own licensing terms.
 
 ## Release artifacts
 
