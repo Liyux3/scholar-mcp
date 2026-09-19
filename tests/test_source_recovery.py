@@ -106,6 +106,14 @@ def test_auto_retry_is_hidden_and_explicit_headless_never_uses_it(monkeypatch):
     assert hidden.call_count == 1
 
 
+def test_auto_remembers_the_quiet_mode_that_worked_on_this_route(monkeypatch):
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "auto")
+    monkeypatch.setattr(scholar_session.sys, "platform", "darwin")
+    monkeypatch.setattr(scholar_session, "_bootstrap", lambda *a, **kw: pytest.fail("do not repeat a known-declined path"))
+    monkeypatch.setattr(scholar_session, "_background_bootstrap", lambda *a: {"host": "scholar.google.co.uk"})
+    assert scholar_session._establish_session("q", None, prefer_background=True)["recovery_mode"] == "background"
+
+
 def test_browser_override_and_windows_user_install(monkeypatch, tmp_path):
     browser = tmp_path / "Microsoft/Edge/Application/msedge.exe"
     browser.parent.mkdir(parents=True)

@@ -183,7 +183,10 @@ def recover(query: str, previous: dict) -> dict:
                     text=True, start_new_session=os.name == "posix",
                 )
                 try:
-                    output, _ = process.communicate(json.dumps({"query": query, "proxy": route}), timeout=RECOVERY_TIMEOUT)
+                    output, _ = process.communicate(json.dumps({
+                        "query": query, "proxy": route,
+                        "prefer_background": _read().get("recovery_mode") == "background",
+                    }), timeout=RECOVERY_TIMEOUT)
                 except subprocess.TimeoutExpired:
                     process.terminate()
                     try:
@@ -340,8 +343,12 @@ def _background_bootstrap(query: str, route: str | None) -> dict:
                     pass
 
 
-def _establish_session(query: str, route: str | None) -> dict:
+def _establish_session(query: str, route: str | None, *, prefer_background: bool = False) -> dict:
     mode = _recovery_mode()
+    if mode == "auto" and sys.platform == "darwin" and prefer_background:
+        result = _background_bootstrap(query, route)
+        result["recovery_mode"] = "background"
+        return result
     try:
         result = _bootstrap(query, route)
         result["recovery_mode"] = "headed" if mode == "headed" else "headless"
@@ -358,7 +365,8 @@ if __name__ == "__main__":
     try:
         request = json.loads(sys.stdin.read(16384))
         with redirect_stdout(sys.stderr):
-            result = _establish_session(request["query"], request.get("proxy"))
+            result = _establish_session(request["query"], request.get("proxy"),
+                                        prefer_background=request.get("prefer_background", False))
         print(json.dumps(result))
     except Exception as error:
         reasons = {"Google verification widget unavailable": "verification_unavailable",
