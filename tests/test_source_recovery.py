@@ -114,6 +114,14 @@ def test_auto_remembers_the_quiet_mode_that_worked_on_this_route(monkeypatch):
     assert scholar_session._establish_session("q", None, prefer_background=True)["recovery_mode"] == "background"
 
 
+def test_remembered_desktop_mode_can_fall_back_to_headless(monkeypatch):
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "auto")
+    monkeypatch.setattr(scholar_session.sys, "platform", "darwin")
+    monkeypatch.setattr(scholar_session, "_background_bootstrap", Mock(side_effect=PermissionError("desktop unavailable")))
+    monkeypatch.setattr(scholar_session, "_bootstrap", lambda *a: {"host": "scholar.google.co.uk"})
+    assert scholar_session._establish_session("q", None, prefer_background=True)["recovery_mode"] == "headless"
+
+
 def test_browser_override_and_windows_user_install(monkeypatch, tmp_path):
     browser = tmp_path / "Microsoft/Edge/Application/msedge.exe"
     browser.parent.mkdir(parents=True)

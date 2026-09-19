@@ -346,8 +346,12 @@ def _background_bootstrap(query: str, route: str | None) -> dict:
 def _establish_session(query: str, route: str | None, *, prefer_background: bool = False) -> dict:
     mode = _recovery_mode()
     if mode == "auto" and sys.platform == "darwin" and prefer_background:
-        result = _background_bootstrap(query, route)
-        result["recovery_mode"] = "background"
+        try:
+            result = _background_bootstrap(query, route)
+            result["recovery_mode"] = "background"
+        except PermissionError:
+            result = _bootstrap(query, route)
+            result["recovery_mode"] = "headless"
         return result
     try:
         result = _bootstrap(query, route)
