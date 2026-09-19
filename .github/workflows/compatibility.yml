@@ -38,7 +38,7 @@ jobs:
         run: |
           uv venv --python 3.12
           uv export --locked --no-hashes --no-emit-project --extra dev --extra rerank --output-file runtime-requirements.txt
-          uv pip install --no-build-package cryptography --requirement runtime-requirements.txt --editable .
+          uv pip install --only-binary cryptography --requirement runtime-requirements.txt --editable .
       - name: Record native platform and load binary dependencies
         run: uv run python -c "import platform,sys,onnxruntime,pypdfium2; assert sys.version_info[:2] == (3,12); print(platform.platform(),platform.machine()); print(onnxruntime.get_available_providers())"
       - name: Exercise offline functionality including PDF parsing and rendering
