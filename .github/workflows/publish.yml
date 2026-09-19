@@ -9,7 +9,13 @@ permissions:
   id-token: write
 
 jobs:
+  compatibility-wheels:
+    uses: ./.github/workflows/compat-wheels.yml
   validate-and-publish:
+    needs: compatibility-wheels
+    permissions:
+      contents: write
+      id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -24,6 +30,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: crypto-wheel-*
+          path: .compat-wheels
+          merge-multiple: true
 
       - name: Verify tag and metadata
         env:
@@ -69,6 +80,14 @@ jobs:
 
       - name: Authenticate to MCP Registry
         run: ./mcp-publisher login github-oidc
+
+      - name: Publish native wheels and hash-pinned runtime constraints
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          uv run python scripts/runtime_constraints.py
+          gh release upload "$RELEASE_TAG" .compat-wheels/*.whl .compat-wheels/runtime-constraints.txt --clobber
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

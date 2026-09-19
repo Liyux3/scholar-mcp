@@ -12,6 +12,24 @@ import pytest
 from scholar_mcp import arxiv_client, scholar_client, scholar_session, sources
 
 
+def test_google_pacing_has_no_first_request_delay_and_counts_elapsed_io(monkeypatch):
+    now, sleeps = [10.0], []
+    monkeypatch.setattr(scholar_client, "_last_request_started", 0.0)
+    monkeypatch.setattr(scholar_client.time, "monotonic", lambda: now[0])
+    def sleep(seconds):
+        sleeps.append(seconds)
+        now[0] += seconds
+    monkeypatch.setattr(scholar_client.time, "sleep", sleep)
+    scholar_client._wait_for_request()
+    assert sleeps == []
+    now[0] += .5
+    scholar_client._wait_for_request()
+    assert sleeps == [1.5]
+    now[0] += 3
+    scholar_client._wait_for_request()
+    assert sleeps == [1.5]
+
+
 @pytest.mark.parametrize("mode, headless", [(None, True), ("auto", True), ("headless", True), ("headed", False)])
 def test_browser_window_requires_explicit_opt_in(monkeypatch, mode, headless):
     if mode is None:

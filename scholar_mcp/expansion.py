@@ -33,6 +33,7 @@ class ExpansionContext:
     intent: str = ""
     per_seed_limit: int = 20
     seeds: list[dict] = field(default_factory=list)
+    metadata_fields: set[str] = field(default_factory=set)
 
 
 def _seed_id(paper: dict) -> str:
@@ -53,7 +54,7 @@ def references(seed: dict, ctx: ExpansionContext) -> list[dict]:
     pid = _seed_id(seed)
     if not pid:
         return []
-    return [p for sr in sources.parallel_references(pid, limit=ctx.per_seed_limit)
+    return [p for sr in sources.parallel_references(pid, limit=ctx.per_seed_limit, metadata_fields=ctx.metadata_fields)
             for p in sr.results]
 
 
@@ -69,7 +70,7 @@ def citations(seed: dict, ctx: ExpansionContext) -> list[dict]:
         return []
     out = []
     for sr in sources.parallel_citations(pid, limit=ctx.per_seed_limit,
-                                         title=seed.get("title", "")):
+                                         title=seed.get("title", ""), metadata_fields=ctx.metadata_fields):
         # Intent is a ranking preference, not an implicit pre-rerank citation
         # filter. New or sparsely indexed descendants deserve semantic scoring.
         out.extend(sr.results)
@@ -92,6 +93,7 @@ def title_search(seed: dict, ctx: ExpansionContext) -> list[dict]:
         limit=ctx.per_seed_limit,
         raw_query=title,
         short_query=relevance.optimize_query_short(title),
+        metadata_fields=ctx.metadata_fields,
     ) for p in sr.results]
 
 
@@ -206,7 +208,7 @@ OPTIONAL_CHANNELS = {
 
 def expand(seeds: list[dict], intent: str = "", per_seed_limit: int = 20,
            channels: list[str] | None = None,
-           max_workers: int = 15) -> dict[str, list[dict]]:
+           max_workers: int = 15, metadata_fields: set[str] | None = None) -> dict[str, list[dict]]:
     """Run the expansion channels over the seeds, returning results per channel.
 
     Keyed by channel so callers can attribute what each contributed; the
@@ -215,7 +217,8 @@ def expand(seeds: list[dict], intent: str = "", per_seed_limit: int = 20,
     if not seeds:
         return {}
 
-    ctx = ExpansionContext(intent=intent, per_seed_limit=per_seed_limit, seeds=seeds)
+    ctx = ExpansionContext(intent=intent, per_seed_limit=per_seed_limit, seeds=seeds,
+                           metadata_fields=set(metadata_fields or ()))
     available = {**CHANNELS, **OPTIONAL_CHANNELS}
     if channels is not None:
         names = channels

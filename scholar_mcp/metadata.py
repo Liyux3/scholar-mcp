@@ -110,13 +110,24 @@ def _batch_pmids(pmids: list[str]) -> dict[str, dict]:
     return med
 
 
+def filter_fields(filters: dict) -> set[str]:
+    """Fields required to apply explicit constraints across every source."""
+    return {field for option, field in (
+        ("year", "year"), ("venue", "venue"), ("fields_of_study", "fields_of_study"),
+        ("publication_types", "publication_types"), ("open_access_only", "is_open_access"),
+        ("min_citations", "citation_count"),
+    ) if filters.get(option)}
+
+
 def needs_metadata(paper: dict, fields: set[str] | None = None) -> bool:
     if paper.get("_needs_metadata") or not paper.get("title"):
         return True
-    for field in fields or ():
+    for field in set(fields or ()) - set(paper.get("_metadata_checked_fields") or ()):
         if field == "is_open_access":
             if not (paper.get("is_open_access") or paper.get("open_access_url")):
                 return True
+        elif field == "citation_count" and paper.get("_citation_count_known"):
+            continue
         elif not paper.get(field):
             return True
     return False
@@ -126,8 +137,9 @@ def hydrate(papers: list[dict], fields: set[str] | None = None) -> list[dict]:
     pending = [p for p in papers if needs_metadata(p, fields)]
     if not pending:
         return papers
-    dois = list(dict.fromkeys(crossref.doi_id((p.get("external_ids") or {}).get("DOI", "")).casefold()
+    dois = list(dict.fromkeys(crossref.doi_id(relevance._external_ids(p).get("DOI", "")).casefold()
                              for p in pending if not p.get("_title_conflict")))
+    dois = [doi for doi in dois if not doi.startswith("10.48550/arxiv.")]
     pmids = list(dict.fromkeys(str((p.get("external_ids") or {}).get("PMID") or (p.get("external_ids") or {}).get("PubMed") or "") for p in pending))
     # Start independent native batches together. arXiv and bibliographic
     # lookups below can progress while either catalog is still responding.
@@ -135,9 +147,12 @@ def hydrate(papers: list[dict], fields: set[str] | None = None) -> list[dict]:
     pmid_future = _lookup_pool.submit(_batch_pmids, [pid for pid in pmids if pid.isdigit()])
 
     def lookup(paper):
-        ids = paper.get("external_ids") or {}
+        ids = relevance._external_ids(paper)
         doi = crossref.doi_id(ids.get("DOI", "")).casefold()
         try:
+            if doi.startswith("10.48550/arxiv.") and ids.get("ArXiv"):
+                from .arxiv_client import get_paper
+                return get_paper("ArXiv:" + relevance._normalized_identifier("ArXiv", ids["ArXiv"]))
             if paper.get("_title_conflict"):
                 if ids.get("ArXiv"):
                     from .arxiv_client import get_paper
@@ -193,6 +208,8 @@ def hydrate(papers: list[dict], fields: set[str] | None = None) -> list[dict]:
                 paper["paper_id"] = found["paper_id"]
             paper["paper_id"] = relevance.best_paper_id(paper)
             paper["_metadata_source"] = found.get("source")
+            if fields:
+                paper["_metadata_checked_fields"] = set(paper.get("_metadata_checked_fields") or ()) | fields
             paper.pop("_needs_metadata", None)
             paper.pop("_title_conflict", None)
     return papers

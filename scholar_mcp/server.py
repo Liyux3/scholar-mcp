@@ -138,8 +138,9 @@ def _pipeline(
     if not all_papers:
         return [], source_reports
 
+    required_fields = metadata.filter_fields(kwargs)
     all_papers = relevance.deduplicate(all_papers)
-    metadata.hydrate(all_papers)
+    metadata.hydrate(all_papers, fields=required_fields)
 
     if rerank_query:
         all_papers = relevance.rerank(rerank_query, all_papers, top_n=len(all_papers), intent=intent)
@@ -151,6 +152,7 @@ def _pipeline(
                 intent=intent,
                 per_seed_limit=expand_limit,
                 channels=expand_channels,
+                metadata_fields=required_fields,
             )
             found = [p for papers in by_channel.values() for p in papers]
 
@@ -159,7 +161,7 @@ def _pipeline(
                     relevance.tag_source_ranks([p], "expansion")
                 all_papers.extend(found)
                 all_papers = relevance.deduplicate(all_papers)
-                metadata.hydrate(all_papers)
+                metadata.hydrate(all_papers, fields=required_fields)
                 all_papers = relevance.rerank(rerank_query, all_papers, top_n=len(all_papers), intent=intent)
                 # Rescore the final pool with one provider, in batches when
                 # needed. Do not average final scores with the seed pass.
@@ -430,11 +432,7 @@ def search_papers(
     # Enrichment can reveal an identifier linking two previously separate
     # candidates. Merge again before spending the user's result slots on them.
     results = relevance.deduplicate(results)
-    required_fields = set()
-    if type_list:
-        required_fields.add("publication_types")
-    if open_access_only:
-        required_fields.add("is_open_access")
+    required_fields = metadata.filter_fields(search_kwargs)
     metadata.hydrate(results, fields=required_fields)
     results = relevance.deduplicate(results)
 

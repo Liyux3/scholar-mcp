@@ -21,6 +21,11 @@
       "runtimeArguments": [
         {
           "type": "named",
+          "name": "--constraints",
+          "value": "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/runtime-constraints.txt"
+        },
+        {
+          "type": "named",
           "name": "--python",
           "value": "3.12"
         },

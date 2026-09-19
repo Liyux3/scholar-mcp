@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%22%2C%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
-  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZnJvbSIsInNjaG9sYXItbWNwW3JlcmFua10iLCJzY2hvbGFyLW1jcCJdfX0="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
-  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
+  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--constraints%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fruntime-constraints.txt%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.8.5%22%2C%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
+  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tY29uc3RyYWludHMiLCJodHRwczovL2dpdGh1Yi5jb20vTGl5dXgzL3NjaG9sYXItbWNwL3JlbGVhc2VzL2Rvd25sb2FkL3YwLjguNS9ydW50aW1lLWNvbnN0cmFpbnRzLnR4dCIsIi0tZnJvbSIsInNjaG9sYXItbWNwW3JlcmFua109PTAuOC41Iiwic2Nob2xhci1tY3AiXX19"><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
+  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--constraints%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fruntime-constraints.txt%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.8.5%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
 </p>
 
@@ -57,7 +57,9 @@ Agents call typed MCP tools over stdio or Streamable HTTP. Scholar returns conci
 Claude Code:
 
 ```bash
-claude mcp add scholar -- uvx --python 3.12 --from 'scholar-mcp[rerank]' scholar-mcp
+claude mcp add scholar -- uvx --python 3.12 \
+  --constraints https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/runtime-constraints.txt \
+  --from 'scholar-mcp[rerank]==0.8.5' scholar-mcp
 ```
 
 Claude Desktop or any stdio MCP client:
@@ -67,7 +69,11 @@ Claude Desktop or any stdio MCP client:
   "mcpServers": {
     "scholar": {
       "command": "uvx",
-      "args": ["--python", "3.12", "--from", "scholar-mcp[rerank]", "scholar-mcp"]
+      "args": [
+        "--python", "3.12",
+        "--constraints", "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/runtime-constraints.txt",
+        "--from", "scholar-mcp[rerank]==0.8.5", "scholar-mcp"
+      ]
     }
   }
 }

@@ -467,6 +467,9 @@ def _merge_two(a: dict, b: dict) -> dict:
                    | set(normalize_publication_types(b.get("publication_types"))))
     if types:
         merged["publication_types"] = types
+    checked = set(a.get("_metadata_checked_fields") or ()) | set(b.get("_metadata_checked_fields") or ())
+    if checked:
+        merged["_metadata_checked_fields"] = checked
     if not merged.get("open_access_url") and b.get("open_access_url"):
         merged["open_access_url"] = b["open_access_url"]
     merged["is_open_access"] = bool(

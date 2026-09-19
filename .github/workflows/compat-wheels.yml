@@ -31,16 +31,30 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+      - uses: actions/cache@v4
+        id: wheel-cache
+        with:
+          path: .compat-wheels
+          key: crypto-50.0.1-${{ matrix.os }}-openssl402-macos11-v1
       - name: Select Rust toolchain
+        if: steps.wheel-cache.outputs.cache-hit != 'true'
         run: rustup default stable
       - name: Prepare current OpenSSL on Intel macOS
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && steps.wheel-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          brew install openssl@3
-          echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          curl --fail --location --retry 2 --output "$RUNNER_TEMP/openssl.tar.gz" https://github.com/openssl/openssl/releases/download/openssl-4.0.2/openssl-4.0.2.tar.gz
+          echo '736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8  '"$RUNNER_TEMP/openssl.tar.gz" | shasum -a 256 --check
+          tar -xf "$RUNNER_TEMP/openssl.tar.gz" -C "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP/openssl-4.0.2"
+          export MACOSX_DEPLOYMENT_TARGET=11.0
+          ./Configure darwin64-x86_64-cc no-shared no-tests --prefix="$RUNNER_TEMP/scholar-openssl"
+          make -j3
+          make install_sw
+          echo "OPENSSL_DIR=$RUNNER_TEMP/scholar-openssl" >> "$GITHUB_ENV"
+          echo "MACOSX_DEPLOYMENT_TARGET=11.0" >> "$GITHUB_ENV"
       - name: Build static OpenSSL on Windows ARM
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.wheel-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $vcpkgRoot = Join-Path $env:RUNNER_TEMP 'scholar-vcpkg'
@@ -58,6 +72,7 @@ jobs:
           "VCPKGRS_TRIPLET=arm64-windows-static-md" | Out-File -FilePath $env:GITHUB_ENV -Append
           "OPENSSL_DIR=$vcpkgRoot/installed/arm64-windows-static-md" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Build upstream cryptography without changing its source
+        if: steps.wheel-cache.outputs.cache-hit != 'true'
         run: uv run --no-project --with pip python -m pip wheel --no-deps --no-binary cryptography --wheel-dir .compat-wheels cryptography==50.0.1
       - name: Verify native wheel import
         shell: bash
@@ -68,3 +83,5 @@ jobs:
         with:
           name: crypto-wheel-${{ matrix.os }}
           path: .compat-wheels/*.whl
+          include-hidden-files: true
+          if-no-files-found: error

@@ -12,7 +12,7 @@ BASE_URL = "https://api.openalex.org/works"
 OA_SELECT_FIELDS = ",".join([
     "id", "doi", "title", "authorships", "publication_year",
     "cited_by_count", "abstract_inverted_index", "open_access",
-    "primary_location", "publication_date", "concepts",
+    "primary_location", "publication_date", "concepts", "type",
 ])
 
 

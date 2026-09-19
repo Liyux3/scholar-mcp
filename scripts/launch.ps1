@@ -5,7 +5,11 @@ if (-not $runtimeDir) {
     $runtimeDir = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "scholar-mcp\runtime"
 }
 $package = $env:SCHOLAR_PACKAGE
-if (-not $package) { $package = "scholar-mcp[rerank]" }
+$constraints = $env:SCHOLAR_CONSTRAINTS
+if (-not $package) {
+    $package = "scholar-mcp[rerank]==0.8.5"
+    if (-not $constraints) { $constraints = "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/runtime-constraints.txt" }
+}
 $uvBin = $env:SCHOLAR_UV
 if (-not $uvBin) {
     $existing = Get-Command uv -CommandType Application -ErrorAction SilentlyContinue
@@ -30,5 +34,9 @@ if (-not $uvBin) {
     }
 }
 
-& $uvBin tool run --no-config --managed-python --python 3.12 --from $package scholar-mcp @args
+if ($constraints) {
+    & $uvBin tool run --no-config --managed-python --python 3.12 --constraints $constraints --from $package scholar-mcp @args
+} else {
+    & $uvBin tool run --no-config --managed-python --python 3.12 --from $package scholar-mcp @args
+}
 exit $LASTEXITCODE

@@ -436,7 +436,7 @@ def get_references(paper_id: str, limit: int = 20, **kwargs):
 
 REC_FIELDS = ",".join([
     "paperId", "title", "abstract", "year", "venue",
-    "citationCount", "authors", "externalIds", "openAccessPdf",
+    "citationCount", "authors", "externalIds", "openAccessPdf", "publicationTypes",
 ])
 
 

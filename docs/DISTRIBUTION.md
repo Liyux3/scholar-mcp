@@ -36,6 +36,13 @@ existing Python or uv installation. Optional Google browser/codec components
 remain separate. The portable-runtime CI matrix exercises macOS, Linux and
 Windows on x64 and ARM64.
 
+Release runtime constraints select hash-pinned native `cryptography` wheels
+for Intel macOS and Windows ARM, where current upstream releases do not ship
+binaries. CI builds the unmodified upstream source with static OpenSSL and
+uploads those wheels before publishing PyPI. The recommended configurations
+apply these constraints automatically; users do not need Rust or an OpenSSL
+development installation. Other platforms use the upstream PyPI wheels.
+
 Python 3.10 or newer is required. The server supports stdio and Streamable HTTP.
 The core profile has six tools; the research extension adds graph and library
 operations.

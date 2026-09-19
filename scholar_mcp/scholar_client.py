@@ -6,6 +6,7 @@ import hashlib
 import re
 from datetime import datetime
 from typing import Optional
+from threading import Lock
 
 import httpx
 from bs4 import BeautifulSoup
@@ -17,6 +18,20 @@ USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
 ]
+
+_request_lock = Lock()
+_last_request_started = 0.0
+REQUEST_INTERVAL = 2.0
+
+
+def _wait_for_request() -> None:
+    """Pace the shared source, counting network time toward the interval."""
+    global _last_request_started
+    with _request_lock:
+        remaining = _last_request_started + REQUEST_INTERVAL - time.monotonic()
+        if remaining > 0:
+            time.sleep(remaining)
+        _last_request_started = time.monotonic()
 
 
 class BlockedError(PermissionError):
@@ -107,7 +122,7 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
     with httpx.Client(headers=headers, timeout=15, follow_redirects=True, trust_env=False,
                       cookies=scholar_session.cookie_jar(session), proxy=scholar_session.proxy()) as client:
         while len(papers) < max_results:
-            time.sleep(random.uniform(1.5, 3.0))
+            _wait_for_request()
             params = {"q": query, "start": start, "hl": "en", "as_sdt": "0,5"}
             response = client.get(endpoint, params=params)
             soup = BeautifulSoup(response.text, "html.parser")

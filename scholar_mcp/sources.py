@@ -167,7 +167,8 @@ def _prepare_metadata(result: SourceResult, pending: list, fields: set[str] | No
 
 
 def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_query: str = "",
-                    budget_s: float | None = None, **kwargs) -> list[SourceResult]:
+                    budget_s: float | None = None, metadata_fields: set[str] | None = None,
+                    **kwargs) -> list[SourceResult]:
     """Query every available source concurrently and collect their results.
 
     budget_s caps how long the whole fan-out may take. Sources that have not
@@ -217,11 +218,8 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
 
     results = []
     pending_metadata = []
-    fields = set()
-    if kwargs.get("publication_types"):
-        fields.add("publication_types")
-    if kwargs.get("open_access_only"):
-        fields.add("is_open_access")
+    from .metadata import filter_fields
+    fields = set(metadata_fields or ()) | filter_fields(kwargs)
     futures = {
         _search_pool.submit(_timed_call, s.name, s.search, _pick_query(s), limit, **kwargs): s.name
         for s in sources
@@ -252,7 +250,8 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
     return results
 
 
-def parallel_citations(paper_id: str, limit: int = 20, title: str = "") -> list[SourceResult]:
+def parallel_citations(paper_id: str, limit: int = 20, title: str = "",
+                       metadata_fields: set[str] | None = None) -> list[SourceResult]:
     """Fetch citing papers from every capable source.
 
     title is a fallback identifier. OpenAlex cannot resolve arXiv identifiers
@@ -261,15 +260,16 @@ def parallel_citations(paper_id: str, limit: int = 20, title: str = "") -> list[
     citation source. S2 orders citations by recency, which is why the graph
     for a 2017 landmark came back full of 2026 papers with one citation each.
     """
-    return _parallel_relations(citation_sources(), "get_citations", paper_id, limit, title=title)
+    return _parallel_relations(citation_sources(), "get_citations", paper_id, limit, metadata_fields, title=title)
 
 
-def parallel_references(paper_id: str, limit: int = 20) -> list[SourceResult]:
-    return _parallel_relations(reference_sources(), "get_references", paper_id, limit)
+def parallel_references(paper_id: str, limit: int = 20,
+                        metadata_fields: set[str] | None = None) -> list[SourceResult]:
+    return _parallel_relations(reference_sources(), "get_references", paper_id, limit, metadata_fields)
 
 
 def _parallel_relations(registered: list[Source], method: str, paper_id: str,
-                        limit: int, **kwargs) -> list[SourceResult]:
+                        limit: int, metadata_fields: set[str] | None = None, **kwargs) -> list[SourceResult]:
     if not registered:
         return []
     results = []
@@ -282,7 +282,7 @@ def _parallel_relations(registered: list[Source], method: str, paper_id: str,
         for future in as_completed(futures):
             result = future.result()
             results.append(result)
-            _prepare_metadata(result, pending_metadata)
+            _prepare_metadata(result, pending_metadata, metadata_fields)
     for future in pending_metadata:
         future.result()
     for result in results:
