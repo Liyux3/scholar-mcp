@@ -16,10 +16,10 @@
   "documentation": "https://github.com/Liyux3/scholar-mcp#readme",
   "support": "https://github.com/Liyux3/scholar-mcp/issues",
   "server": {
-    "type": "python",
-    "entry_point": "server/scholar_mcp/__main__.py",
+    "type": "binary",
+    "entry_point": "runtime/bin/python3.12",
     "mcp_config": {
-      "command": "python3.12",
+      "command": "${__dirname}/runtime/bin/python3.12",
       "args": [
         "-m",
         "scholar_mcp"
@@ -46,10 +46,7 @@
     "claude_desktop": ">=1.0.0",
     "platforms": [
       "darwin"
-    ],
-    "runtimes": {
-      "python": ">=3.12,<3.13"
-    }
+    ]
   },
   "user_config": {
     "data_dir": {

@@ -31,6 +31,7 @@ def format_paper(item: dict) -> dict:
             "citation_count": item.get("citedByCount") or 0,
             "_citation_count_known": item.get("citedByCount") is not None,
             "source": "europepmc", "is_open_access": item.get("isOpenAccess") == "Y",
+            "publication_types": (item.get("pubTypeList") or {}).get("pubType") or [],
             "open_access_url": urls[0] if urls else None,
             "publication_date": item.get("firstPublicationDate"),
             "url": f"https://europepmc.org/article/{source}/{pid}"}

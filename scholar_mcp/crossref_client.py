@@ -174,6 +174,7 @@ def format_paper(item: dict) -> dict | None:
         "is_open_access": False,
         "open_access_url": None,
         "fields_of_study": [],
+        "publication_types": [item["type"]] if item.get("type") else [],
         "publication_date": pub_date,
         "tldr": None,
         "external_ids": {"DOI": doi} if doi else {},

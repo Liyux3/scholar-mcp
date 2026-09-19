@@ -248,6 +248,15 @@ def _bootstrap(query: str, route: str | None) -> dict:
             options.set_proxy(route)
         page = ChromiumPage(options)
         try:
+            # Unified Chromium uses the same engine in both modes, but its
+            # headless UA can receive a different, non-interactive Scholar
+            # gate. Keep the installed browser version/platform and use the
+            # same UA for browser recovery and the subsequent HTTP session.
+            user_agent = page.run_js("return navigator.userAgent")
+            if "HeadlessChrome/" in user_agent:
+                page.run_cdp("Network.setUserAgentOverride",
+                             userAgent=user_agent.replace("HeadlessChrome/", "Chrome/"),
+                             acceptLanguage="en-US,en;q=0.9")
             url = "https://scholar.google.co.uk/scholar?" + urlencode({"q": query, "hl": "en"})
             page.get(url, retry=0, timeout=20)
             for _ in range(2):

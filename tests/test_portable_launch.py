@@ -28,6 +28,9 @@ def test_windows_launcher_uses_the_same_runtime_contract():
     assert "--managed-python --python 3.12" in script
     assert "UV_UNMANAGED_INSTALL" in script
     assert "scholar-mcp @args" in script
+    command = (ROOT / "scripts/launch.cmd").read_text()
+    assert "-ExecutionPolicy Bypass" in command
+    assert "Set-ExecutionPolicy" not in script + command
 
 
 @pytest.mark.skipif(os.name == "nt" or not shutil.which("sh"), reason="POSIX bootstrap")

@@ -40,14 +40,15 @@ def test_release_versions_are_synchronized():
     assert cursor["plugins"][0]["version"] == version
     assert yaml.safe_load((ROOT / "CITATION.cff").read_text())["version"] == version
     smithery = yaml.safe_load((ROOT / "smithery.yaml").read_text())
-    assert f"scholar-mcp=={version}" in smithery["startCommand"]["commandFunction"]
+    assert f"scholar-mcp[rerank]=={version}" in smithery["startCommand"]["commandFunction"]
 
     for path in (
         "plugins/scholar-mcp/.mcp.json",
         "plugins/scholar-mcp/mcp.json",
     ):
         args = _json(path)["mcpServers"]["scholar"]["args"]
-        assert f"scholar-mcp=={version}" in args
+        assert f"scholar-mcp[rerank]=={version}" in args
+        assert args[:2] == ["--python", "3.12"]
 
 
 def test_registry_and_release_workflows_are_wired():
@@ -58,7 +59,8 @@ def test_registry_and_release_workflows_are_wired():
     assert package["registryType"] == "pypi"
     assert package["runtimeHint"] == "uvx"
     assert package["runtimeArguments"] == [
-        {"type": "positional", "value": "scholar-mcp"}
+        {"type": "named", "name": "--python", "value": "3.12"},
+        {"type": "named", "name": "--with", "value": f"scholar-mcp[rerank]=={__version__}"},
     ]
 
     publish = (ROOT / ".github/workflows/publish.yml").read_text(encoding="utf-8")
@@ -78,6 +80,11 @@ def test_registry_and_release_workflows_are_wired():
     assert "scripts/smoke_mcpb.py" in mcpb
     bundle = (ROOT / "scripts/build_mcpb.sh").read_text(encoding="utf-8")
     assert "--extra rerank" in bundle
+    manifest = _json("manifest.json")
+    assert manifest["server"]["type"] == "binary"
+    assert manifest["server"]["mcp_config"]["command"] == "${__dirname}/runtime/bin/python3.12"
+    assert "runtimes" not in manifest["compatibility"]
+    assert "UV_PYTHON_INSTALL_DIR" in bundle and "symlinks=False" in bundle
 
 
 def test_readme_contains_valid_one_click_install_urls():
@@ -91,7 +98,7 @@ def test_readme_contains_valid_one_click_install_urls():
     assert json.loads(vscode["config"][0]) == {
         "type": "stdio",
         "command": "uvx",
-        "args": ["scholar-mcp"],
+        "args": ["--python", "3.12", "--from", "scholar-mcp[rerank]", "scholar-mcp"],
     }
 
     cursor_match = re.search(r"cursor://anysphere\.cursor-deeplink/mcp/install\?[^\"]+", readme)
@@ -99,7 +106,7 @@ def test_readme_contains_valid_one_click_install_urls():
     cursor = parse_qs(urlparse(cursor_match.group().replace("&amp;", "&")).query)
     assert cursor["name"] == ["scholar"]
     assert json.loads(base64.b64decode(cursor["config"][0])) == {
-        "scholar": {"command": "uvx", "args": ["scholar-mcp"]}
+        "scholar": {"command": "uvx", "args": ["--python", "3.12", "--from", "scholar-mcp[rerank]", "scholar-mcp"]}
     }
 
     kiro_match = re.search(r"https://kiro\.dev/launch/mcp/add\?[^\"]+", readme)
@@ -108,7 +115,7 @@ def test_readme_contains_valid_one_click_install_urls():
     assert kiro["name"] == ["scholar-mcp"]
     assert json.loads(kiro["config"][0]) == {
         "command": "uvx",
-        "args": ["scholar-mcp"],
+        "args": ["--python", "3.12", "--from", "scholar-mcp[rerank]", "scholar-mcp"],
         "disabled": False,
         "autoApprove": [],
     }

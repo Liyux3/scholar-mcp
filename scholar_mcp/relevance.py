@@ -1,6 +1,7 @@
 """Query preprocessing, reranking, deduplication, and field filtering."""
 
 import math
+import os
 import re
 import sys
 import time
@@ -277,6 +278,23 @@ def _normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
+def normalize_publication_types(values) -> list[str]:
+    """Normalize provider labels without inferring a paper type from its title."""
+    if isinstance(values, str):
+        values = [values]
+    aliases = {
+        "journalarticle": "JournalArticle", "journalarticles": "JournalArticle",
+        "article": "Article", "review": "Review", "systematicreview": "Review",
+        "metaanalysis": "Review",
+        "conference": "Conference", "proceedingsarticle": "Conference",
+        "conferenceandworkshoppapers": "Conference", "proceedings": "Conference",
+        "book": "Book", "booksandtheses": "Book", "bookchapter": "BookChapter",
+        "dataset": "Dataset", "postedcontent": "Preprint", "preprint": "Preprint",
+    }
+    return sorted({aliases.get(re.sub(r"[^a-z]", "", str(value).casefold()), str(value))
+                   for value in (values or []) if value})
+
+
 _EXTERNAL_ID_ALIASES = {
     "PMID": "PubMed",
     "ArXivId": "ArXiv",
@@ -445,6 +463,10 @@ def _merge_two(a: dict, b: dict) -> dict:
     a_topics = set(merged.get("fields_of_study") or [])
     if b_topics - a_topics:
         merged["fields_of_study"] = list(a_topics | b_topics)
+    types = sorted(set(normalize_publication_types(merged.get("publication_types")))
+                   | set(normalize_publication_types(b.get("publication_types"))))
+    if types:
+        merged["publication_types"] = types
     if not merged.get("open_access_url") and b.get("open_access_url"):
         merged["open_access_url"] = b["open_access_url"]
     merged["is_open_access"] = bool(
@@ -700,6 +722,25 @@ def _rerank_remote(query: str, papers: list[dict], top_n: int, intent: str,
             url, headers=headers, json=body, timeout=timeout,
             trust_env=urlsplit(url).hostname not in {"localhost", "127.0.0.1", "::1"},
         )
+        # A provider can enforce a smaller token/payload budget than its
+        # advertised document count. Split only size failures, on the same
+        # endpoint/model, rather than silently degrading the whole pass.
+        size_error = resp.status_code == 413 or (
+            resp.status_code == 400 and any(marker in resp.text.casefold() for marker in (
+                "too many", "too large", "too long", "maximum", "max_tokens", "token limit", "length limit",
+            ))
+        )
+        if size_error and len(papers) > 1:
+            middle = len(papers) // 2
+            ranked = []
+            for half in (papers[:middle], papers[middle:]):
+                result = _rerank_remote(query, half, len(half), intent, url=url, model=model,
+                                        api_key=api_key, provider=provider, timeout=timeout)
+                if result is None:
+                    return None
+                ranked.extend(result)
+            ranked.sort(key=lambda paper: -paper["_rerank_score"])
+            return ranked[:top_n]
         resp.raise_for_status()
         data = resp.json()
         reranked = _apply_rerank_results(data.get("results"), papers, top_n, provider, model)
@@ -758,7 +799,9 @@ def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
             # Keep the measured portable fallback. A different input format
             # or token budget needs paired ranking evidence before promotion.
             _flashrank_ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2",
-                                       max_length=FLASHRANK_MAX_TOKENS)
+                                       max_length=FLASHRANK_MAX_TOKENS,
+                                       cache_dir=os.path.join(config.DATA_DIR, "models"),
+                                       log_level="WARNING")
         passages = [{"id": i, "text": ((p.get("title") or "") + ". " + (p.get("abstract") or ""))[:1000]} for i, p in enumerate(papers)]
         request = RerankRequest(query=query, passages=passages)
         ranked = _flashrank_ranker.rerank(request)
@@ -788,73 +831,34 @@ def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
 
 
 DASHSCOPE_CAP = 500
+DASHSCOPE_TOKEN_BUDGET = 110_000  # Leave room below the documented 120K request cap.
 FLASHRANK_CAP = 150
 FLASHRANK_MAX_TOKENS = 128
-
-# Share of the cap reserved for papers the metadata formula ranks poorly.
-# Without it, a purely metadata-ordered cut is a citation filter applied
-# before the reranker has read anything.
-RECENT_RESERVE = 0.25
-
-# A paper this new has not had time to accumulate citations, so its citation
-# count carries no information about its quality yet.
-RECENT_YEARS = 3
-
-
-def _pre_rank_cap(papers: list[dict], cap: int) -> list[dict]:
-    """Trim the pool to what the reranker can accept, keeping recent work.
-
-    This exists because DashScope takes at most 500 documents per call, not
-    because the pool needs filtering on quality. Ordering by the rank_final
-    metadata formula was convenient, but that formula is dominated by citation
-    count, so using it here silently removed low-citation papers before the
-    reranker ever saw them.
-
-    That is the wrong place for a citation preference. Ranking by citations is
-    a reasonable product decision: a reader asking for papers on a topic
-    generally wants established work. Excluding papers from consideration by
-    citation count is not, because the two questions a search answers, "what
-    is the accepted work here" and "what is the newest work here", need
-    different answers from the same pool.
-
-    So a quarter of the cap is reserved for recent papers, which by
-    construction cannot have accumulated citations yet.
-    """
-    if len(papers) <= cap:
-        return papers
-
-    ranked = rank_final(papers)
-    current_year = datetime.now().year
-    reserve = int(cap * RECENT_RESERVE)
-
-    kept, recent_overflow = [], []
-    for paper in ranked:
-        if len(kept) < cap - reserve:
-            kept.append(paper)
-            continue
-        year = paper.get("year") or 0
-        if year and current_year - year <= RECENT_YEARS and len(recent_overflow) < reserve:
-            recent_overflow.append(paper)
-
-    # Fill any unused reserve from the ordering, so the cap is never underfilled.
-    if len(kept) + len(recent_overflow) < cap:
-        chosen = {id(p) for p in kept} | {id(p) for p in recent_overflow}
-        for paper in ranked:
-            if len(kept) + len(recent_overflow) >= cap:
-                break
-            if id(paper) not in chosen:
-                kept.append(paper)
-
-    return kept + recent_overflow
 
 def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") -> list[dict]:
     """Score every candidate in provider-sized batches, then select globally."""
     if not papers:
         return papers
     batch_size = config.RERANK_BATCH_SIZE if config.RERANK_URL else DASHSCOPE_CAP
-    if len(papers) > batch_size:
+    batches = []
+    batch, tokens = [], 0
+    for paper in papers:
+        # Avoid a tokenizer/model dependency just to schedule HTTP requests.
+        # This conservative estimate handles multilingual text; a provider
+        # size rejection still triggers exact splitting above, without cuts.
+        text = query[:500] + rerank_document(paper)
+        non_ascii = sum(ord(character) > 127 for character in text)
+        estimated = (len(text) - non_ascii + 2) // 3 + non_ascii * 3 + 128
+        if batch and (len(batch) >= batch_size or (
+                not config.RERANK_URL and tokens + estimated > DASHSCOPE_TOKEN_BUDGET)):
+            batches.append(batch)
+            batch, tokens = [], 0
+        batch.append(paper)
+        tokens += estimated
+    if batch:
+        batches.append(batch)
+    if len(batches) > 1:
         from concurrent.futures import ThreadPoolExecutor
-        batches = [papers[start:start + batch_size] for start in range(0, len(papers), batch_size)]
         with ThreadPoolExecutor(max_workers=2) as pool:
             outcomes = list(pool.map(lambda batch: _remote_batch(query, batch, len(batch), intent), batches))
         if any(result is None for result in outcomes):

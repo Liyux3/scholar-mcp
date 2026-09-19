@@ -36,6 +36,26 @@ def test_browser_window_requires_explicit_opt_in(monkeypatch, mode, headless):
     page.quit.assert_called_once()
 
 
+def test_headless_browser_and_http_handoff_use_the_same_native_version(monkeypatch):
+    options = Mock()
+    for name in ("set_browser_path", "set_tmp_path", "auto_port", "headless"):
+        getattr(options, name).return_value = options
+    page = Mock(url="https://scholar.google.co.uk/scholar")
+    page.eles.return_value = [object()]
+    page.cookies.return_value = []
+    page.run_js.side_effect = ["NativePlatform HeadlessChrome/153.0.0.0", "NativePlatform Chrome/153.0.0.0"]
+    monkeypatch.setitem(sys.modules, "DrissionPage", SimpleNamespace(
+        ChromiumOptions=Mock(return_value=options), ChromiumPage=Mock(return_value=page)))
+    monkeypatch.setattr(scholar_session, "browser_path", lambda: "/fake/chrome")
+    monkeypatch.setattr(scholar_session.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(scholar_session.signal, "signal", lambda *_: None)
+    monkeypatch.setattr(scholar_session.signal, "alarm", lambda *_: None, raising=False)
+    result = scholar_session._bootstrap("query", None)
+    page.run_cdp.assert_called_once_with("Network.setUserAgentOverride",
+        userAgent="NativePlatform Chrome/153.0.0.0", acceptLanguage="en-US,en;q=0.9")
+    assert result["user_agent"] == "NativePlatform Chrome/153.0.0.0"
+
+
 def test_headless_recovery_needs_no_display_but_still_needs_a_browser(monkeypatch):
     monkeypatch.setattr(scholar_session.sys, "platform", "linux")
     monkeypatch.delenv("DISPLAY", raising=False)
@@ -180,13 +200,14 @@ def test_cold_recovery_budget_preserves_explicit_limit(monkeypatch):
     assert budgets == [150, 2]
 
 
-def test_arxiv_web_fallback_retains_identity_and_full_abstract(monkeypatch):
+@pytest.mark.parametrize("status", [403, 406, 429, 503])
+def test_arxiv_web_fallback_retains_identity_and_full_abstract(monkeypatch, status):
     page = '''<li class="arxiv-result"><p class="list-title"><a href="https://arxiv.org/abs/1706.03762">arXiv</a></p>
     <p class="title">Attention Is All You Need</p><p class="authors"><a>A Author</a></p>
     <span class="abstract-full">Full abstract.<a>Less</a></span>
     <p class="is-size-7">Submitted 2 August, 2023; originally announced June 2017.</p></li>'''
     monkeypatch.setattr(httpx, "get", lambda *a, **kw: httpx.Response(
-        429, request=httpx.Request("GET", arxiv_client.ARXIV_API_URL)))
+        status, request=httpx.Request("GET", arxiv_client.ARXIV_API_URL)))
     monkeypatch.setattr(httpx.Client, "get", lambda *a, **kw: httpx.Response(
         200, text=page, request=httpx.Request("GET", "https://arxiv.org/search/")))
     result = arxiv_client.search_papers("attention", 1)[0]

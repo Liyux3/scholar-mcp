@@ -14,17 +14,17 @@ SEARCH_FIELDS = ",".join([
     "paperId", "corpusId", "title", "abstract", "year", "venue",
     "citationCount", "influentialCitationCount", "isOpenAccess",
     "openAccessPdf", "authors", "externalIds", "fieldsOfStudy",
-    "publicationDate", "tldr",
+    "publicationDate", "publicationTypes", "tldr",
 ])
 
 DETAIL_FIELDS = SEARCH_FIELDS + "," + ",".join([
-    "referenceCount", "publicationVenue", "publicationTypes",
+    "referenceCount", "publicationVenue",
     "journal", "citationStyles",
 ])
 
 CITATION_FIELDS = ",".join([
     "paperId", "title", "year", "venue", "citationCount",
-    "authors", "externalIds", "isOpenAccess", "openAccessPdf",
+    "authors", "externalIds", "isOpenAccess", "openAccessPdf", "publicationTypes",
 ])
 
 AUTHOR_FIELDS = ",".join([
@@ -291,6 +291,7 @@ def format_paper(data: dict) -> dict:
         "is_open_access": data.get("isOpenAccess") or False,
         "open_access_url": oa_url,
         "fields_of_study": data.get("fieldsOfStudy") or [],
+        "publication_types": data.get("publicationTypes") or [],
         "publication_date": data.get("publicationDate"),
         "tldr": tldr_text,
         "external_ids": data.get("externalIds") or {},
@@ -300,19 +301,29 @@ def format_paper(data: dict) -> dict:
 
 
 def get_papers_batch(paper_ids: list[str]) -> list[dict | None]:
-    """Resolve paper metadata in one rate-limited S2 request."""
+    """Resolve metadata in bounded batches without dropping trailing IDs."""
     if not paper_ids:
         return []
-    ids = [_normalize_s2_id(paper_id) for paper_id in paper_ids[:500]]
-    data = _post(
-        f"{BASE_URL}/paper/batch",
-        json_data={"ids": ids},
-        params={"fields": SEARCH_FIELDS},
-        retries=1,
-        gate_timeout=S2_METADATA_GATE_TIMEOUT,
-        allow_probe=False,
-    )
-    return data if isinstance(data, list) else []
+    results = []
+    for offset in range(0, len(paper_ids), 500):
+        ids = [_normalize_s2_id(paper_id) for paper_id in paper_ids[offset:offset + 500]]
+        try:
+            data = _post(
+                f"{BASE_URL}/paper/batch",
+                json_data={"ids": ids},
+                params={"fields": SEARCH_FIELDS},
+                retries=1,
+                gate_timeout=S2_METADATA_GATE_TIMEOUT,
+                allow_probe=False,
+            )
+        except (httpx.HTTPError, TimeoutError, S2CooldownError):
+            if not results:
+                raise
+            break
+        if not isinstance(data, list) or not data:
+            break
+        results.extend((data + [None] * len(ids))[:len(ids)])
+    return results
 
 
 def format_paper_detail(data: dict) -> dict:

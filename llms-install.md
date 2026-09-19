@@ -1,7 +1,8 @@
 # Install Scholar MCP
 
-Scholar MCP is a local stdio server distributed through PyPI. It needs Python 3.10+
-and `uv`; every data-source key is optional.
+Scholar MCP is a local stdio server distributed through PyPI. Install `uv`;
+the configuration below prepares Python 3.12 and the CPU reranker. Source keys
+are optional. Desktop MCPB bundles include their own Python runtime.
 
 Use this MCP configuration:
 
@@ -10,7 +11,7 @@ Use this MCP configuration:
   "mcpServers": {
     "scholar": {
       "command": "uvx",
-      "args": ["scholar-mcp"],
+      "args": ["--python", "3.12", "--from", "scholar-mcp[rerank]", "scholar-mcp"],
       "env": {
         "SCHOLAR_MCP_EXTENSIONS": "research"
       }

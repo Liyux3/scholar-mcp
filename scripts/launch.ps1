@@ -21,7 +21,7 @@ if (-not $uvBin) {
             $env:UV_UNMANAGED_INSTALL = Join-Path $runtimeDir "uv"
             # Use a child process so its installer settings cannot leak to the caller.
             $shell = (Get-Process -Id $PID).Path
-            & $shell -NoProfile -File $installer | ForEach-Object { [Console]::Error.WriteLine($_) }
+            & $shell -NoProfile -ExecutionPolicy Bypass -File $installer | ForEach-Object { [Console]::Error.WriteLine($_) }
             if ($LASTEXITCODE -ne 0) { throw "uv installation failed" }
         } finally {
             $env:UV_UNMANAGED_INSTALL = $previousInstall

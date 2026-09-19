@@ -8,6 +8,32 @@ from scholar_mcp import crossref_client as cr, europepmc_client as ep, metadata,
 from scholar_mcp import inspirehep_client as inspire
 
 
+def test_doi_and_pmid_hydration_overlap(monkeypatch):
+    from threading import Event
+    doi_started, pmid_started = Event(), Event()
+    def dois(ids):
+        doi_started.set()
+        assert pmid_started.wait(3)
+        return {ids[0]: {"title": "DOI paper"}}
+    def pmids(ids):
+        pmid_started.set()
+        assert doi_started.wait(3)
+        return {ids[0]: {"title": "PMID paper"}}
+    monkeypatch.setattr(metadata, "_batch_dois", dois)
+    monkeypatch.setattr(metadata, "_batch_pmids", pmids)
+    papers = [{"external_ids": {"DOI": "10.1000/example"}}, {"external_ids": {"PubMed": "1234"}}]
+    assert [p["title"] for p in metadata.hydrate(papers)] == ["DOI paper", "PMID paper"]
+
+
+def test_requested_metadata_fields_are_completed_without_overwriting_known_values(monkeypatch):
+    monkeypatch.setattr(metadata, "_batch_dois", lambda ids: {"10.1000/example": {
+        "title": "Native title", "year": 2025, "publication_types": ["Review"], "is_open_access": True}})
+    paper = {"title": "Original title", "year": 2024, "external_ids": {"DOI": "10.1000/example"}}
+    metadata.hydrate([paper], fields={"publication_types", "is_open_access"})
+    assert paper["title"] == "Original title" and paper["year"] == 2024
+    assert paper["publication_types"] == ["Review"] and paper["is_open_access"]
+
+
 def test_crossref_outage_does_not_repeat_for_every_missing_doi(monkeypatch):
     calls = []
     monkeypatch.setattr(cr, "_retry_at", 0)

@@ -46,6 +46,37 @@ def test_custom_capacity_does_not_change_builtin_qwen_limit(monkeypatch):
     assert seen == [2]
 
 
+def test_token_budget_splits_long_documents_without_dropping_any(monkeypatch):
+    monkeypatch.setattr(relevance, "DASHSCOPE_TOKEN_BUDGET", 2000)
+    seen = []
+    def remote(query, batch, top_n, intent):
+        seen.append(len(batch))
+        for paper in batch:
+            paper["_rerank_score"] = .5
+        return batch
+    monkeypatch.setattr(relevance, "_remote_batch", remote)
+    papers = [{"title": str(i), "abstract": "长文本" * 500} for i in range(4)]
+    assert len(relevance.rerank("query", papers, 4)) == 4
+    assert seen == [1, 1, 1, 1]
+
+
+def test_provider_size_rejection_splits_on_same_model(monkeypatch):
+    monkeypatch.setattr(config, "RERANK_URL", "http://localhost/rerank")
+    seen = []
+    def post(url, **kwargs):
+        body = kwargs["json"]
+        seen.append(len(body["documents"]))
+        if len(body["documents"]) > 2:
+            return httpx.Response(400, text="maximum input token limit exceeded", request=httpx.Request("POST", url))
+        return httpx.Response(200, json={"results": [
+            {"index": i, "relevance_score": .5} for i in range(len(body["documents"]))
+        ]}, request=httpx.Request("POST", url))
+    monkeypatch.setattr(httpx, "post", post)
+    result = relevance.rerank("q", [{"title": str(i)} for i in range(5)], 5)
+    assert len(result) == 5 and {p["_reranker_provider"] for p in result} == {"custom"}
+    assert seen == [5, 2, 3, 1, 2]
+
+
 def test_custom_endpoint_does_not_inherit_cloud_credentials(monkeypatch):
     monkeypatch.setattr(config, "RERANK_URL", "http://127.0.0.1:9010/rerank")
     monkeypatch.setattr(config, "RERANK_MODEL", "local-model")
@@ -104,6 +135,9 @@ def test_document_keeps_publication_date_without_year():
 
 def test_local_model_failure_does_not_erase_papers_or_keep_old_provenance(monkeypatch):
     def broken_ranker(**kwargs):
+        from pathlib import Path
+        assert kwargs["log_level"] == "WARNING"
+        assert Path(kwargs["cache_dir"]) == Path(config.DATA_DIR) / "models"
         raise OSError("cannot load model")
 
     monkeypatch.setitem(sys.modules, "flashrank", SimpleNamespace(Ranker=broken_ranker, RerankRequest=object))

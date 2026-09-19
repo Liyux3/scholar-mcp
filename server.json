@@ -20,8 +20,14 @@
       },
       "runtimeArguments": [
         {
-          "type": "positional",
-          "value": "scholar-mcp"
+          "type": "named",
+          "name": "--python",
+          "value": "3.12"
+        },
+        {
+          "type": "named",
+          "name": "--with",
+          "value": "scholar-mcp[rerank]==0.8.5"
         }
       ],
       "environmentVariables": [

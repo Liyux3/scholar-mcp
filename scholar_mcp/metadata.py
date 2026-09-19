@@ -6,6 +6,10 @@ import re
 from . import crossref_client as crossref, openalex_client as oa, relevance
 from .cache import cached
 
+# Shared leaf-I/O workers. Orchestration never runs in this pool, avoiding
+# recursive fan-out deadlocks and one new executor per graph neighborhood.
+_lookup_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="scholar-metadata")
+
 
 @cached(ttl=3600)
 def _bibliographic(text: str, title: str, author: str, year: str, page: str) -> dict | None:
@@ -93,23 +97,42 @@ def _batch_dois(dois: list[str]) -> dict[str, dict]:
     return result
 
 
-def hydrate(papers: list[dict]) -> list[dict]:
-    pending = [p for p in papers if p.get("_needs_metadata") or not p.get("title")]
-    if not pending:
-        return papers
-    dois = list(dict.fromkeys(crossref.doi_id((p.get("external_ids") or {}).get("DOI", "")).casefold()
-                             for p in pending if not p.get("_title_conflict")))
-    resolved = _batch_dois([doi for doi in dois if doi])
-    pmids = list(dict.fromkeys(str((p.get("external_ids") or {}).get("PMID") or (p.get("external_ids") or {}).get("PubMed") or "") for p in pending))
+@cached(ttl=3600)
+def _batch_pmids(pmids: list[str]) -> dict[str, dict]:
     from . import europepmc_client as epmc
     med = {}
-    pmids = [pid for pid in pmids if pid.isdigit()]
     for offset in range(0, len(pmids), 40):
         query = "(" + " OR ".join(f"EXT_ID:{pid}" for pid in pmids[offset:offset + 40]) + ") AND SRC:MED"
         try:
             med.update({str(item.get("id")): epmc.format_paper(item) for item in epmc._request(query, 100)})
         except Exception:
             break
+    return med
+
+
+def needs_metadata(paper: dict, fields: set[str] | None = None) -> bool:
+    if paper.get("_needs_metadata") or not paper.get("title"):
+        return True
+    for field in fields or ():
+        if field == "is_open_access":
+            if not (paper.get("is_open_access") or paper.get("open_access_url")):
+                return True
+        elif not paper.get(field):
+            return True
+    return False
+
+
+def hydrate(papers: list[dict], fields: set[str] | None = None) -> list[dict]:
+    pending = [p for p in papers if needs_metadata(p, fields)]
+    if not pending:
+        return papers
+    dois = list(dict.fromkeys(crossref.doi_id((p.get("external_ids") or {}).get("DOI", "")).casefold()
+                             for p in pending if not p.get("_title_conflict")))
+    pmids = list(dict.fromkeys(str((p.get("external_ids") or {}).get("PMID") or (p.get("external_ids") or {}).get("PubMed") or "") for p in pending))
+    # Start independent native batches together. arXiv and bibliographic
+    # lookups below can progress while either catalog is still responding.
+    doi_future = _lookup_pool.submit(_batch_dois, [doi for doi in dois if doi])
+    pmid_future = _lookup_pool.submit(_batch_pmids, [pid for pid in pmids if pid.isdigit()])
 
     def lookup(paper):
         ids = paper.get("external_ids") or {}
@@ -122,10 +145,10 @@ def hydrate(papers: list[dict]) -> list[dict]:
                 if doi:
                     return _doi(doi)
             pmid = str(ids.get("PMID") or ids.get("PubMed") or "")
-            if med.get(pmid):
-                return med[pmid]
+            if pmid and (found := pmid_future.result().get(pmid)):
+                return found
             if doi:
-                return resolved.get(doi) or _doi(doi)
+                return doi_future.result().get(doi) or _doi(doi)
             if ids.get("ArXiv"):
                 # Native arXiv metadata resolves identifiers outside DOI catalogs.
                 from .arxiv_client import get_paper
@@ -140,32 +163,36 @@ def hydrate(papers: list[dict]) -> list[dict]:
     # Deduplicate work across relation providers before issuing exact lookups.
     unique = {}
     for paper in pending:
-        ids = paper.get("external_ids") or {}
-        key = str(ids.get("DOI") or ids.get("ArXiv") or ("PMID:" + str(ids["PMID"]) if ids.get("PMID") else "") or paper.get("_reference") or paper.get("title"))
+        ids = relevance._external_ids(paper)
+        key = next((f"{kind}:{relevance._normalized_identifier(kind, ids[kind])}"
+                    for kind in ("DOI", "ArXiv", "PubMed") if ids.get(kind)),
+                   str(paper.get("_reference") or paper.get("title")))
         unique.setdefault(key, []).append(paper)
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        groups = list(unique.values())
-        for group, found in zip(groups, pool.map(lookup, (g[0] for g in groups))):
-            if not found:
-                continue
-            for paper in group:
-                # Metadata resolution does not create another independent search vote.
-                for key in ("title", "authors", "abstract", "year", "venue", "publication_date",
-                            "citation_count", "_citation_count_known", "open_access_url", "is_open_access", "url"):
-                    if key in {"citation_count", "_citation_count_known"}:
-                        if not found.get("_citation_count_known"):
-                            continue
-                        if key == "citation_count" and (paper.get("citation_count") or 0) > (found.get(key) or 0):
-                            continue
-                    if found.get(key) is not None and (not paper.get(key) or key in {"citation_count", "_citation_count_known"}
-                                                       or key in {"title", "authors", "abstract", "year", "publication_date", "open_access_url", "url"}
-                                                       and paper.get("_title_conflict") and found.get(key)):
-                        paper[key] = deepcopy(found[key])
-                paper["external_ids"] = {**found.get("external_ids", {}), **paper.get("external_ids", {})}
-                if not paper.get("paper_id") and found.get("paper_id"):
-                    paper["paper_id"] = found["paper_id"]
-                paper["paper_id"] = relevance.best_paper_id(paper)
-                paper["_metadata_source"] = found.get("source")
-                paper.pop("_needs_metadata", None)
-                paper.pop("_title_conflict", None)
+    groups = list(unique.values())
+    futures = [_lookup_pool.submit(lookup, group[0]) for group in groups]
+    for group, future in zip(groups, futures):
+        found = future.result()
+        if not found:
+            continue
+        for paper in group:
+            # Metadata resolution does not create another independent search vote.
+            for key in ("title", "authors", "abstract", "year", "venue", "publication_date",
+                        "citation_count", "_citation_count_known", "open_access_url", "is_open_access", "url",
+                        "publication_types", "fields_of_study"):
+                if key in {"citation_count", "_citation_count_known"}:
+                    if not found.get("_citation_count_known"):
+                        continue
+                    if key == "citation_count" and (paper.get("citation_count") or 0) > (found.get(key) or 0):
+                        continue
+                if found.get(key) is not None and (not paper.get(key) or key in {"citation_count", "_citation_count_known"}
+                                                   or key in {"title", "authors", "abstract", "year", "publication_date", "open_access_url", "url"}
+                                                   and paper.get("_title_conflict") and found.get(key)):
+                    paper[key] = deepcopy(found[key])
+            paper["external_ids"] = {**found.get("external_ids", {}), **paper.get("external_ids", {})}
+            if not paper.get("paper_id") and found.get("paper_id"):
+                paper["paper_id"] = found["paper_id"]
+            paper["paper_id"] = relevance.best_paper_id(paper)
+            paper["_metadata_source"] = found.get("source")
+            paper.pop("_needs_metadata", None)
+            paper.pop("_title_conflict", None)
     return papers

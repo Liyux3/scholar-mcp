@@ -127,6 +127,26 @@ def test_metadata_batch_is_low_priority(monkeypatch):
     assert captured["allow_probe"] is False
 
 
+def test_metadata_batches_preserve_tail_and_partial_progress(monkeypatch):
+    seen = []
+    def post(url, **kwargs):
+        ids = kwargs["json_data"]["ids"]
+        seen.append(len(ids))
+        return [{"paperId": identifier} for identifier in ids]
+    monkeypatch.setattr(s2_client, "_post", post)
+    ids = [f"CorpusId:{i}" for i in range(501)]
+    results = s2_client.get_papers_batch(ids)
+    assert seen == [500, 1] and len(results) == 501
+    assert results[-1]["paperId"] == "CorpusId:500"
+
+    def overload(url, **kwargs):
+        if len(kwargs["json_data"]["ids"]) == 1:
+            raise s2_client.S2CooldownError()
+        return post(url, **kwargs)
+    monkeypatch.setattr(s2_client, "_post", overload)
+    assert len(s2_client.get_papers_batch(ids)) == 500
+
+
 def test_search_papers(monkeypatch):
     captured = {}
 

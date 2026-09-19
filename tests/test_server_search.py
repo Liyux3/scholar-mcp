@@ -6,6 +6,28 @@ import yaml
 from scholar_mcp import server
 
 
+def test_strict_type_and_open_access_filters_apply_to_every_source(monkeypatch):
+    papers = [
+        {"title": "Allowed review", "publication_types": ["review"], "is_open_access": True},
+        {"title": "Paywalled review", "publication_types": ["Review"], "is_open_access": False},
+        {"title": "Wrong type", "publication_types": ["Conference"], "is_open_access": True},
+        {"title": "Unknown type", "is_open_access": True},
+    ]
+    monkeypatch.setattr(server, "_pipeline", lambda *a, **kw: (papers, []))
+    result = yaml.safe_load(server.search_papers("topic", paper_types="Review", open_access_only=True))
+    assert [p["title"] for p in result["results"]] == ["Allowed review"]
+
+
+def test_type_filter_uses_adapter_aliases_and_preserves_duplicates_evidence(monkeypatch):
+    papers = [
+        {"title": "Same paper", "external_ids": {"DOI": "10.1000/x"}, "publication_types": ["journal-article"]},
+        {"title": "Same paper", "external_ids": {"DOI": "10.1000/x"}, "publication_types": ["Review"]},
+    ]
+    monkeypatch.setattr(server, "_pipeline", lambda *a, **kw: (papers, []))
+    result = yaml.safe_load(server.search_papers("topic", paper_types="JournalArticle"))
+    assert len(result["results"]) == 1
+
+
 def test_search_date_sort_handles_mixed_source_types(monkeypatch):
     """Date sorting must compare one normalized type across source schemas.
 

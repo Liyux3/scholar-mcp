@@ -145,6 +145,9 @@ def format_paper(work: dict) -> dict | None:
         "is_open_access": is_oa,
         "open_access_url": pdf_url,
         "fields_of_study": topics,
+        "publication_types": (["JournalArticle"] if work.get("type") == "article" and source.get("type") == "journal"
+                              else ["Conference"] if work.get("type") == "article" and source.get("type") == "conference"
+                              else [work["type"]] if work.get("type") else []),
         "publication_date": pub_date[:10] if pub_date and len(pub_date) >= 10 else None,
         "tldr": None,
         "external_ids": {**({"DOI": doi} if doi else {}), "OpenAlex": oa_id},

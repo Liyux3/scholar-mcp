@@ -116,6 +116,27 @@ class TestSourceAvailability:
 
 
 class TestParallelSearch:
+    @pytest.mark.parametrize("kind", ["search", "references", "citations"])
+    def test_metadata_starts_before_the_slow_source_finishes(self, isolated_registry, monkeypatch, kind):
+        from threading import Event
+        from scholar_mcp import metadata
+        hydration_started = Event()
+        def slow(*args, **kwargs):
+            assert hydration_started.wait(3), "metadata waited for the slow source"
+            return [{"title": "Slow source paper"}]
+        def hydrate(papers, fields=None):
+            hydration_started.set()
+            papers[0]["title"] = "Resolved early reference"
+            return papers
+        monkeypatch.setattr(metadata, "hydrate", hydrate)
+        method = {"search": "search", "references": "get_references", "citations": "get_citations"}[kind]
+        sources.register(sources.Source(name="fast", **{method: lambda *a, **kw: [{"_needs_metadata": True}]}))
+        sources.register(sources.Source(name="slow", **{method: slow}))
+        call = getattr(sources, "parallel_" + kind)
+        result = call("query-or-id")
+        assert {p["title"] for sr in result for p in sr.results} == {"Resolved early reference", "Slow source paper"}
+        assert all(sr.status == "ok" for sr in result)
+
     def test_reports_status_per_source(self, isolated_registry):
         sources.register(sources.Source(name="ok", search=lambda q, limit, **kw: [{"title": "x"}]))
         sources.register(sources.Source(name="empty", search=lambda q, limit, **kw: []))

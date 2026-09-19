@@ -436,11 +436,8 @@ def test_merge_preserves_source_ranks():
     assert ranks["s2"] == 0 and ranks["openalex"] == 3
 
 
-class TestRerankCapping:
-    """Papers reach rerank concatenated in source order, so capping by list
-    position discards candidates arbitrarily. The DashScope path always
-    pre-ranked by metadata; the FlashRank fallback used to slice.
-    """
+class TestRerankCandidateCoverage:
+    """Batching preserves candidates regardless of provider arrival order."""
 
     def _pool(self, n=200, n_good=40):
         """Good papers deliberately placed last, as a low-priority source
@@ -458,16 +455,6 @@ class TestRerankCapping:
                 "_source_count": 3 if good else 1,
             })
         return papers
-
-    def test_pre_rank_cap_keeps_promising_papers(self):
-        capped = relevance._pre_rank_cap(self._pool(), 150)
-        kept = sum(1 for p in capped if p["title"].startswith("good"))
-        assert len(capped) == 150
-        assert kept == 40, f"metadata capping dropped {40 - kept} strong candidates"
-
-    def test_pre_rank_cap_is_a_noop_below_the_cap(self):
-        pool = self._pool(n=10, n_good=2)
-        assert len(relevance._pre_rank_cap(pool, 150)) == 10
 
     def test_flashrank_fallback_scores_every_candidate(self, monkeypatch):
         """Provider batch size does not truncate the candidate pool."""
@@ -579,48 +566,6 @@ class TestContrastPreservation:
              "using bigger datasets.")
         optimized = relevance.optimize_query(q).lower()
         assert "smaller" in optimized, f"claim inverted: {optimized}"
-
-
-class TestPreRankCapReserve:
-    """The cap exists because DashScope accepts at most 500 documents, not to
-    filter on quality. Ordering it by the metadata formula was convenient and
-    made it a citation filter applied before the reranker reads anything,
-    which is the wrong place for a citation preference.
-    """
-
-    def _pool(self, n_old=90, n_new=30):
-        from datetime import datetime
-        year = datetime.now().year
-        old = [{"title": f"old-{i}", "_rerank_score": 0.5, "citation_count": 5000,
-                "year": 2015, "_source_count": 2, "_source_ranks": {"a": i}}
-               for i in range(n_old)]
-        new = [{"title": f"new-{i}", "_rerank_score": 0.5, "citation_count": 5,
-                "year": year, "_source_count": 1, "_source_ranks": {"b": i}}
-               for i in range(n_new)]
-        return old + new
-
-    def test_recent_papers_survive_a_citation_heavy_pool(self):
-        capped = relevance._pre_rank_cap(self._pool(), 100)
-        kept_new = sum(1 for p in capped if p["title"].startswith("new"))
-        assert kept_new >= 20, (
-            f"only {kept_new} recent papers survived; a pool of 5000-citation "
-            "papers should not evict everything published this year")
-
-    def test_cap_is_exact(self):
-        assert len(relevance._pre_rank_cap(self._pool(), 100)) == 100
-
-    def test_no_op_below_the_cap(self):
-        pool = self._pool(n_old=5, n_new=5)
-        assert len(relevance._pre_rank_cap(pool, 100)) == 10
-
-    def test_fills_the_reserve_when_nothing_is_recent(self):
-        """An all-old pool must still fill the cap rather than underfill it."""
-        pool = self._pool(n_old=200, n_new=0)
-        assert len(relevance._pre_rank_cap(pool, 100)) == 100
-
-    def test_returns_no_duplicates(self):
-        capped = relevance._pre_rank_cap(self._pool(), 100)
-        assert len({p["title"] for p in capped}) == len(capped)
 
 
 class TestChannelVsPhysicalSources:

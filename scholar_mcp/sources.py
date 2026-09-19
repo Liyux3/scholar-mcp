@@ -72,6 +72,7 @@ _registry: dict[str, Source] = {}
 # allowing background work to grow without bound.
 SEARCH_WORKERS = 32
 _search_pool = ThreadPoolExecutor(max_workers=SEARCH_WORKERS)
+_metadata_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="scholar-hydration")
 
 
 def register(source: Source):
@@ -158,6 +159,13 @@ def _timed_call(source_name: str, fn: Callable, *args, **kwargs) -> SourceResult
         return SourceResult(source_name, status, [], ms, f"{type(e).__name__}: {e}")
 
 
+def _prepare_metadata(result: SourceResult, pending: list, fields: set[str] | None = None) -> None:
+    """Overlap completed-source hydration with the remaining source requests."""
+    from .metadata import hydrate, needs_metadata
+    if any(needs_metadata(paper, fields) for paper in result.results):
+        pending.append(_metadata_pool.submit(hydrate, result.results, fields))
+
+
 def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_query: str = "",
                     budget_s: float | None = None, **kwargs) -> list[SourceResult]:
     """Query every available source concurrently and collect their results.
@@ -208,13 +216,21 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
         return query
 
     results = []
+    pending_metadata = []
+    fields = set()
+    if kwargs.get("publication_types"):
+        fields.add("publication_types")
+    if kwargs.get("open_access_only"):
+        fields.add("is_open_access")
     futures = {
         _search_pool.submit(_timed_call, s.name, s.search, _pick_query(s), limit, **kwargs): s.name
         for s in sources
     }
     try:
         for future in as_completed(futures, timeout=budget_s):
-            results.append(future.result())
+            result = future.result()
+            results.append(result)
+            _prepare_metadata(result, pending_metadata, fields)
     except FutureTimeoutError:
         elapsed_ms = int(budget_s * 1000)
         answered = {r.source for r in results}
@@ -231,6 +247,8 @@ def parallel_search(query: str, limit: int = 100, raw_query: str = "", short_que
         for future in futures:
             if not future.done():
                 future.cancel()
+    for future in pending_metadata:
+        future.result()
     return results
 
 
@@ -243,39 +261,30 @@ def parallel_citations(paper_id: str, limit: int = 20, title: str = "") -> list[
     citation source. S2 orders citations by recency, which is why the graph
     for a 2017 landmark came back full of 2026 papers with one citation each.
     """
-    sources = citation_sources()
-    if not sources:
-        return []
-    results = []
-    with ThreadPoolExecutor(max_workers=min(len(sources), 6)) as pool:
-        futures = {
-            pool.submit(_timed_call, s.name, s.get_citations, paper_id,
-                        limit=limit, title=title): s.name
-            for s in sources
-        }
-        for future in as_completed(futures):
-            results.append(future.result())
-    return _hydrate_relations(results)
+    return _parallel_relations(citation_sources(), "get_citations", paper_id, limit, title=title)
 
 
 def parallel_references(paper_id: str, limit: int = 20) -> list[SourceResult]:
-    sources = reference_sources()
-    if not sources:
+    return _parallel_relations(reference_sources(), "get_references", paper_id, limit)
+
+
+def _parallel_relations(registered: list[Source], method: str, paper_id: str,
+                        limit: int, **kwargs) -> list[SourceResult]:
+    if not registered:
         return []
     results = []
-    with ThreadPoolExecutor(max_workers=min(len(sources), 6)) as pool:
+    pending_metadata = []
+    with ThreadPoolExecutor(max_workers=min(len(registered), 6)) as pool:
         futures = {
-            pool.submit(_timed_call, s.name, s.get_references, paper_id, limit=limit): s.name
-            for s in sources
+            pool.submit(_timed_call, source.name, getattr(source, method), paper_id,
+                        limit=limit, **kwargs): source.name for source in registered
         }
         for future in as_completed(futures):
-            results.append(future.result())
-    return _hydrate_relations(results)
-
-
-def _hydrate_relations(results: list[SourceResult]) -> list[SourceResult]:
-    from .metadata import hydrate
-    hydrate([paper for result in results for paper in result.results])
+            result = future.result()
+            results.append(result)
+            _prepare_metadata(result, pending_metadata)
+    for future in pending_metadata:
+        future.result()
     for result in results:
         unresolved = sum(not paper.get("title") for paper in result.results)
         if unresolved:

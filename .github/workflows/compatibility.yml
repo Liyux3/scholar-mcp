@@ -2,6 +2,8 @@ name: Portable runtime
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main, codex/scholar-v0.8-release]
   pull_request:
     branches: [main]
 
@@ -41,4 +43,6 @@ jobs:
           $wheel = Get-ChildItem dist/*.whl | Select-Object -First 1
           $env:SCHOLAR_PACKAGE = "scholar-mcp[rerank] @ " + ([Uri]$wheel.FullName).AbsoluteUri
           & ./scripts/launch.ps1 --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ./scripts/launch.cmd --help
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

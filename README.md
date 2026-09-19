@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
-  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbInNjaG9sYXItbWNwIl19fQ=="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
-  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
+  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%22%2C%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
+  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZnJvbSIsInNjaG9sYXItbWNwW3JlcmFua10iLCJzY2hvbGFyLW1jcCJdfX0="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
+  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
 </p>
 
@@ -57,7 +57,7 @@ Agents call typed MCP tools over stdio or Streamable HTTP. Scholar returns conci
 Claude Code:
 
 ```bash
-claude mcp add scholar -- uvx scholar-mcp
+claude mcp add scholar -- uvx --python 3.12 --from 'scholar-mcp[rerank]' scholar-mcp
 ```
 
 Claude Desktop or any stdio MCP client:
@@ -67,13 +67,13 @@ Claude Desktop or any stdio MCP client:
   "mcpServers": {
     "scholar": {
       "command": "uvx",
-      "args": ["scholar-mcp"]
+      "args": ["--python", "3.12", "--from", "scholar-mcp[rerank]", "scholar-mcp"]
     }
   }
 }
 ```
 
-The direct server exposes the compact core profile. Python 3.10+ and [uv](https://docs.astral.sh/uv/) are required. Optional source keys unlock deeper coverage and higher throughput.
+The direct server exposes the compact core profile. Install [uv](https://docs.astral.sh/uv/); it prepares Python 3.12 and the CPU reranker automatically. Optional source keys unlock deeper coverage and higher throughput. macOS desktop bundles include Python and dependencies; the [portable launchers](docs/DISTRIBUTION.md#package-and-runtime) also handle machines without uv.
 
 The repository also ships a research plugin with citation graphs, a local paper library, and the Deep Research skill:
 
@@ -124,7 +124,7 @@ Keyword APIs receive measured source-specific query budgets. Semantic endpoints 
 
 Results are canonicalized across DOI, arXiv, Semantic Scholar, OpenAlex, PubMed, and OpenReview identities. Duplicate records contribute complementary metadata and independent source evidence instead of appearing several times.
 
-DashScope `qwen3-rerank` is the primary reranker when configured. Install the `rerank` extra for the FlashRank local fallback: `uvx --from 'scholar-mcp[rerank]' scholar-mcp`. Containers and MCPB bundles include this extra; the local model downloads on first use. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set.
+DashScope `qwen3-rerank` is the primary reranker when configured. Install the `rerank` extra for the FlashRank local fallback: `uvx --from 'scholar-mcp[rerank]' scholar-mcp`. Containers and MCPB bundles include this extra; the local model downloads on first use and stays in the application data directory. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set. Metadata completion overlaps source retrieval, and large pools are scored in batches that respect the model service's document and token limits.
 
 <details>
 <summary>Bring your own reranker</summary>

@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import logging
 import os
 import re
 import tempfile
@@ -198,6 +199,8 @@ def _format_paper(p: dict, *, detailed: bool = False, debug: bool = False) -> di
     if p.get("is_open_access") or p.get("open_access_url"):
         out["open_access"] = True
     if detailed:
+        if p.get("publication_types"):
+            out["publication_types"] = relevance.normalize_publication_types(p["publication_types"])
         if p.get("publication_date"):
             out["publication_date"] = p["publication_date"]
         identifiers = p.get("external_ids") or {}
@@ -427,7 +430,13 @@ def search_papers(
     # Enrichment can reveal an identifier linking two previously separate
     # candidates. Merge again before spending the user's result slots on them.
     results = relevance.deduplicate(results)
-    metadata.hydrate(results)
+    required_fields = set()
+    if type_list:
+        required_fields.add("publication_types")
+    if open_access_only:
+        required_fields.add("is_open_access")
+    metadata.hydrate(results, fields=required_fields)
+    results = relevance.deduplicate(results)
 
     if year:
         results = [paper for paper in results if _year_matches(paper, year)]
@@ -444,6 +453,12 @@ def search_papers(
         ]
     if min_citations > 0:
         results = [p for p in results if (p.get("citation_count") or 0) >= min_citations]
+    if type_list:
+        wanted = set(relevance.normalize_publication_types(type_list))
+        results = [p for p in results if wanted.intersection(
+            relevance.normalize_publication_types(p.get("publication_types")))]
+    if open_access_only:
+        results = [p for p in results if p.get("is_open_access") or p.get("open_access_url")]
 
     if any(paper.get("_rerank_score") is not None for paper in results):
         results = relevance.rank_final(results)
@@ -1123,6 +1138,11 @@ _register_structured_yaml_adapters()
 
 
 def main():
+    # HTTPX INFO logs include URLs, and several upstream APIs use query
+    # credentials. Keep them quiet even if an optional library changes root
+    # logging; safe provider diagnostics already flow through debug results.
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
     transport = os.environ.get("SCHOLAR_MCP_TRANSPORT", "stdio").strip().lower()
     if transport in {"http", "streamable-http"}:
         mcp.run(

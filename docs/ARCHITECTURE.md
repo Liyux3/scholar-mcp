@@ -60,12 +60,14 @@ Enrich incomplete CorpusId records when S2 is healthy
 Merge newly linked identities → filters → final results
 ```
 
-Identity matching and merging are local work. External lookups add network
-latency only for unresolved records, with caching and coalesced requests.
-The native hydration pass and S2 snippet enrichment are separate: a known title
-alone does not trigger a native lookup merely because its venue is missing.
-Year, venue, field and citation filters run on the combined results; publication
-type and open-access constraints currently depend on supporting source adapters.
+Identity matching and merging are local work. Each completed source starts its
+metadata work while slower sources are still retrieving. DOI and PMID batches
+also run concurrently with native arXiv and citation lookups, using shared bounded
+workers and coalesced caches. Only unresolved records and fields needed by an
+explicit filter trigger this work. S2 snippet enrichment remains low priority.
+Year, venue, field, citation, publication-type and open-access filters are applied
+to the combined pool before the output limit, including expansion candidates.
+Unknown type or access status cannot satisfy an explicit strict filter.
 
 `sort` selects the final ordering: relevance, citation count, or date.
 `intent` guides semantic reranking and expansion toward a research purpose such
@@ -102,7 +104,9 @@ local reranker can be selected through `SCHOLAR_RERANK_URL`; FlashRank provides
 the portable local fallback when the `rerank` extra is installed. Custom
 endpoints use a separate credential and do not silently fall back to the cloud.
 `SCHOLAR_RERANK_BATCH_SIZE` adapts their per-request capacity without reducing
-the candidate pool. Scores must be comparable across batches from that model;
+the candidate pool. The built-in Qwen adapter also budgets estimated request
+tokens; payload-size rejections split the batch on the same model. Scores must
+be comparable across batches from that model;
 listwise or batch-normalized endpoints require a different adapter contract.
 See the [README](../README.md#retrieval) for the request contract.
 
