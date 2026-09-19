@@ -5,6 +5,9 @@ from pathlib import Path
 import re
 from urllib.parse import parse_qs, urlparse
 import base64
+import importlib.util
+
+import pytest
 
 import yaml
 
@@ -16,6 +19,9 @@ except ModuleNotFoundError:  # Python 3.10; provided by pytest's dependencies.
 from scholar_mcp import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
+WHEEL_INDEX_URL = f"https://github.com/Liyux3/scholar-mcp/releases/download/v{__version__}/wheel-index.html"
+INSTALL_ARGS = ["--python", "3.12", "--find-links", WHEEL_INDEX_URL,
+                "--from", f"scholar-mcp[rerank]=={__version__}", "scholar-mcp"]
 
 
 def _json(path: str):
@@ -40,14 +46,16 @@ def test_release_versions_are_synchronized():
     assert cursor["plugins"][0]["version"] == version
     assert yaml.safe_load((ROOT / "CITATION.cff").read_text())["version"] == version
     smithery = yaml.safe_load((ROOT / "smithery.yaml").read_text())
-    assert f"scholar-mcp=={version}" in smithery["startCommand"]["commandFunction"]
+    assert f"scholar-mcp[rerank]=={version}" in smithery["startCommand"]["commandFunction"]
 
     for path in (
         "plugins/scholar-mcp/.mcp.json",
         "plugins/scholar-mcp/mcp.json",
     ):
         args = _json(path)["mcpServers"]["scholar"]["args"]
-        assert f"scholar-mcp=={version}" in args
+        assert f"scholar-mcp[rerank]=={version}" in args
+        assert args[:2] == ["--python", "3.12"]
+        assert args == INSTALL_ARGS
 
 
 def test_registry_and_release_workflows_are_wired():
@@ -58,7 +66,9 @@ def test_registry_and_release_workflows_are_wired():
     assert package["registryType"] == "pypi"
     assert package["runtimeHint"] == "uvx"
     assert package["runtimeArguments"] == [
-        {"type": "positional", "value": "scholar-mcp"}
+        {"type": "named", "name": "--find-links", "value": WHEEL_INDEX_URL},
+        {"type": "named", "name": "--python", "value": "3.12"},
+        {"type": "named", "name": "--with", "value": f"scholar-mcp[rerank]=={__version__}"},
     ]
 
     publish = (ROOT / ".github/workflows/publish.yml").read_text(encoding="utf-8")
@@ -78,6 +88,11 @@ def test_registry_and_release_workflows_are_wired():
     assert "scripts/smoke_mcpb.py" in mcpb
     bundle = (ROOT / "scripts/build_mcpb.sh").read_text(encoding="utf-8")
     assert "--extra rerank" in bundle
+    manifest = _json("manifest.json")
+    assert manifest["server"]["type"] == "binary"
+    assert manifest["server"]["mcp_config"]["command"] == "${__dirname}/runtime/bin/python3.12"
+    assert "runtimes" not in manifest["compatibility"]
+    assert "UV_PYTHON_INSTALL_DIR" in bundle and "symlinks=False" in bundle
 
 
 def test_readme_contains_valid_one_click_install_urls():
@@ -91,7 +106,7 @@ def test_readme_contains_valid_one_click_install_urls():
     assert json.loads(vscode["config"][0]) == {
         "type": "stdio",
         "command": "uvx",
-        "args": ["scholar-mcp"],
+        "args": INSTALL_ARGS,
     }
 
     cursor_match = re.search(r"cursor://anysphere\.cursor-deeplink/mcp/install\?[^\"]+", readme)
@@ -99,7 +114,7 @@ def test_readme_contains_valid_one_click_install_urls():
     cursor = parse_qs(urlparse(cursor_match.group().replace("&amp;", "&")).query)
     assert cursor["name"] == ["scholar"]
     assert json.loads(base64.b64decode(cursor["config"][0])) == {
-        "scholar": {"command": "uvx", "args": ["scholar-mcp"]}
+        "scholar": {"command": "uvx", "args": INSTALL_ARGS}
     }
 
     kiro_match = re.search(r"https://kiro\.dev/launch/mcp/add\?[^\"]+", readme)
@@ -108,7 +123,22 @@ def test_readme_contains_valid_one_click_install_urls():
     assert kiro["name"] == ["scholar-mcp"]
     assert json.loads(kiro["config"][0]) == {
         "command": "uvx",
-        "args": ["scholar-mcp"],
+        "args": INSTALL_ARGS,
         "disabled": False,
         "autoApprove": [],
     }
+
+
+def test_runtime_wheel_index_requires_both_platforms_and_pins_hashes(tmp_path):
+    from bs4 import BeautifulSoup
+    spec = importlib.util.spec_from_file_location("runtime_constraints", ROOT / "scripts/runtime_wheels.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with pytest.raises(ValueError, match="Both"):
+        module.wheel_index(tmp_path, __version__)
+    for platform in ("macosx_11_0_x86_64", "win_arm64"):
+        (tmp_path / f"cryptography-50.0.1-cp311-abi3-{platform}.whl").write_bytes(b"fixture")
+    links = BeautifulSoup(module.wheel_index(tmp_path, __version__), "html.parser").select("a")
+    assert len(links) == 2
+    assert all("#sha256=" in link["href"] for link in links)
+    assert all("/releases/download/" in link["href"] for link in links)

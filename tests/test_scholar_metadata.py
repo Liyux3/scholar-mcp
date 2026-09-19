@@ -28,6 +28,13 @@ def test_missing_citation_count_stays_unknown():
     assert paper["venue"] == ""
 
 
+def test_title_only_record_survives_and_native_ids_remain_reusable():
+    soup = BeautifulSoup('<div class="gs_ri"><h3 class="gs_rt"><a href="https://arxiv.org/abs/1706.03762v5">Attention Is All You Need</a></h3></div>', "html.parser")
+    paper = scholar_client._parse_paper(soup.div)
+    assert paper["authors"] == [] and paper["year"] is None
+    assert paper["external_ids"] == {"ArXiv": "1706.03762v5"}
+
+
 def test_dedicated_proxy_does_not_change_global_route(monkeypatch):
     monkeypatch.setattr(config, "GOOGLE_SCHOLAR_PROXY", "http://local-proxy:9000")
     monkeypatch.setattr(scholar_client.time, "sleep", lambda *_: None)
@@ -53,7 +60,6 @@ def test_dedicated_proxy_does_not_change_global_route(monkeypatch):
 
 
 def test_paginated_request_retains_cookie_and_classifies_inline_challenge(monkeypatch):
-    import pytest
     real_client = httpx.Client
     monkeypatch.setattr(scholar_client.time, "sleep", lambda *_: None)
     cookies = []
@@ -70,6 +76,6 @@ def test_paginated_request_retains_cookie_and_classifies_inline_challenge(monkey
         return real_client(**kwargs, transport=httpx.MockTransport(respond))
 
     monkeypatch.setattr(httpx, "Client", client)
-    with pytest.raises(scholar_client.BlockedError):
-        scholar_client.search_papers("query", max_results=2)
+    papers = scholar_client.search_papers("query", max_results=2)
+    assert len(papers) == 1 and papers.partial_warning
     assert cookies == ["", "scholar_session=example"]

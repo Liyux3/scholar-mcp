@@ -7,6 +7,8 @@ build/
 *.pdf
 downloads/
 mcpb-build/
+.compat-wheels/
+runtime-requirements.txt
 .DS_Store
 .flashrank_cache/
 .claude/

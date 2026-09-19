@@ -111,7 +111,7 @@ def test_output_format_matches_s2():
     expected_keys = {
         "paper_id", "title", "authors", "abstract", "year", "venue",
         "citation_count", "_citation_count_known", "influential_citations", "is_open_access",
-        "open_access_url", "fields_of_study", "publication_date",
+        "open_access_url", "fields_of_study", "publication_types", "publication_date",
         "tldr", "external_ids", "url", "source",
     }
     assert expected_keys == set(result.keys())

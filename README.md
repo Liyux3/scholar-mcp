@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
-  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbInNjaG9sYXItbWNwIl19fQ=="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
-  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
+  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.8.5%22%2C%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
+  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZmluZC1saW5rcyIsImh0dHBzOi8vZ2l0aHViLmNvbS9MaXl1eDMvc2Nob2xhci1tY3AvcmVsZWFzZXMvZG93bmxvYWQvdjAuOC41L3doZWVsLWluZGV4Lmh0bWwiLCItLWZyb20iLCJzY2hvbGFyLW1jcFtyZXJhbmtdPT0wLjguNSIsInNjaG9sYXItbWNwIl19fQ=="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
+  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.8.5%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
 </p>
 
@@ -57,7 +57,9 @@ Agents call typed MCP tools over stdio or Streamable HTTP. Scholar returns conci
 Claude Code:
 
 ```bash
-claude mcp add scholar -- uvx scholar-mcp
+claude mcp add scholar -- uvx --python 3.12 \
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html \
+  --from 'scholar-mcp[rerank]==0.8.5' scholar-mcp
 ```
 
 Claude Desktop or any stdio MCP client:
@@ -67,13 +69,17 @@ Claude Desktop or any stdio MCP client:
   "mcpServers": {
     "scholar": {
       "command": "uvx",
-      "args": ["scholar-mcp"]
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html",
+        "--from", "scholar-mcp[rerank]==0.8.5", "scholar-mcp"
+      ]
     }
   }
 }
 ```
 
-The direct server exposes the compact core profile. Python 3.10+ and [uv](https://docs.astral.sh/uv/) are required. Optional source keys unlock deeper coverage and higher throughput.
+The direct server exposes the compact core profile. Install [uv](https://docs.astral.sh/uv/); it prepares Python 3.12 and the CPU reranker automatically. Optional source keys unlock deeper coverage and higher throughput. macOS desktop bundles include Python and dependencies; the [portable launchers](docs/DISTRIBUTION.md#package-and-runtime) also handle machines without uv.
 
 The repository also ships a research plugin with citation graphs, a local paper library, and the Deep Research skill:
 
@@ -124,7 +130,7 @@ Keyword APIs receive measured source-specific query budgets. Semantic endpoints 
 
 Results are canonicalized across DOI, arXiv, Semantic Scholar, OpenAlex, PubMed, and OpenReview identities. Duplicate records contribute complementary metadata and independent source evidence instead of appearing several times.
 
-DashScope `qwen3-rerank` is the primary reranker when configured. Install the `rerank` extra for the FlashRank local fallback: `uvx --from 'scholar-mcp[rerank]' scholar-mcp`. Containers and MCPB bundles include this extra; the local model downloads on first use. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set.
+DashScope `qwen3-rerank` is the primary reranker when configured. Install the `rerank` extra for the FlashRank local fallback: `uvx --from 'scholar-mcp[rerank]' scholar-mcp`. Containers and MCPB bundles include this extra; the local model downloads on first use and stays in the application data directory. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set. Metadata completion overlaps source retrieval, and large pools are scored in batches that respect the model service's document and token limits.
 
 <details>
 <summary>Bring your own reranker</summary>
@@ -136,7 +142,7 @@ Request:  query, documents, top_n, model
 Response: results: [{index, relevance_score}]
 ```
 
-Scores must be finite and in `[0, 1]`. Raw logits need model-specific normalization in the serving backend. Changing models can change the balance with citation and recency ranking. A custom endpoint replaces DashScope and falls back only to the local model.
+Scores must be finite and in `[0, 1]`, with each query-document score comparable across batches. Raw logits need model-specific normalization in the serving backend. Changing models can change the balance with citation and recency ranking. A custom endpoint replaces DashScope and falls back only to the local model. Set `SCHOLAR_RERANK_BATCH_SIZE` to its per-request document capacity (default 500). Larger candidate pools are scored in batches, not discarded at that limit.
 
 </details>
 
@@ -145,9 +151,9 @@ Normal responses focus on papers, with a short warning if availability affected 
 <details>
 <summary>Google Scholar session recovery</summary>
 
-With Chrome and ffmpeg installed, run `uvx --from 'scholar-mcp[google]' scholar-mcp` to enable automatic verification recovery. A short-lived browser establishes the session, then ordinary HTTP handles searches and pagination. It uses a fresh browser profile, never your personal Chrome profile, and online audio recognition rather than a local model.
+With Chrome, Edge, or Chromium and ffmpeg installed, select `scholar-mcp[google,rerank]==0.8.5` in the quick-start configuration to enable automatic verification recovery. A short-lived browser establishes the session, then ordinary HTTP handles searches and pagination. It uses a fresh browser profile, never your personal browser profile, and online audio recognition rather than a local model. Auto mode tries headless first; on macOS, a declined challenge can retry in a hidden browser without activating it.
 
-Sessions are stored privately under `<data>/sessions/` and tied to the configured proxy. A cold search can wait up to 150 seconds for the bounded recovery worker and the subsequent search. Warm sessions use the normal budget. Set `SCHOLAR_GOOGLE_RECOVERY=off` to disable browser recovery. Headless servers need a graphical display for this optional path. Google can still refuse a connection; failed recovery is reported and briefly backed off.
+Sessions are stored privately under `<data>/sessions/` and tied to the configured proxy. A cold search can wait up to 150 seconds for the bounded recovery worker and the subsequent search. Warm sessions use the normal budget. Set `SCHOLAR_GOOGLE_RECOVERY=off` to disable recovery, `headless` to require strictly headless operation, or `headed` to explicitly allow a visible verification window. `SCHOLAR_GOOGLE_BROWSER` selects a browser executable outside standard install locations. No browser is downloaded at server startup. If pagination is interrupted, completed pages remain usable and the response reports partial coverage. Failed recovery backs off while retaining the last verified session.
 
 </details>
 
@@ -234,6 +240,7 @@ All credentials are optional and remain in the MCP process environment.
 | `DASHSCOPE_API_KEY` | Qwen reranker |
 | `SCHOLAR_RERANK_URL`, `SCHOLAR_RERANK_MODEL`, `SCHOLAR_RERANK_API_KEY` | Compatible hosted or local reranker; separate credential |
 | `SCHOLAR_RERANK_TIMEOUT` | Custom reranker request timeout; default 120 seconds |
+| `SCHOLAR_RERANK_BATCH_SIZE` | Custom reranker's per-request document capacity; default 500 |
 | `SCHOLAR_GOOGLE_PROXY` | Dedicated Google Scholar proxy; other sources keep their existing route |
 | `SCOPUS_API_KEY` | Optional Scopus metadata source |
 | `CORE_API_KEY` | Optional CORE repository source |

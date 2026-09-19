@@ -71,7 +71,7 @@ def enrich_metadata(papers: list[dict]) -> None:
     fields = (
         "paper_id", "authors", "year", "venue", "citation_count",
         "_citation_count_known", "influential_citations", "is_open_access",
-        "open_access_url", "fields_of_study", "publication_date", "tldr", "url",
+        "open_access_url", "fields_of_study", "publication_types", "publication_date", "tldr", "url",
     )
     for paper, raw in zip(targets, details):
         if not raw:

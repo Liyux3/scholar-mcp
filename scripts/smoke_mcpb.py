@@ -6,10 +6,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 from pathlib import Path
 import stat
-import sys
+import subprocess
 import tempfile
 import zipfile
 
@@ -38,6 +37,12 @@ def safe_extract(bundle: Path, destination: Path) -> None:
             if mode == stat.S_IFLNK:
                 raise RuntimeError(f"MCPB symlink member: {member.filename}")
         archive.extractall(destination)
+        for member in archive.infolist():
+            # zipfile extracts bytes but does not restore executable bits.
+            # Never restore setuid/setgid or permissions on a symlink.
+            mode = (member.external_attr >> 16) & 0o777
+            if mode:
+                (destination / member.filename).chmod(mode)
 
 
 async def smoke(bundle: Path) -> dict:
@@ -53,11 +58,25 @@ async def smoke(bundle: Path) -> dict:
         home = root / "home"
         home.mkdir()
         environment = clean_environment(home)
-        environment["PYTHONPATH"] = os.pathsep.join((str(source), str(vendor)))
+        launch = manifest["server"]["mcp_config"]
+        defaults = {name: value.get("default", "") for name, value in manifest.get("user_config", {}).items()}
+        def expand(value):
+            value = value.replace("${__dirname}", str(unpacked)).replace("${HOME}", str(home))
+            for name, default in defaults.items():
+                value = value.replace("${user_config." + name + "}", str(default).replace("${HOME}", str(home)))
+            return value
+        environment.update({key: expand(value) for key, value in launch.get("env", {}).items()})
+        command = Path(expand(launch["command"]))
+        if not command.is_relative_to(unpacked) or not command.is_file():
+            raise RuntimeError("MCPB must launch its bundled interpreter")
+        # Prove both relocation and native PDF/reranker imports, without
+        # downloading or loading any model weights.
+        subprocess.run([str(command), "-c", "import sys,onnxruntime,pypdfium2; print(sys.prefix)"],
+                       cwd=root, env=environment, check=True, capture_output=True, timeout=60)
         protocol = await inspect_server(
-            Path(sys.executable),
+            command,
             environment,
-            ["-m", "scholar_mcp"],
+            [expand(arg) for arg in launch.get("args", [])],
         )
         if protocol["server_version"] != manifest["version"]:
             raise RuntimeError("MCPB manifest and server versions differ")

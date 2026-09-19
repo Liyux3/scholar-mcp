@@ -55,7 +55,7 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
         response = httpx.get(ARXIV_API_URL, params=params, timeout=15)
         response.raise_for_status()
     except httpx.HTTPStatusError as error:
-        if error.response.status_code not in (403, 429, 500, 502, 503, 504):
+        if error.response.status_code not in (403, 406, 429, 500, 502, 503, 504):
             raise
         return _search_web(query, max_results)
     except httpx.TransportError:

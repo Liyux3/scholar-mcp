@@ -38,6 +38,37 @@ requested filters. arXiv DOI aliases and author-backed redeposit matches keep
 one work from occupying multiple result slots; conflicting titles are checked
 against native identifier records.
 
+```text
+Source records and citation references
+    ↓
+Normalize DOI, arXiv versions and identifier aliases
+    ↓
+Match shared identifiers, then compatible exact titles
+    ↓
+Merge metadata and retain independent source provenance
+    ↓
+Resolve missing titles and conflicting records only
+    ├─ DOI → OpenAlex batches → exact Crossref fallback
+    ├─ PMID → Europe PMC batches
+    ├─ arXiv → native record
+    └─ citation text → validated bibliographic match
+    ↓
+Rank and follow connections
+    ↓
+Enrich incomplete CorpusId records when S2 is healthy
+    ↓
+Merge newly linked identities → filters → final results
+```
+
+Identity matching and merging are local work. Each completed source starts its
+metadata work while slower sources are still retrieving. DOI and PMID batches
+also run concurrently with native arXiv and citation lookups, using shared bounded
+workers and coalesced caches. Only unresolved records and fields needed by an
+explicit filter trigger this work. S2 snippet enrichment remains low priority.
+Year, venue, field, citation, publication-type and open-access filters are applied
+to the combined pool before the output limit, including expansion candidates.
+Unknown type or access status cannot satisfy an explicit strict filter.
+
 `sort` selects the final ordering: relevance, citation count, or date.
 `intent` guides semantic reranking and expansion toward a research purpose such
 as foundational work, recent work, methods, surveys, or datasets.
@@ -62,7 +93,10 @@ configurable 30-second budget; pending work can be cancelled when it expires.
 arXiv can fall back from Atom to its own HTTPS search. DBLP completes bounded
 same-origin verification redirects. The optional Google recovery worker runs
 in a separate process, saves a private route-bound session and exits; normal
-searches reuse that session through HTTP. A cold default fan-out allows 150
+searches reuse that session through HTTP. Recovery starts headless; macOS can
+retry a declined challenge with a hidden, non-activating desktop browser.
+Only `SCHOLAR_GOOGLE_RECOVERY=headed` permits a visible browser. Missing optional
+browser dependencies do not prevent the MCP server from starting. A cold default fan-out allows 150
 seconds for this setup. Warm Google searches receive a page-count-aware budget
 up to 120 seconds. Explicit caller budgets remain authoritative.
 
@@ -70,6 +104,11 @@ DashScope `qwen3-rerank` is the configured cloud default. A compatible hosted or
 local reranker can be selected through `SCHOLAR_RERANK_URL`; FlashRank provides
 the portable local fallback when the `rerank` extra is installed. Custom
 endpoints use a separate credential and do not silently fall back to the cloud.
+`SCHOLAR_RERANK_BATCH_SIZE` adapts their per-request capacity without reducing
+the candidate pool. The built-in Qwen adapter also budgets estimated request
+tokens; payload-size rejections split the batch on the same model. Scores must
+be comparable across batches from that model;
+listwise or batch-normalized endpoints require a different adapter contract.
 See the [README](../README.md#retrieval) for the request contract.
 
 Reranker responses are validated before candidate scores are updated. Final

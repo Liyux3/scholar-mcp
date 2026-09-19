@@ -71,6 +71,7 @@ def format_paper(data: dict, pmid: str) -> dict:
         "is_open_access": False,
         "open_access_url": None,
         "fields_of_study": [],
+        "publication_types": data.get("pubtype") or [],
         "publication_date": pub_date[:10] if len(pub_date) >= 10 else None,
         "tldr": None,
         "external_ids": {"DOI": doi, "PMID": pmid} if doi else {"PMID": pmid},

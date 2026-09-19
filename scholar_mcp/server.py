@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import logging
 import os
 import re
 import tempfile
@@ -137,8 +138,9 @@ def _pipeline(
     if not all_papers:
         return [], source_reports
 
+    required_fields = metadata.filter_fields(kwargs)
     all_papers = relevance.deduplicate(all_papers)
-    metadata.hydrate(all_papers)
+    metadata.hydrate(all_papers, fields=required_fields)
 
     if rerank_query:
         all_papers = relevance.rerank(rerank_query, all_papers, top_n=len(all_papers), intent=intent)
@@ -150,6 +152,7 @@ def _pipeline(
                 intent=intent,
                 per_seed_limit=expand_limit,
                 channels=expand_channels,
+                metadata_fields=required_fields,
             )
             found = [p for papers in by_channel.values() for p in papers]
 
@@ -158,7 +161,7 @@ def _pipeline(
                     relevance.tag_source_ranks([p], "expansion")
                 all_papers.extend(found)
                 all_papers = relevance.deduplicate(all_papers)
-                metadata.hydrate(all_papers)
+                metadata.hydrate(all_papers, fields=required_fields)
                 all_papers = relevance.rerank(rerank_query, all_papers, top_n=len(all_papers), intent=intent)
                 # Rescore the final pool with one provider, in batches when
                 # needed. Do not average final scores with the seed pass.
@@ -198,6 +201,8 @@ def _format_paper(p: dict, *, detailed: bool = False, debug: bool = False) -> di
     if p.get("is_open_access") or p.get("open_access_url"):
         out["open_access"] = True
     if detailed:
+        if p.get("publication_types"):
+            out["publication_types"] = relevance.normalize_publication_types(p["publication_types"])
         if p.get("publication_date"):
             out["publication_date"] = p["publication_date"]
         identifiers = p.get("external_ids") or {}
@@ -316,12 +321,12 @@ def _clean_error(message: str) -> str:
 
 def _meta_block(source_reports: list[dict], *, debug: bool = False, **extra) -> dict:
     """Return detailed diagnostics on request, otherwise only result caveats."""
-    healthy = [r for r in source_reports if r["status"] == "ok"]
-    degraded = [r for r in source_reports if r["status"] in {"error", "timeout", "blocked"}]
+    healthy = [r for r in source_reports if r["status"] in {"ok", "partial"}]
+    degraded = [r for r in source_reports if r["status"] in {"error", "timeout", "blocked", "partial"}]
     if not debug:
         warnings = []
         if degraded:
-            warnings.append("Some sources were unavailable; results may be incomplete.")
+            warnings.append("Some sources were unavailable or incomplete.")
         if extra.get("reranker", {}).get("provider") == "unavailable":
             warnings.append("Results were ranked without semantic reranking.")
         return {"warning": " ".join(warnings)} if warnings else {}
@@ -427,7 +432,9 @@ def search_papers(
     # Enrichment can reveal an identifier linking two previously separate
     # candidates. Merge again before spending the user's result slots on them.
     results = relevance.deduplicate(results)
-    metadata.hydrate(results)
+    required_fields = metadata.filter_fields(search_kwargs)
+    metadata.hydrate(results, fields=required_fields)
+    results = relevance.deduplicate(results)
 
     if year:
         results = [paper for paper in results if _year_matches(paper, year)]
@@ -444,6 +451,12 @@ def search_papers(
         ]
     if min_citations > 0:
         results = [p for p in results if (p.get("citation_count") or 0) >= min_citations]
+    if type_list:
+        wanted = set(relevance.normalize_publication_types(type_list))
+        results = [p for p in results if wanted.intersection(
+            relevance.normalize_publication_types(p.get("publication_types")))]
+    if open_access_only:
+        results = [p for p in results if p.get("is_open_access") or p.get("open_access_url")]
 
     if any(paper.get("_rerank_score") is not None for paper in results):
         results = relevance.rank_final(results)
@@ -1123,6 +1136,11 @@ _register_structured_yaml_adapters()
 
 
 def main():
+    # HTTPX INFO logs include URLs, and several upstream APIs use query
+    # credentials. Keep them quiet even if an optional library changes root
+    # logging; safe provider diagnostics already flow through debug results.
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
     transport = os.environ.get("SCHOLAR_MCP_TRANSPORT", "stdio").strip().lower()
     if transport in {"http", "streamable-http"}:
         mcp.run(

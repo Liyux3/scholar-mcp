@@ -5,7 +5,15 @@ if (-not $runtimeDir) {
     $runtimeDir = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "scholar-mcp\runtime"
 }
 $package = $env:SCHOLAR_PACKAGE
-if (-not $package) { $package = "scholar-mcp[rerank]" }
+$runtimePython = "3.12"
+if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') {
+    $runtimePython = "cpython-3.12-windows-aarch64-none"
+}
+$constraints = $env:SCHOLAR_WHEEL_INDEX
+if (-not $package) {
+    $package = "scholar-mcp[rerank]==0.8.5"
+    if (-not $constraints) { $constraints = "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html" }
+}
 $uvBin = $env:SCHOLAR_UV
 if (-not $uvBin) {
     $existing = Get-Command uv -CommandType Application -ErrorAction SilentlyContinue
@@ -21,7 +29,7 @@ if (-not $uvBin) {
             $env:UV_UNMANAGED_INSTALL = Join-Path $runtimeDir "uv"
             # Use a child process so its installer settings cannot leak to the caller.
             $shell = (Get-Process -Id $PID).Path
-            & $shell -NoProfile -File $installer | ForEach-Object { [Console]::Error.WriteLine($_) }
+            & $shell -NoProfile -ExecutionPolicy Bypass -File $installer | ForEach-Object { [Console]::Error.WriteLine($_) }
             if ($LASTEXITCODE -ne 0) { throw "uv installation failed" }
         } finally {
             $env:UV_UNMANAGED_INSTALL = $previousInstall
@@ -30,5 +38,9 @@ if (-not $uvBin) {
     }
 }
 
-& $uvBin tool run --no-config --managed-python --python 3.12 --from $package scholar-mcp @args
+if ($constraints) {
+    & $uvBin tool run --no-config --managed-python --python $runtimePython --find-links $constraints --from $package scholar-mcp @args
+} else {
+    & $uvBin tool run --no-config --managed-python --python $runtimePython --from $package scholar-mcp @args
+}
 exit $LASTEXITCODE

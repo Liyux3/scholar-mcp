@@ -22,7 +22,7 @@ acceptance into a vendor-curated marketplace.
 ## Package and runtime
 
 The repository includes `scripts/launch.sh` for macOS/Linux and
-`scripts/launch.ps1` for Windows. They reuse uv when available, otherwise
+`scripts/launch.cmd` (or `scripts/launch.ps1`) for Windows. They reuse uv when available, otherwise
 bootstrap it into an application-specific directory using the official
 installer, without editing shell profiles. uv then prepares isolated managed
 Python 3.12 and the `rerank` dependencies before starting the server. Normal
@@ -30,10 +30,18 @@ server arguments pass through unchanged. `SCHOLAR_PACKAGE` can select a
 version or candidate wheel; the default launches the published PyPI package,
 not unpublished development code.
 
-These launchers need network access on first use. They do not yet make the
-desktop bundles self-contained or provision browser/display dependencies for
-Google verification. Native Windows x64/ARM64 acceptance is part of the new
-portable-runtime CI matrix and must pass before claiming those targets tested.
+These launchers need network access on first use. macOS MCPB bundles include a
+relocatable Python runtime and native dependencies, so they do not require an
+existing Python or uv installation. Optional Google browser/codec components
+remain separate. The portable-runtime CI matrix exercises macOS, Linux and
+Windows on x64 and ARM64.
+
+The release wheel index provides hash-pinned native `cryptography` wheels
+for Intel macOS and Windows ARM, where current upstream releases do not ship
+binaries. CI builds the unmodified upstream source with static OpenSSL and
+uploads those wheels before publishing PyPI. The recommended configurations
+use this index automatically; users do not need Rust or an OpenSSL
+development installation. Other platforms use the upstream PyPI wheels.
 
 Python 3.10 or newer is required. The server supports stdio and Streamable HTTP.
 The core profile has six tools; the research extension adds graph and library
@@ -46,10 +54,15 @@ include query-compression dependencies with
 Hosted reranking uses environment configuration and does not require local
 model weights.
 
-The optional `google` extra adds browser-based session recovery. It needs a
-local Chrome installation, ffmpeg and a graphical display. Browser dependencies
-are not bundled into the default server, container or MCPB. DrissionPage and
-SpeechRecognition retain their own licensing terms.
+The optional `google` extra adds browser-based session recovery. It needs
+Chrome, Edge, or Chromium and ffmpeg. Recovery is headless by default; a graphical
+display is needed only for desktop verification. Auto mode first tries headless;
+on macOS, a declined challenge can retry in a hidden, non-activating browser.
+Set `SCHOLAR_GOOGLE_RECOVERY=headless` to forbid this retry, or `headed` to
+explicitly permit a visible window.
+`SCHOLAR_GOOGLE_BROWSER` selects a nonstandard browser executable. Browser
+dependencies are not bundled into the default server, container or MCPB.
+DrissionPage and SpeechRecognition retain their own licensing terms.
 
 ## Release artifacts
 

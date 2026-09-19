@@ -6,5 +6,7 @@ prune .playwright-cli
 prune eval
 prune downloads
 prune mcpb-build
+prune .compat-wheels
+exclude runtime-requirements.txt
 exclude AGENTS.md CLAUDE.md .env .env.*
 global-exclude .env .env.* *.pem *.key *.safetensors *.gguf *.onnx *.pt *.pth *.ckpt *.sqlite* *.db *.pyc

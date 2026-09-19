@@ -3,11 +3,122 @@ import json
 import os
 import time
 from unittest.mock import Mock
+from types import SimpleNamespace
+import sys
 
 import httpx
 import pytest
 
 from scholar_mcp import arxiv_client, scholar_client, scholar_session, sources
+
+
+def test_google_pacing_has_no_first_request_delay_and_counts_elapsed_io(monkeypatch):
+    now, sleeps = [10.0], []
+    monkeypatch.setattr(scholar_client, "_last_request_started", 0.0)
+    monkeypatch.setattr(scholar_client.time, "monotonic", lambda: now[0])
+    def sleep(seconds):
+        sleeps.append(seconds)
+        now[0] += seconds
+    monkeypatch.setattr(scholar_client.time, "sleep", sleep)
+    scholar_client._wait_for_request()
+    assert sleeps == []
+    now[0] += .5
+    scholar_client._wait_for_request()
+    assert sleeps == [1.5]
+    now[0] += 3
+    scholar_client._wait_for_request()
+    assert sleeps == [1.5]
+
+
+@pytest.mark.parametrize("mode, headless", [(None, True), ("auto", True), ("headless", True), ("headed", False)])
+def test_browser_window_requires_explicit_opt_in(monkeypatch, mode, headless):
+    if mode is None:
+        monkeypatch.delenv("SCHOLAR_GOOGLE_RECOVERY", raising=False)
+    else:
+        monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", mode)
+    options = Mock()
+    for name in ("set_browser_path", "set_tmp_path", "auto_port", "headless"):
+        getattr(options, name).return_value = options
+    page = Mock(url="https://scholar.google.co.uk/scholar")
+    page.eles.return_value = [object()]
+    page.cookies.return_value = []
+    page.run_js.return_value = "Test browser"
+    monkeypatch.setitem(sys.modules, "DrissionPage", SimpleNamespace(
+        ChromiumOptions=Mock(return_value=options), ChromiumPage=Mock(return_value=page)))
+    monkeypatch.setattr(scholar_session, "browser_path", lambda: "/fake/chrome")
+    monkeypatch.setattr(scholar_session.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(scholar_session.signal, "signal", lambda *_: None)
+    monkeypatch.setattr(scholar_session.signal, "alarm", lambda *_: None, raising=False)
+    assert scholar_session._bootstrap("query", None)["user_agent"] == "Test browser"
+    options.headless.assert_called_once_with(headless)
+    page.quit.assert_called_once()
+
+
+def test_headless_browser_and_http_handoff_use_the_same_native_version(monkeypatch):
+    options = Mock()
+    for name in ("set_browser_path", "set_tmp_path", "auto_port", "headless"):
+        getattr(options, name).return_value = options
+    page = Mock(url="https://scholar.google.co.uk/scholar")
+    page.eles.return_value = [object()]
+    page.cookies.return_value = []
+    page.run_js.side_effect = ["NativePlatform HeadlessChrome/153.0.0.0", "NativePlatform Chrome/153.0.0.0"]
+    monkeypatch.setitem(sys.modules, "DrissionPage", SimpleNamespace(
+        ChromiumOptions=Mock(return_value=options), ChromiumPage=Mock(return_value=page)))
+    monkeypatch.setattr(scholar_session, "browser_path", lambda: "/fake/chrome")
+    monkeypatch.setattr(scholar_session.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(scholar_session.signal, "signal", lambda *_: None)
+    monkeypatch.setattr(scholar_session.signal, "alarm", lambda *_: None, raising=False)
+    result = scholar_session._bootstrap("query", None)
+    page.run_cdp.assert_called_once_with("Network.setUserAgentOverride",
+        userAgent="NativePlatform Chrome/153.0.0.0", acceptLanguage="en-US,en;q=0.9")
+    assert result["user_agent"] == "NativePlatform Chrome/153.0.0.0"
+
+
+def test_headless_recovery_needs_no_display_but_still_needs_a_browser(monkeypatch):
+    monkeypatch.setattr(scholar_session.sys, "platform", "linux")
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "auto")
+    monkeypatch.setattr(scholar_session.importlib.util, "find_spec", lambda _: object())
+    monkeypatch.setattr(scholar_session.shutil, "which", lambda _: "/fake/ffmpeg")
+    monkeypatch.setattr(scholar_session, "browser_path", lambda: "/fake/chrome")
+    assert scholar_session.recovery_available()
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "headed")
+    assert not scholar_session.recovery_available()
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "off")
+    assert not scholar_session.recovery_available()
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "headless")
+    monkeypatch.setattr(scholar_session, "browser_path", lambda: None)
+    assert not scholar_session.recovery_available()
+
+
+def test_auto_retry_is_hidden_and_explicit_headless_never_uses_it(monkeypatch):
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "auto")
+    monkeypatch.setattr(scholar_session.sys, "platform", "darwin")
+    monkeypatch.setattr(scholar_session, "_bootstrap", Mock(side_effect=PermissionError("challenge declined")))
+    hidden = Mock(return_value={"host": "scholar.google.co.uk"})
+    monkeypatch.setattr(scholar_session, "_background_bootstrap", hidden)
+    assert scholar_session._establish_session("q", None)["recovery_mode"] == "background"
+    assert hidden.call_count == 1
+    monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "headless")
+    with pytest.raises(PermissionError):
+        scholar_session._establish_session("q", None)
+    assert hidden.call_count == 1
+
+
+def test_browser_override_and_windows_user_install(monkeypatch, tmp_path):
+    browser = tmp_path / "Microsoft/Edge/Application/msedge.exe"
+    browser.parent.mkdir(parents=True)
+    browser.touch()
+    monkeypatch.setenv("SCHOLAR_GOOGLE_BROWSER", str(browser))
+    assert scholar_session.browser_path() == str(browser)
+    monkeypatch.delenv("SCHOLAR_GOOGLE_BROWSER")
+    monkeypatch.setattr(scholar_session.sys, "platform", "win32")
+    monkeypatch.delenv("PROGRAMFILES", raising=False)
+    monkeypatch.delenv("PROGRAMFILES(X86)", raising=False)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setattr(scholar_session.shutil, "which", lambda _: None)
+    assert scholar_session.browser_path() == str(browser)
 
 
 def session():
@@ -67,6 +178,34 @@ def test_failed_recovery_sets_bounded_retry_cooldown(monkeypatch):
     assert "retry_after" in json.loads(scholar_session._path().read_text())
 
 
+def test_failed_recovery_does_not_destroy_the_last_verified_session(monkeypatch):
+    previous = session()
+    scholar_session._write(previous)
+    monkeypatch.setattr(scholar_session, "recovery_available", lambda: True)
+    process = Mock(returncode=1)
+    process.communicate.return_value = ('{"error":"challenge_declined"}', None)
+    monkeypatch.setattr(scholar_session.subprocess, "Popen", Mock(return_value=process))
+    with pytest.raises(PermissionError, match="challenge_declined"):
+        scholar_session.recover("q", previous)
+    assert scholar_session.current()["cookies"] == previous["cookies"]
+
+
+def test_google_preserves_and_caches_completed_pages_after_blocking(monkeypatch):
+    monkeypatch.setattr(scholar_client, "_wait_for_request", lambda: None)
+    calls = []
+    def get(client, url, **kwargs):
+        calls.append(1)
+        response = '<div class="gs_ri"><h3 class="gs_rt">A recovered paper</h3></div>' if len(calls) == 1 else '<form id="gs_captcha_f"></form>'
+        return httpx.Response(200, text=response, request=httpx.Request("GET", url))
+    monkeypatch.setattr(httpx.Client, "get", get)
+    monkeypatch.setattr(scholar_session, "recover", Mock(side_effect=PermissionError("verification unavailable")))
+    first = sources._timed_call("google_scholar", scholar_client.search_papers, "q", 20)
+    assert first.status == "partial" and len(first.results) == 1
+    second = sources._timed_call("google_scholar", scholar_client.search_papers, "q", 20)
+    assert second.status == "partial" and len(second.results) == 1
+    assert len(calls) == 2
+
+
 def test_search_recovers_once_and_reuses_session_across_calls(monkeypatch):
     real_client = httpx.Client
     monkeypatch.setattr(scholar_client.time, "sleep", lambda *_: None)
@@ -121,13 +260,14 @@ def test_cold_recovery_budget_preserves_explicit_limit(monkeypatch):
     assert budgets == [150, 2]
 
 
-def test_arxiv_web_fallback_retains_identity_and_full_abstract(monkeypatch):
+@pytest.mark.parametrize("status", [403, 406, 429, 503])
+def test_arxiv_web_fallback_retains_identity_and_full_abstract(monkeypatch, status):
     page = '''<li class="arxiv-result"><p class="list-title"><a href="https://arxiv.org/abs/1706.03762">arXiv</a></p>
     <p class="title">Attention Is All You Need</p><p class="authors"><a>A Author</a></p>
     <span class="abstract-full">Full abstract.<a>Less</a></span>
     <p class="is-size-7">Submitted 2 August, 2023; originally announced June 2017.</p></li>'''
     monkeypatch.setattr(httpx, "get", lambda *a, **kw: httpx.Response(
-        429, request=httpx.Request("GET", arxiv_client.ARXIV_API_URL)))
+        status, request=httpx.Request("GET", arxiv_client.ARXIV_API_URL)))
     monkeypatch.setattr(httpx.Client, "get", lambda *a, **kw: httpx.Response(
         200, text=page, request=httpx.Request("GET", "https://arxiv.org/search/")))
     result = arxiv_client.search_papers("attention", 1)[0]

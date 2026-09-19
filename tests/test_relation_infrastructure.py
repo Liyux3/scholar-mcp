@@ -8,6 +8,56 @@ from scholar_mcp import crossref_client as cr, europepmc_client as ep, metadata,
 from scholar_mcp import inspirehep_client as inspire
 
 
+def test_doi_and_pmid_hydration_overlap(monkeypatch):
+    from threading import Event
+    doi_started, pmid_started = Event(), Event()
+    def dois(ids):
+        doi_started.set()
+        assert pmid_started.wait(3)
+        return {ids[0]: {"title": "DOI paper"}}
+    def pmids(ids):
+        pmid_started.set()
+        assert doi_started.wait(3)
+        return {ids[0]: {"title": "PMID paper"}}
+    monkeypatch.setattr(metadata, "_batch_dois", dois)
+    monkeypatch.setattr(metadata, "_batch_pmids", pmids)
+    papers = [{"external_ids": {"DOI": "10.1000/example"}}, {"external_ids": {"PubMed": "1234"}}]
+    assert [p["title"] for p in metadata.hydrate(papers)] == ["DOI paper", "PMID paper"]
+
+
+def test_successfully_checked_missing_field_is_not_fetched_in_every_pipeline_stage(monkeypatch):
+    calls = []
+    def batch(ids):
+        calls.append(ids)
+        return {"10.1000/example": {"title": "Paper with unavailable type"}}
+    monkeypatch.setattr(metadata, "_batch_dois", batch)
+    paper = {"title": "Paper", "external_ids": {"DOI": "10.1000/example"}}
+    metadata.hydrate([paper], fields={"publication_types"})
+    merged = relevance.deduplicate([paper, {"title": "Paper", "external_ids": paper["external_ids"]}])
+    metadata.hydrate(merged, fields={"publication_types"})
+    assert len(calls) == 1 and not merged[0].get("publication_types")
+
+
+def test_arxiv_doi_hydrates_natively_instead_of_repeating_catalog_misses(monkeypatch):
+    from scholar_mcp import arxiv_client
+    seen = []
+    monkeypatch.setattr(metadata, "_batch_dois", lambda ids: seen.extend(ids) or {})
+    monkeypatch.setattr(metadata, "_doi", lambda _: pytest.fail("arXiv DOI is not a Crossref deposit"))
+    monkeypatch.setattr(arxiv_client, "get_paper", lambda pid: {"title": "Native arXiv paper", "is_open_access": True})
+    paper = {"external_ids": {"DOI": "10.48550/arXiv.1706.03762"}}
+    metadata.hydrate([paper])
+    assert paper["title"] == "Native arXiv paper" and seen == []
+
+
+def test_requested_metadata_fields_are_completed_without_overwriting_known_values(monkeypatch):
+    monkeypatch.setattr(metadata, "_batch_dois", lambda ids: {"10.1000/example": {
+        "title": "Native title", "year": 2025, "publication_types": ["Review"], "is_open_access": True}})
+    paper = {"title": "Original title", "year": 2024, "external_ids": {"DOI": "10.1000/example"}}
+    metadata.hydrate([paper], fields={"publication_types", "is_open_access"})
+    assert paper["title"] == "Original title" and paper["year"] == 2024
+    assert paper["publication_types"] == ["Review"] and paper["is_open_access"]
+
+
 def test_crossref_outage_does_not_repeat_for_every_missing_doi(monkeypatch):
     calls = []
     monkeypatch.setattr(cr, "_retry_at", 0)

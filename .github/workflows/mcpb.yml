@@ -14,13 +14,20 @@ permissions:
   contents: write
 
 jobs:
+  wheels:
+    uses: ./.github/workflows/compat-wheels.yml
+    with:
+      include_windows: false
   build:
+    needs: wheels
     strategy:
       fail-fast: false
       matrix:
         os: [macos-15-intel, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    env:
+      UV_FIND_LINKS: ${{ github.workspace }}/.compat-wheels
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,6 +40,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: crypto-wheel-*
+          path: .compat-wheels
+          merge-multiple: true
       - name: Build bundle
         run: PYTHON=python3.12 bash scripts/build_mcpb.sh
       - name: Smoke bundle

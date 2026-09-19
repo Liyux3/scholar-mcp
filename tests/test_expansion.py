@@ -64,7 +64,7 @@ class TestCitationsChannel:
         """
         seen = {}
 
-        def fake(pid, limit=20, title=""):
+        def fake(pid, limit=20, title="", metadata_fields=None):
             seen["title"] = title
             return []
 

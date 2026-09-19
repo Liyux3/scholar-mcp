@@ -1,10 +1,21 @@
 """Tests for diagnostic-only source metadata and concise result warnings."""
 
 import asyncio
+import logging
 
 import yaml
 
 from scholar_mcp import __version__, server
+
+
+def test_server_suppresses_credential_bearing_request_logs(monkeypatch, caplog):
+    for name in ("httpx", "httpcore"):
+        monkeypatch.setattr(logging.getLogger(name), "level", logging.NOTSET)
+    monkeypatch.setattr(server.mcp, "run", lambda **kwargs: None)
+    with caplog.at_level(logging.INFO):
+        server.main()
+        logging.getLogger("httpx").info("GET https://example.test/?api_key=fixture-secret")
+    assert "fixture-secret" not in caplog.text
 
 
 def _report(source, status="ok", count=100, latency_ms=1000, error=None):

@@ -12,6 +12,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -115,26 +116,54 @@ def _write(data: dict) -> None:
 
 
 def browser_path() -> str | None:
-    candidates = [
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-        os.path.join(os.environ.get("PROGRAMFILES", ""), "Google/Chrome/Application/chrome.exe"),
-        shutil.which("google-chrome"), shutil.which("chromium"), shutil.which("chromium-browser"),
-    ]
+    configured = os.environ.get("SCHOLAR_GOOGLE_BROWSER")
+    if configured:
+        path = Path(configured).expanduser()
+        return str(path) if path.is_file() else shutil.which(configured)
+    candidates = []
+    if sys.platform == "darwin":
+        for root in (Path("/Applications"), Path.home() / "Applications"):
+            candidates.extend(str(root / app) for app in (
+                "Google Chrome.app/Contents/MacOS/Google Chrome",
+                "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+                "Chromium.app/Contents/MacOS/Chromium",
+            ))
+    elif sys.platform == "win32":
+        for variable in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+            if root := os.environ.get(variable):
+                candidates.extend(str(Path(root) / app) for app in (
+                    "Google/Chrome/Application/chrome.exe",
+                    "Microsoft/Edge/Application/msedge.exe",
+                    "Chromium/Application/chrome.exe",
+                ))
+    candidates.extend(shutil.which(name) for name in (
+        "google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "msedge",
+    ))
     return next((p for p in candidates if p and Path(p).is_file()), None)
 
 
+def _recovery_mode() -> str:
+    # Auto remains quiet: only the macOS no-activation launcher is eligible
+    # for a hidden retry. A visible window always requires explicit opt-in.
+    mode = os.environ.get("SCHOLAR_GOOGLE_RECOVERY", "auto").strip().lower()
+    if mode in {"0", "false", "off"}:
+        return "off"
+    return mode if mode in {"auto", "headed", "headless"} else "headless"
+
+
 def recovery_available() -> bool:
-    return (os.environ.get("SCHOLAR_GOOGLE_RECOVERY", "auto").lower() not in {"0", "false", "off"}
+    mode = _recovery_mode()
+    return (mode != "off"
             and importlib.util.find_spec("DrissionPage") is not None
             and importlib.util.find_spec("speech_recognition") is not None
             and bool(shutil.which("ffmpeg")) and bool(browser_path())
-            and (sys.platform != "linux" or bool(os.environ.get("DISPLAY"))))
+            and (mode != "headed" or sys.platform != "linux"
+                 or bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))))
 
 
 def recover(query: str, previous: dict) -> dict:
     if not recovery_available():
-        raise PermissionError("Google Scholar needs verification; install scholar-mcp[google] with Chrome and ffmpeg for automatic recovery")
+        raise PermissionError("Google Scholar needs verification; recovery requires scholar-mcp[google], Chrome/Edge/Chromium and ffmpeg, with SCHOLAR_GOOGLE_RECOVERY enabled")
     route = proxy()
     if route and urlsplit(route).username:
         raise PermissionError("Google verification requires a local unauthenticated proxy gateway")
@@ -167,7 +196,13 @@ def recover(query: str, previous: dict) -> dict:
                         process.communicate()
                     raise TimeoutError("Google verification exceeded its time budget") from None
                 if process.returncode:
-                    raise PermissionError("Google did not complete verification on this connection")
+                    try:
+                        reason = json.loads(output).get("error")
+                    except (ValueError, AttributeError):
+                        reason = None
+                    allowed = {"verification_unavailable", "challenge_declined", "no_paper_results", "timeout"}
+                    reason = reason if reason in allowed else "worker_error"
+                    raise PermissionError(f"Google verification failed ({reason})")
                 data = json.loads(output)
                 data.update(route=_route(), created=time.time())
                 _write(data)
@@ -175,7 +210,7 @@ def recover(query: str, previous: dict) -> dict:
                     raise ValueError("Invalid Google session returned by recovery worker")
                 return data
             except Exception:
-                _write({"route": _route(), "retry_after": time.time() + 180})
+                _write({**previous, "route": _route(), "retry_after": time.time() + 180})
                 raise
     except Timeout:
         raise TimeoutError("Google verification is already running") from None
@@ -202,7 +237,7 @@ def _audio_answer(url: str, route: str | None) -> str:
     return recognizer.recognize_google(audio)
 
 
-def _bootstrap(query: str, route: str | None) -> dict:
+def _bootstrap(query: str, route: str | None, *, headless: bool | None = None) -> dict:
     from DrissionPage import ChromiumOptions, ChromiumPage
 
     def interrupted(*_):
@@ -214,12 +249,22 @@ def _bootstrap(query: str, route: str | None) -> dict:
         signal.alarm(RECOVERY_TIMEOUT)
     with tempfile.TemporaryDirectory(prefix="scholar-verify-", ignore_cleanup_errors=True) as directory:
         options = ChromiumOptions(read_file=False).set_browser_path(browser_path())
-        options.set_tmp_path(directory).auto_port().headless(False)
+        options.set_tmp_path(directory).auto_port().headless(
+            _recovery_mode() != "headed" if headless is None else headless)
         options.set_timeouts(base=4, page_load=20, script=5)
         if route:
             options.set_proxy(route)
         page = ChromiumPage(options)
         try:
+            # Unified Chromium uses the same engine in both modes, but its
+            # headless UA can receive a different, non-interactive Scholar
+            # gate. Keep the installed browser version/platform and use the
+            # same UA for browser recovery and the subsequent HTTP session.
+            user_agent = page.run_js("return navigator.userAgent")
+            if "HeadlessChrome/" in user_agent:
+                page.run_cdp("Network.setUserAgentOverride",
+                             userAgent=user_agent.replace("HeadlessChrome/", "Chrome/"),
+                             acceptLanguage="en-US,en;q=0.9")
             url = "https://scholar.google.co.uk/scholar?" + urlencode({"q": query, "hl": "en"})
             page.get(url, retry=0, timeout=20)
             for _ in range(2):
@@ -256,11 +301,69 @@ def _bootstrap(query: str, route: str | None) -> dict:
                 signal.alarm(0)
 
 
+def _background_bootstrap(query: str, route: str | None) -> dict:
+    """Use the tested native desktop engine without activating its macOS app.
+
+    This hook exists only inside the disposable verification worker. It does
+    not patch browser behavior in the MCP process or touch personal profiles.
+    """
+    import DrissionPage._functions.browser as browser_module
+    original = browser_module._run_browser
+    profiles = set()
+
+    def launch(port, path, args):
+        app = Path(path).parents[2]
+        if app.suffix != ".app":
+            raise PermissionError("No non-activating launcher for this browser")
+        profiles.update(arg.split("=", 1)[1] for arg in args if arg.startswith("--user-data-dir="))
+        return subprocess.Popen(["/usr/bin/open", "-g", "-j", "-n", "-a", str(app), "--args",
+                                 f"--remote-debugging-port={port}", *args],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    browser_module._run_browser = launch
+    try:
+        return _bootstrap(query, route, headless=False)
+    finally:
+        browser_module._run_browser = original
+        # LaunchServices children can outlive the worker process group. Only
+        # reap processes carrying this invocation's unique temporary profile.
+        for profile in profiles:
+            try:
+                found = subprocess.run(["pgrep", "-f", "--", re.escape("--user-data-dir=" + profile)],
+                                       capture_output=True, text=True, timeout=3)
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+            for value in found.stdout.split():
+                try:
+                    os.kill(int(value), signal.SIGTERM)
+                except (OSError, ValueError):
+                    pass
+
+
+def _establish_session(query: str, route: str | None) -> dict:
+    mode = _recovery_mode()
+    try:
+        result = _bootstrap(query, route)
+        result["recovery_mode"] = "headed" if mode == "headed" else "headless"
+        return result
+    except PermissionError:
+        if mode != "auto" or sys.platform != "darwin":
+            raise
+        result = _background_bootstrap(query, route)
+        result["recovery_mode"] = "background"
+        return result
+
+
 if __name__ == "__main__":
     try:
         request = json.loads(sys.stdin.read(16384))
         with redirect_stdout(sys.stderr):
-            result = _bootstrap(request["query"], request.get("proxy"))
+            result = _establish_session(request["query"], request.get("proxy"))
         print(json.dumps(result))
-    except Exception:
+    except Exception as error:
+        reasons = {"Google verification widget unavailable": "verification_unavailable",
+                   "Google declined the audio verification": "challenge_declined",
+                   "Google verification did not return paper results": "no_paper_results"}
+        reason = "timeout" if isinstance(error, TimeoutError) else reasons.get(str(error), "worker_error")
+        print(json.dumps({"error": reason}))
         sys.exit(1)
