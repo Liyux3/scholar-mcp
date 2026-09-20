@@ -71,7 +71,7 @@ async def smoke(bundle: Path) -> dict:
             raise RuntimeError("MCPB must launch its bundled interpreter")
         # Prove both relocation and native PDF/reranker imports, without
         # downloading or loading any model weights.
-        subprocess.run([str(command), "-c", "import sys,onnxruntime,pypdfium2; print(sys.prefix)"],
+        subprocess.run([str(command), "-c", "import sys,onnxruntime,pypdfium2; from cryptography.hazmat.primitives.ciphers.aead import AESGCM; cipher=AESGCM(bytes(32)); token=cipher.encrypt(bytes(12),b'runtime probe',None); assert cipher.decrypt(bytes(12),token,None)==b'runtime probe'; print(sys.prefix)"],
                        cwd=root, env=environment, check=True, capture_output=True, timeout=60)
         protocol = await inspect_server(
             command,

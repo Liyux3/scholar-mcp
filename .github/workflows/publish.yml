@@ -81,7 +81,7 @@ jobs:
       - name: Authenticate to MCP Registry
         run: ./mcp-publisher login github-oidc
 
-      - name: Publish native wheels and hash-pinned runtime constraints
+      - name: Publish native wheels and hash-pinned wheel index
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}

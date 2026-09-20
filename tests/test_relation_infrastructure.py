@@ -8,6 +8,14 @@ from scholar_mcp import crossref_client as cr, europepmc_client as ep, metadata,
 from scholar_mcp import inspirehep_client as inspire
 
 
+def test_distinct_dois_do_not_merge_on_a_generic_title_in_adjacent_years():
+    papers = [
+        {"title": "Deep learning", "year": 2015, "external_ids": {"DOI": "10.1000/article"}},
+        {"title": "Deep Learning", "year": 2016, "external_ids": {"DOI": "10.1000/book"}},
+    ]
+    assert len(relevance.deduplicate(papers)) == 2
+
+
 def test_doi_and_pmid_hydration_overlap(monkeypatch):
     from threading import Event
     doi_started, pmid_started = Event(), Event()

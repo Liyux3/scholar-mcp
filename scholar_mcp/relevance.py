@@ -521,6 +521,13 @@ def deduplicate(papers: list[dict]) -> list[dict]:
     title_to_groups: dict[str, set[int]] = {}
 
     def compatible_title_match(existing: dict, candidate: dict) -> bool:
+        # Generic titles can describe different works in adjacent years.
+        # Distinct explicit DOIs must not collapse on a short title alone.
+        if len(_normalize_title(existing.get("title", "")).split()) < 5:
+            a_doi = _normalized_identifier("DOI", _external_ids(existing).get("DOI"))
+            b_doi = _normalized_identifier("DOI", _external_ids(candidate).get("DOI"))
+            if a_doi and b_doi and a_doi != b_doi:
+                return False
         a_year, b_year = existing.get("year"), candidate.get("year")
         try:
             if not (a_year and b_year and abs(int(a_year) - int(b_year)) > 1):
