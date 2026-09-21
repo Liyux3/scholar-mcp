@@ -168,6 +168,29 @@ def test_deduplicate_keeps_same_title_from_different_years_separate():
     assert len(relevance.deduplicate(papers)) == 2
 
 
+def test_deduplicate_word_join_variants_requires_author_evidence():
+    a = {"title": "Zero-shot robotic manipulation with pre-trained image-editing diffusion models",
+         "year": 2023, "authors": ["Kevin Black", "Mitsuhiko Nakamoto", "Pranav Atreya"],
+         "external_ids": {"OpenReview": "DaFZHuSgnG"}}
+    b = {"title": "Zero-Shot Robotic Manipulation with Pretrained Image-Editing Diffusion Models",
+         "year": 2023, "authors": ["K. Black", "M. Nakamoto", "P. Atreya"],
+         "external_ids": {"ArXiv": "2310.10639"}}
+    for papers in ([a, b], [b, a]):
+        merged = relevance.deduplicate(papers)
+        assert len(merged) == 1
+        assert merged[0]["external_ids"]["OpenReview"] == "DaFZHuSgnG"
+        assert merged[0]["external_ids"]["ArXiv"] == "2310.10639"
+        assert not merged[0].get("_title_conflict")
+    assert len(relevance.deduplicate([a, {**b, "authors": []}])) == 2
+    assert len(relevance.deduplicate([a, {**b, "authors": ["Alice Other", "Bob Someone"]}])) == 2
+
+
+def test_deduplicate_does_not_join_generic_titles_by_author_alone():
+    a = {"title": "Data set review", "year": 2024, "authors": ["A Smith", "B Jones"]}
+    b = {**a, "title": "Dataset review"}
+    assert len(relevance.deduplicate([a, b])) == 2
+
+
 def test_best_paper_id_normalizes_common_identifiers():
     assert relevance.best_paper_id({
         "external_ids": {"DOI": "https://doi.org/10.1000/XYZ"}

@@ -163,18 +163,18 @@ Sessions are stored privately under `<data>/sessions/` and tied to the configure
 
 In the frozen matched LitSearch run, Scholar achieved a **10-percentage-point higher top-five query hit rate** and **6 points higher at top twenty** than Exa research-paper search.
 
-| System | R@5 | R@10 | R@20 | MRR |
+| System | Hit@5 | Hit@10 | Hit@20 | MRR |
 |---|---:|---:|---:|---:|
 | **Scholar** | **0.62** | **0.68** | **0.70** | **0.442** |
 | Exa `research paper` | 0.52 | 0.58 | 0.64 | 0.435 |
 | BM25 `title + abstract` | 0.46 | 0.46 | 0.56 | 0.335 |
 
-Scholar recovered nine R@5 hits that Exa missed; Exa recovered four that Scholar missed.
+Scholar recovered nine top-five hits that Exa missed; Exa recovered four that Scholar missed.
 
 <details>
 <summary>Benchmark protocol</summary>
 
-R@k here measures the fraction of queries with at least one ground-truth paper in the top k results. MRR averages the reciprocal rank of the first match, with zero for a miss.
+Hit@k measures the fraction of queries with at least one ground-truth paper in the top k results. Recall@k instead measures the fraction of all relevant papers recovered for each query. MRR averages the reciprocal rank of the first match, with zero for a miss. The frozen summary retains its legacy `R@k` field names for these query hit rates.
 
 The comparison uses the same first 50 LitSearch inline-ACL queries, ground-truth titles, title matcher, and top-20 cutoff. Exa ran with category `research paper`. Scholar used its standard retrieval pipeline with Qwen reranking. BM25 follows the official LitSearch title+abstract implementation: lowercase tokenization, English stopword removal, Porter stemming, and `BM25Okapi` over the 64K-paper corpus. The Scholar/Exa run was collected on 12 May 2026; BM25 was reproduced on 25 August 2026. The frozen summary is in [`docs/benchmarks/litsearch-inline-acl-50.json`](docs/benchmarks/litsearch-inline-acl-50.json), with [raw BM25 results](docs/benchmarks/bm25_title_abstract_inline_acl_50.jsonl) and their [hash manifest](docs/benchmarks/bm25_title_abstract_inline_acl_50.summary.json).
 

@@ -427,7 +427,8 @@ def _merge_two(a: dict, b: dict) -> dict:
     """
     merged = dict(a)
     if (a.get("title") and b.get("title")
-            and _normalize_title(a["title"]) != _normalize_title(b["title"])):
+            and _normalize_title(a["title"]).replace(" ", "")
+            != _normalize_title(b["title"]).replace(" ", "")):
         merged.update(_title_conflict=True, _needs_metadata=True)
     a_ids = _external_ids(merged)
     b_ids = _external_ids(b)
@@ -520,7 +521,33 @@ def deduplicate(papers: list[dict]) -> list[dict]:
     key_to_group: dict[str, int] = {}
     title_to_groups: dict[str, set[int]] = {}
 
+    def identity_keys(paper: dict) -> set[str]:
+        keys = paper_identity_keys(paper)
+        title = _normalize_title(paper.get("title", ""))
+        if len(title.split()) >= 5:
+            keys.add("title:joined:" + title.replace(" ", ""))
+        return keys
+
+    def matching_authors(existing: dict, candidate: dict) -> bool:
+        def surnames(paper):
+            names = set()
+            for author in paper.get("authors") or []:
+                tokens = re.findall(r"[^\W\d_]+", str(author).casefold())
+                meaningful = [token for token in tokens if len(token) > 1]
+                if meaningful:
+                    names.add(meaningful[0] if "," in str(author) else meaningful[-1])
+            return names
+        a_names, b_names = surnames(existing), surnames(candidate)
+        common = a_names & b_names
+        return len(common) >= 2 and len(common) >= min(len(a_names), len(b_names)) / 2
+
     def compatible_title_match(existing: dict, candidate: dict) -> bool:
+        # Catalogs vary between pre-trained/pretrained or data set/dataset.
+        # Joining word boundaries is only a lookup hint, not identity proof.
+        if (_normalize_title(existing.get("title", ""))
+                != _normalize_title(candidate.get("title", ""))
+                and not matching_authors(existing, candidate)):
+            return False
         # Generic titles can describe different works in adjacent years.
         # Distinct explicit DOIs must not collapse on a short title alone.
         if len(_normalize_title(existing.get("title", "")).split()) < 5:
@@ -539,20 +566,10 @@ def deduplicate(papers: list[dict]) -> list[dict]:
         # Generic annual report titles still stay separate across years.
         if len(_normalize_title(existing.get("title", "")).split()) < 5:
             return False
-        def surnames(paper):
-            names = set()
-            for author in paper.get("authors") or []:
-                tokens = re.findall(r"[^\W\d_]+", str(author).casefold())
-                meaningful = [token for token in tokens if len(token) > 1]
-                if meaningful:
-                    names.add(meaningful[0] if "," in str(author) else meaningful[-1])
-            return names
-        a_names, b_names = surnames(existing), surnames(candidate)
-        common = a_names & b_names
-        return len(common) >= 2 and len(common) >= min(len(a_names), len(b_names)) / 2
+        return matching_authors(existing, candidate)
 
     for paper in papers:
-        keys = paper_identity_keys(paper)
+        keys = identity_keys(paper)
         identifier_keys = {key for key in keys if not key.startswith("title:")}
         matched = {key_to_group[key] for key in identifier_keys if key in key_to_group}
         if not matched:
@@ -585,7 +602,7 @@ def deduplicate(papers: list[dict]) -> list[dict]:
                     if index in matched:
                         key_to_group[key] = group_index
 
-        for key in paper_identity_keys(merged):
+        for key in identity_keys(merged):
             if key.startswith("title:"):
                 title_to_groups.setdefault(key, set()).add(group_index)
             else:

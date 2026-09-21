@@ -1,6 +1,10 @@
 {
   "benchmark": "LitSearch inline_acl",
   "run_label": "best_matched_run",
+  "metric_definitions": {
+    "R@k": "Legacy field name for Hit@k: fraction of queries with at least one ground-truth match in the top k results, not per-query paper recall.",
+    "MRR": "Mean reciprocal rank of the first ground-truth match; zero for queries without a match."
+  },
   "queries": 50,
   "query_sha256": "4fc95642d8fb232f2bf978faf4475501d7cc901cdbdb5541946c48942db34a6d",
   "collected_at": "2026-05-12",

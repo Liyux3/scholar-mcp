@@ -175,6 +175,9 @@ def _pipeline(
 def _format_paper(p: dict, *, detailed: bool = False, debug: bool = False) -> dict:
     doi = (p.get("external_ids") or {}).get("DOI", "")
     abstract = p.get("abstract") or ""
+    if "<jats:" in abstract.casefold():
+        from bs4 import BeautifulSoup
+        abstract = " ".join(BeautifulSoup(abstract, "html.parser").get_text(" ", strip=True).split())
     if len(abstract) > 300:
         abstract = abstract[:300] + "..."
     citation_count = p.get("citation_count")
@@ -377,6 +380,8 @@ def search_papers(
     Searches multiple sources, merges duplicates, follows citation connections,
     and ranks for relevance. Natural-language queries work without extra
     parameters. Use paper_info when you already have a paper identifier.
+    For cross-language discovery, formulate the query in the language of the
+    target literature, usually English for computer science and AI research.
 
     Args:
         query: Describe what you want to find. Titles, distinctive phrases,

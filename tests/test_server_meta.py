@@ -23,6 +23,16 @@ def _report(source, status="ok", count=100, latency_ms=1000, error=None):
             "latency_ms": latency_ms, "error": error}
 
 
+def test_paper_summary_removes_catalog_jats_before_truncation():
+    paper = {"title": "A paper", "abstract": "<jats:p>Language <jats:italic>models</jats:italic> "
+             "&amp; retrieval.</jats:p><jats:p>Second paragraph.</jats:p>"}
+    result = server._format_paper(paper)
+    assert result["abstract"] == "Language models & retrieval. Second paragraph."
+    assert paper["abstract"].startswith("<jats:p>")
+    plain = "The bound is x < y and y > 0."
+    assert server._format_paper({"abstract": plain})["abstract"] == plain
+
+
 class TestMetaBlock:
     def test_tool_keeps_diagnostics_behind_debug(self, monkeypatch):
         paper = {"title": "Example paper", "year": 2026, "authors": ["A"], "venue": "ICLR"}
