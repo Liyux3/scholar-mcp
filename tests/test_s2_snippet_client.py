@@ -117,6 +117,29 @@ class TestFormatting:
         assert paper["_citation_count_known"] is True
         assert paper["external_ids"]["DOI"] == "10.1/paper"
 
+    def test_enrichment_keeps_available_abstract_without_erasing_a_passage(self, monkeypatch):
+        monkeypatch.setattr(snippet.s2_client, "get_papers_batch", lambda ids: [
+            {"paperId": "a", "abstract": "Native abstract."},
+            {"paperId": "b", "abstract": "Another abstract."},
+        ])
+        papers = [{"title": "A", "external_ids": {"CorpusId": "1"}},
+                  {"title": "B", "abstract": "[Methods] Matched passage", "external_ids": {"CorpusId": "2"}}]
+        snippet.enrich_metadata(papers)
+        assert papers[0]["abstract"] == "Native abstract."
+        assert papers[1]["abstract"] == "[Methods] Matched passage"
+
+
+def test_relation_requests_include_abstract_without_a_second_lookup(monkeypatch):
+    requested = []
+    def get(url, params):
+        requested.append(params["fields"])
+        field = "citingPaper" if url.endswith("citations") else "citedPaper"
+        return {"data": [{field: {"paperId": "child", "title": "Related work", "abstract": "Evidence."}}]}
+    monkeypatch.setattr(snippet.s2_client, "_get", get)
+    assert snippet.s2_client.get_citations("seed")[0]["abstract"] == "Evidence."
+    assert snippet.s2_client.get_references("seed")[0]["abstract"] == "Evidence."
+    assert len(requested) == 2 and all("abstract" in fields.split(",") for fields in requested)
+
 
 class TestRequest:
     def test_caps_limit_at_api_maximum(self, monkeypatch):

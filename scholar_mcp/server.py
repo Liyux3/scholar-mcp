@@ -329,7 +329,11 @@ def _meta_block(source_reports: list[dict], *, debug: bool = False, **extra) -> 
     if not debug:
         warnings = []
         if degraded:
-            warnings.append("Some sources were unavailable or incomplete.")
+            warnings.append("Search coverage is incomplete: some sources were unavailable or returned partial results.")
+        reranker = extra.get("reranker", {})
+        if (reranker.get("provider") == "flashrank"
+                and reranker.get("fallback_reason") not in (None, "", "not configured")):
+            warnings.append("The configured reranker was unavailable; a local fallback ranked these results.")
         if extra.get("reranker", {}).get("provider") == "unavailable":
             warnings.append("Results were ranked without semantic reranking.")
         return {"warning": " ".join(warnings)} if warnings else {}
@@ -472,6 +476,9 @@ def search_papers(
         results.sort(key=_publication_sort_key, reverse=True)
 
     results = results[:limit]
+    # Recover missing summaries only for the displayed shortlist. Reuse the
+    # native-ID hydration/cache instead of looking up every discarded candidate.
+    metadata.hydrate(results, fields={"abstract"})
 
     if not results:
         meta = _meta_block(reports, debug=debug)

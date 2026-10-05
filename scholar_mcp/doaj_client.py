@@ -1,21 +1,19 @@
 """DOAJ (Directory of Open Access Journals) search client. No auth, 2 req/s."""
 
 import httpx
+from urllib.parse import quote
 
 DOAJ_SEARCH_URL = "https://doaj.org/api/search/articles"
 
 
 def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
-    try:
-        resp = httpx.get(
-            f"{DOAJ_SEARCH_URL}/{query}",
-            params={"pageSize": min(limit, 100)},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception:
-        return []
+    resp = httpx.get(
+        f"{DOAJ_SEARCH_URL}/{quote(query, safe='')}",
+        params={"pageSize": min(limit, 100)},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    data = resp.json()
 
     papers = []
     for entry in data.get("results", []):

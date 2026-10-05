@@ -237,32 +237,32 @@ def build_graph(
     }
 
 
-def _simple_pagerank(G, alpha: float = 0.85, max_iter: int = 50) -> dict:
-    """Power-iteration PageRank without scipy."""
+def _simple_pagerank(G, alpha: float = 0.85, max_iter: int = 100) -> dict:
+    """Uniform, unweighted PageRank for our bounded citation graphs, without SciPy."""
     nodes = list(G.nodes())
     n = len(nodes)
     if n == 0:
         return {}
     pr = {node: 1.0 / n for node in nodes}
+    degrees = dict(G.out_degree())
     for _ in range(max_iter):
+        dangling = sum(pr[node] for node in nodes if degrees[node] == 0) / n
         new_pr = {}
         for node in nodes:
-            rank = (1 - alpha) / n
+            rank = (1 - alpha) / n + alpha * dangling
             for pred in G.predecessors(node):
-                out_deg = G.out_degree(pred)
-                if out_deg > 0:
-                    rank += alpha * pr[pred] / out_deg
+                rank += alpha * pr[pred] / degrees[pred]
             new_pr[node] = rank
+        change = sum(abs(new_pr[node] - pr[node]) for node in nodes)
         pr = new_pr
+        if change < n * 1e-6:
+            break
     return pr
 
 
 def _analyze(nodes: list[dict], edges: list[dict]) -> dict:
-    """Compute graph analytics using networkx if available."""
-    try:
-        import networkx as nx
-    except ImportError:
-        return {}
+    """Compute graph analytics with one implementation across runtime extras."""
+    import networkx as nx
 
     if len(nodes) < 3:
         return {}
@@ -274,10 +274,7 @@ def _analyze(nodes: list[dict], edges: list[dict]) -> dict:
         if e["source"] in G and e["target"] in G:
             G.add_edge(e["source"], e["target"])
 
-    try:
-        pagerank = nx.pagerank(G)
-    except Exception:
-        pagerank = _simple_pagerank(G)
+    pagerank = _simple_pagerank(G)
     betweenness = nx.betweenness_centrality(G)
 
     id_to_node = {n["id"]: n for n in nodes}

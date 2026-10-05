@@ -17,6 +17,11 @@ def test_title_only_papers_get_distinct_stable_filenames():
     assert "unknown" not in first
 
 
+@pytest.mark.parametrize("identifier", ["CON", "aux", "COM1", "LPT9", "NUL.record"])
+def test_pdf_identifiers_are_portable_on_windows(identifier):
+    assert pdf_utils._pdf_filename({"paper_id": identifier}) == f"paper-{identifier}.pdf"
+
+
 def test_existing_pdf_is_reused(monkeypatch, tmp_path):
     paper = {"title": "Cached", "external_ids": {"DOI": "10.1/cache"}}
     path = tmp_path / pdf_utils._pdf_filename(paper)
@@ -198,6 +203,17 @@ class TestLibraryProxy:
     quiet and fast rather than slowing every download.
     """
 
+    @pytest.fixture(autouse=True)
+    def configured_proxy(self, monkeypatch):
+        monkeypatch.setenv("LIBRARY_PROXY_BASE", "https://library.example")
+
+    def test_disabled_without_an_institution(self, monkeypatch):
+        monkeypatch.delenv("LIBRARY_PROXY_BASE", raising=False)
+        monkeypatch.setattr(pdf_utils, "_library_cookie", lambda: "session=abc")
+        monkeypatch.setattr(pdf_utils.httpx, "get",
+                            lambda *a, **kw: pytest.fail("should not make a request"))
+        assert pdf_utils._try_ezproxy("10.1234/abc", "/tmp", "x.pdf") is None
+
     def test_disabled_without_a_cookie(self, monkeypatch):
         from scholar_mcp import pdf_utils
         monkeypatch.delenv("LIBRARY_PROXY_COOKIE", raising=False)
@@ -250,3 +266,9 @@ class TestLibraryProxy:
         from scholar_mcp import pdf_utils
         monkeypatch.setenv("LIBRARY_PROXY_COOKIE", "  session=fromenv  ")
         assert pdf_utils._library_cookie() == "session=fromenv"
+
+    def test_cookie_file_uses_configured_data_directory(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("LIBRARY_PROXY_COOKIE", raising=False)
+        monkeypatch.setattr(pdf_utils.config, "DATA_DIR", tmp_path)
+        (tmp_path / "library_cookie.txt").write_text(" session=fromfile\n", encoding="utf-8")
+        assert pdf_utils._library_cookie() == "session=fromfile"

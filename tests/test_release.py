@@ -28,6 +28,25 @@ def _json(path: str):
     return json.loads((ROOT / path).read_text(encoding="utf-8"))
 
 
+def test_desktop_and_registry_expose_optional_reranker_configuration():
+    manifest = _json("manifest.json")
+    registry = {v["name"]: v for v in _json("server.json")["packages"][0]["environmentVariables"]}
+    smithery = yaml.safe_load((ROOT / "smithery.yaml").read_text())["startCommand"]
+    for env, field in (
+        ("DASHSCOPE_HTTP_BASE_URL", "dashscope_base_url"),
+        ("SCHOLAR_RERANK_MODEL", "rerank_model"),
+        ("SCHOLAR_RERANK_URL", "rerank_url"),
+        ("SCHOLAR_RERANK_API_KEY", "rerank_api_key"),
+    ):
+        assert manifest["server"]["mcp_config"]["env"][env] == "${user_config." + field + "}"
+        assert manifest["user_config"][field]["required"] is False
+        assert registry[env]["isRequired"] is False
+        assert env in smithery["configSchema"]["properties"]
+        assert env in smithery["commandFunction"]
+    assert manifest["user_config"]["rerank_api_key"]["sensitive"] is True
+    assert registry["SCHOLAR_RERANK_API_KEY"]["isSecret"] is True
+
+
 def test_release_versions_are_synchronized():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))[
         "project"
@@ -88,6 +107,7 @@ def test_registry_and_release_workflows_are_wired():
     assert "scripts/smoke_mcpb.py" in mcpb
     bundle = (ROOT / "scripts/build_mcpb.sh").read_text(encoding="utf-8")
     assert "--extra rerank" in bundle
+    assert 'uv export --project "$ROOT"' in bundle
     manifest = _json("manifest.json")
     assert manifest["server"]["type"] == "binary"
     assert manifest["server"]["mcp_config"]["command"] == "${__dirname}/runtime/bin/python3.12"

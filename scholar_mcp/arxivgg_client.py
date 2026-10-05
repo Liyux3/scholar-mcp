@@ -23,16 +23,13 @@ def semantic_available() -> bool:
 
 
 def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
-    try:
-        resp = httpx.get(
-            ARXIVGG_SEMANTIC_URL,
-            params={"q": query, "limit": min(limit, 100)},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception:
-        return []
+    resp = httpx.get(
+        ARXIVGG_SEMANTIC_URL,
+        params={"q": query, "limit": min(limit, 100)},
+        timeout=15,
+    )
+    resp.raise_for_status()
+    data = resp.json()
 
     if not data.get("success"):
         return []

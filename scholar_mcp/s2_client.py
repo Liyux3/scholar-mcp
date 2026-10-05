@@ -23,7 +23,7 @@ DETAIL_FIELDS = SEARCH_FIELDS + "," + ",".join([
 ])
 
 CITATION_FIELDS = ",".join([
-    "paperId", "title", "year", "venue", "citationCount",
+    "paperId", "title", "abstract", "year", "venue", "citationCount",
     "authors", "externalIds", "isOpenAccess", "openAccessPdf", "publicationTypes",
 ])
 

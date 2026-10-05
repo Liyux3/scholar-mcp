@@ -12,6 +12,18 @@ startCommand:
       DASHSCOPE_API_KEY:
         type: string
         description: Optional DashScope key for Qwen reranking.
+      DASHSCOPE_HTTP_BASE_URL:
+        type: string
+        description: Optional Alibaba workspace API host or /api/v1 base URL.
+      SCHOLAR_RERANK_MODEL:
+        type: string
+        description: Optional Alibaba or custom reranker model name.
+      SCHOLAR_RERANK_URL:
+        type: string
+        description: Optional full custom rerank endpoint; overrides Alibaba routing.
+      SCHOLAR_RERANK_API_KEY:
+        type: string
+        description: Optional credential for the custom rerank endpoint only.
       CORE_API_KEY:
         type: string
         description: Optional CORE key for repository search and PDF resolution.
@@ -21,7 +33,9 @@ startCommand:
   commandFunction: |-
     (config) => {
       const env = { SCHOLAR_MCP_EXTENSIONS: 'research' };
-      for (const key of ['S2_API_KEY', 'OPENALEX_API_KEY', 'DASHSCOPE_API_KEY', 'CORE_API_KEY', 'EXA_API_KEY']) {
+      for (const key of ['S2_API_KEY', 'OPENALEX_API_KEY', 'DASHSCOPE_API_KEY',
+                         'DASHSCOPE_HTTP_BASE_URL', 'SCHOLAR_RERANK_MODEL',
+                         'SCHOLAR_RERANK_URL', 'SCHOLAR_RERANK_API_KEY', 'CORE_API_KEY', 'EXA_API_KEY']) {
         if (config[key]) env[key] = config[key];
       }
       return {

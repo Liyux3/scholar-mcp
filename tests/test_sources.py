@@ -6,8 +6,32 @@ costs more recall than any ranking change measured so far. It had no tests.
 """
 
 import pytest
+import httpx
+from urllib.parse import unquote
 
 from scholar_mcp import sources
+
+
+@pytest.mark.parametrize("name", ["doaj", "arxivgg_semantic"])
+def test_adapter_transport_failure_is_not_a_successful_empty_search(monkeypatch, name):
+    def failed(url, **kwargs):
+        return httpx.Response(503, request=httpx.Request("GET", url))
+    monkeypatch.setattr(httpx, "get", failed)
+    source = sources.get(name)
+    result = sources._timed_call(name, source.search, "query", 3)
+    assert result.status == "error" and result.results == []
+
+
+def test_doaj_preserves_reserved_query_characters(monkeypatch):
+    from scholar_mcp import doaj_client
+    query = 'doi:"10.1234/a?b#c"'
+    def get(url, **kwargs):
+        parsed = httpx.URL(url)
+        assert not parsed.query and not parsed.fragment
+        assert unquote(str(parsed).split("/articles/", 1)[1]) == query
+        return httpx.Response(200, json={"results": []}, request=httpx.Request("GET", url))
+    monkeypatch.setattr(httpx, "get", get)
+    assert doaj_client.search_papers(query) == []
 
 
 @pytest.fixture

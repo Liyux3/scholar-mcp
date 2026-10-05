@@ -11,10 +11,14 @@ OPENALEX_EMAILS: list[str] = [e.strip() for e in (os.environ.get("OPENALEX_EMAIL
 OPENREVIEW_USERNAME: str | None = os.environ.get("OPENREVIEW_USERNAME") or None
 OPENREVIEW_PASSWORD: str | None = os.environ.get("OPENREVIEW_PASSWORD") or None
 DASHSCOPE_API_KEY: str | None = os.environ.get("DASHSCOPE_API_KEY") or None
+# Reuse the official SDK's override name without adding an SDK dependency.
+# Accept the workspace API host or its /api/v1 base; old installs stay valid.
+DASHSCOPE_HTTP_BASE_URL: str = (os.environ.get("DASHSCOPE_HTTP_BASE_URL")
+                                or "https://dashscope.aliyuncs.com/api/v1").strip().rstrip("/")
 # A Cohere-style rerank endpoint, including a locally hosted model. Custom
 # endpoints never inherit the DashScope credential or fall back to its cloud.
 RERANK_URL: str = os.environ.get("SCHOLAR_RERANK_URL", "")
-RERANK_MODEL: str = os.environ.get("SCHOLAR_RERANK_MODEL", "")
+RERANK_MODEL: str = os.environ.get("SCHOLAR_RERANK_MODEL", "").strip()
 RERANK_API_KEY: str | None = os.environ.get("SCHOLAR_RERANK_API_KEY") or None
 RERANK_TIMEOUT: float = float(os.environ.get("SCHOLAR_RERANK_TIMEOUT", "120"))
 # Endpoint capacity, not a retrieval cutoff. The built-in Qwen limit stays 500.

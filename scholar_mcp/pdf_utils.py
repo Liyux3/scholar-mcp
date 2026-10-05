@@ -7,8 +7,7 @@ from pathlib import Path
 
 import httpx
 
-from . import config
-from . import sources
+from . import __version__, config, sources
 
 DOWNLOAD_TIMEOUT = 60
 DOWNLOAD_CHUNK_SIZE = 256 * 1024
@@ -16,11 +15,10 @@ PDF_HEADER_SCAN_BYTES = 1024
 PDF_PROBE_TIMEOUT = 12
 PDF_PROBE_BUDGET = 15
 PDF_PROBE_WORKERS = 4
-USER_AGENT = "scholar-mcp/0.1.0 (academic research tool)"
+USER_AGENT = f"scholar-mcp/{__version__} (academic research tool)"
 _pdf_probe_pool = ThreadPoolExecutor(max_workers=PDF_PROBE_WORKERS)
 
-# Institutional proxy. Off unless a session cookie is configured.
-DEFAULT_PROXY_BASE = "https://eproxy.lib.hku.hk"
+# Institutional proxy. Off unless its base URL and session are configured.
 # Short on purpose: an expired session or an uncovered paper is the common
 # case, and it must not slow the rest of the download chain.
 PROXY_TIMEOUT = 12
@@ -42,6 +40,9 @@ def _pdf_filename(paper_info: dict) -> str:
     title = str(paper_info.get("title") or "")
     identity = str(identifier or title or "paper")
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", identity).strip("._-")[:120]
+    # Windows reserves these stems even when a filename has an extension.
+    if re.match(r"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)", safe, re.I):
+        safe = "paper-" + safe
     if not identifier:
         digest = hashlib.sha256(title.encode("utf-8")).hexdigest()[:12]
         safe = f"{safe or 'paper'}-{digest}"
@@ -208,13 +209,13 @@ def _try_scihub(doi: str, save_path: str, filename: str) -> str | None:
 def _library_cookie() -> str:
     """Session cookie for the institutional proxy, if the user set one up.
 
-    Read from LIBRARY_PROXY_COOKIE or ~/.scholar-mcp/library_cookie.txt. Kept
+    Read from LIBRARY_PROXY_COOKIE or <DATA_DIR>/library_cookie.txt. Kept
     out of the repo and out of any output, since it is a live credential.
     """
     cookie = os.environ.get("LIBRARY_PROXY_COOKIE", "").strip()
     if cookie:
         return cookie
-    path = Path(os.path.expanduser("~/.scholar-mcp/library_cookie.txt"))
+    path = Path(config.DATA_DIR) / "library_cookie.txt"
     try:
         return path.read_text(encoding="utf-8").strip()
     except OSError:
@@ -222,19 +223,9 @@ def _library_cookie() -> str:
 
 
 def _try_ezproxy(doi: str, save_path: str, filename: str) -> str | None:
-    """Resolve a DOI through an EZproxy session, if one is configured.
-
-    Deliberately the least persistent step in the chain. Proxy sessions expire,
-    publishers vary in whether they serve a PDF or an interstitial, and many
-    subscriptions simply do not cover a given paper, so a failure here is
-    ordinary and must stay quiet and fast rather than slow every download.
-
-    Only ever used for a single paper the caller already asked for. Bulk or
-    automated harvesting through a library subscription breaches the terms
-    every university attaches to these licences.
-    """
+    """Resolve one requested DOI using an explicitly configured EZproxy session."""
     cookie = _library_cookie()
-    base = os.environ.get("LIBRARY_PROXY_BASE", DEFAULT_PROXY_BASE).strip()
+    base = os.environ.get("LIBRARY_PROXY_BASE", "").strip()
     if not cookie or not base:
         return None
 

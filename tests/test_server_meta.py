@@ -89,6 +89,12 @@ class TestMetaBlock:
         assert server._meta_block([_report("a")], debug=True, total=7)["total"] == 7
         assert server._meta_block([_report("a")], total=7, reranker={"provider": "dashscope"}) == {}
 
+    def test_cloud_failure_names_local_fallback_without_raw_details(self):
+        meta = server._meta_block([], reranker={"provider": "flashrank", "fallback_reason": "ReadTimeout"})
+        assert "local fallback" in meta["warning"]
+        assert "ReadTimeout" not in meta["warning"]
+        assert server._meta_block([], reranker={"provider": "flashrank", "fallback_reason": "not configured"}) == {}
+
     def test_default_error_is_readable_and_debug_preserves_exception(self):
         reports = [_report("dblp", status="blocked", count=0,
                            error="PermissionError: DBLP requires browser verification")]

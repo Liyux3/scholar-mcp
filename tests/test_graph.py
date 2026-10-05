@@ -1,6 +1,8 @@
 """Tests for citation graph building and analytics."""
 
 from scholar_mcp import graph, sources
+import networkx as nx
+import pytest
 
 
 def _make_paper(title, paper_id="", year=2024, citation_count=0, source="test"):
@@ -105,6 +107,21 @@ def test_analyze_pagerank():
 def test_analyze_empty():
     assert graph._analyze([], []) == {}
     assert graph._analyze([{"id": "a"}], []) == {}
+
+
+def test_pagerank_redistributes_dangling_mass_without_scipy(monkeypatch):
+    G = nx.DiGraph([("a", "b"), ("b", "c")])
+    result = graph._simple_pagerank(G)
+    assert sum(result.values()) == pytest.approx(1)
+    # Stationary solution with alpha=.85 and uniform dangling redistribution.
+    assert result == pytest.approx({"a": .18441678, "b": .34117105, "c": .47441217}, abs=2e-6)
+    monkeypatch.setattr(nx, "pagerank", lambda *_: pytest.fail("must not depend on SciPy availability"))
+    actual = graph._analyze([{"id": n} for n in G], [{"source": a, "target": b} for a, b in G.edges])
+    assert actual["pagerank"] == {n: round(score, 4) for n, score in result.items()}
+    empty = nx.DiGraph()
+    assert graph._simple_pagerank(empty) == {}
+    empty.add_nodes_from(["a", "b", "c"])
+    assert graph._simple_pagerank(empty) == pytest.approx(dict.fromkeys(empty, 1/3))
 
 
 def test_fetch_related_fuses_sources_before_truncating(monkeypatch):

@@ -12,6 +12,8 @@ from scholar_mcp import config, relevance, server, sources
 @pytest.fixture(autouse=True)
 def isolated_config(monkeypatch):
     monkeypatch.setattr(config, "RERANK_URL", "")
+    monkeypatch.setattr(config, "RERANK_MODEL", "")
+    monkeypatch.setattr(config, "DASHSCOPE_HTTP_BASE_URL", "https://dashscope.aliyuncs.com/api/v1")
     monkeypatch.setattr(config, "RERANK_BATCH_SIZE", 500)
     monkeypatch.setattr(relevance, "_reranker_state", dict(relevance._reranker_state))
     monkeypatch.setattr(relevance, "_dashscope_warning_shown", True)
@@ -101,6 +103,96 @@ def test_custom_endpoint_does_not_inherit_cloud_credentials(monkeypatch):
     assert seen["timeout"] == config.RERANK_TIMEOUT
     assert seen["trust_env"] is False
     assert relevance.reranker_status()["model"] == "local-model"
+
+
+@pytest.mark.parametrize("base", [
+    "https://workspace.cn-beijing.maas.aliyuncs.com",
+    "https://workspace.ap-southeast-1.maas.aliyuncs.com/api/v1/",
+    "https://workspace.cn-beijing.maas.aliyuncs.com/compatible-api/v1",
+    "https://workspace.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+    "https://gateway.example/prefix/api/v1",
+])
+def test_workspace_base_preserves_host_prefix_key_and_qwen_instruction(monkeypatch, base):
+    monkeypatch.setattr(config, "DASHSCOPE_API_KEY", "fixture-key")
+    monkeypatch.setattr(config, "DASHSCOPE_HTTP_BASE_URL", base)
+    requests = []
+    def post(url, **kwargs):
+        requests.append((url, kwargs))
+        return httpx.Response(200, json={"results": [{"index": 0, "relevance_score": .8}]},
+                              request=httpx.Request("POST", url))
+    monkeypatch.setattr(httpx, "post", post)
+    result = relevance.rerank("query", [{"title": "A"}], 1, "dataset")
+    url, request = requests[0]
+    assert httpx.URL(url).host == httpx.URL(base).host
+    assert url.endswith("/compatible-api/v1/reranks")
+    if "prefix" in base:
+        assert "/prefix/compatible-api/" in url
+    assert request["headers"]["Authorization"] == "Bearer fixture-key"
+    assert request["json"]["model"] == "qwen3-rerank"
+    assert request["timeout"] == config.RERANK_TIMEOUT
+    assert request["json"]["instruct"] == relevance.INTENT_INSTRUCTS["dataset"]
+    assert result[0]["_reranker_provider"] == "dashscope"
+
+
+@pytest.mark.parametrize("model", ["qwen3.7-text-rerank", "gte-rerank-v2", "qwen3-vl-rerank"])
+def test_native_dashscope_wire_format_and_size_splitting(monkeypatch, model):
+    monkeypatch.setattr(config, "DASHSCOPE_API_KEY", "fixture-key")
+    monkeypatch.setattr(config, "DASHSCOPE_HTTP_BASE_URL", "https://workspace.cn-beijing.maas.aliyuncs.com/api/v1")
+    monkeypatch.setattr(config, "RERANK_MODEL", model)
+    seen = []
+    def post(url, **kwargs):
+        body = kwargs["json"]
+        assert url.endswith(relevance._DASHSCOPE_NATIVE_RERANK_PATH)
+        assert body["model"] == model
+        assert set(body) == {"model", "input", "parameters"}
+        assert "query" in body["input"]
+        assert ("instruct" in body["parameters"]) == (model != "gte-rerank-v2")
+        documents = body["input"]["documents"]
+        seen.append(len(documents))
+        if len(documents) > 1:
+            return httpx.Response(413, request=httpx.Request("POST", url))
+        return httpx.Response(200, json={"output": {"results": [{"index": 0, "relevance_score": .7}]}},
+                              request=httpx.Request("POST", url))
+    monkeypatch.setattr(httpx, "post", post)
+    result = relevance.rerank("query", [{"title": "A"}, {"title": "B"}], 2, "method")
+    assert seen == [2, 1, 1]
+    assert {p["_reranker_model"] for p in result} == {model}
+    assert relevance.reranker_status()["provider"] == "dashscope"
+
+
+def test_explicit_native_url_uses_only_custom_key(monkeypatch):
+    url = "https://gateway.example" + relevance._DASHSCOPE_NATIVE_RERANK_PATH
+    monkeypatch.setattr(config, "RERANK_URL", url)
+    monkeypatch.setattr(config, "RERANK_MODEL", "qwen3.7-text-rerank")
+    monkeypatch.setattr(config, "RERANK_API_KEY", "fixture-custom-key")
+    monkeypatch.setattr(config, "DASHSCOPE_API_KEY", "must-not-leak")
+    def post(target, **kwargs):
+        assert target == url
+        assert kwargs["headers"]["Authorization"] == "Bearer fixture-custom-key"
+        assert "input" in kwargs["json"]
+        return httpx.Response(200, json={"output": {"results": [{"index": 0, "relevance_score": .8}]}},
+                              request=httpx.Request("POST", target))
+    monkeypatch.setattr(httpx, "post", post)
+    assert relevance.rerank("query", [{"title": "A"}], 1)[0]["_reranker_provider"] == "custom"
+
+
+def test_explicit_endpoint_and_legacy_default_are_preserved(monkeypatch):
+    assert relevance._dashscope_rerank_url("qwen3-rerank") == "https://dashscope.aliyuncs.com/compatible-api/v1/reranks"
+    url = "https://gateway.example/private/reranks"
+    monkeypatch.setattr(config, "DASHSCOPE_HTTP_BASE_URL", url)
+    assert relevance._dashscope_rerank_url("model") == url
+
+
+def test_endpoint_failure_is_sanitized_and_uses_existing_local_fallback(monkeypatch):
+    monkeypatch.setattr(config, "DASHSCOPE_API_KEY", "private-cloud-key")
+    monkeypatch.setattr(config, "DASHSCOPE_HTTP_BASE_URL", "https://private-workspace.example/api/v1")
+    monkeypatch.setattr(httpx, "post", lambda url, **kw: httpx.Response(
+        404, text="private-cloud-key private-workspace.example", request=httpx.Request("POST", url)))
+    monkeypatch.setattr(relevance, "_rerank_flashrank", lambda q, p, n: p[:n])
+    assert len(relevance.rerank("query", [{"title": "A"}], 1)) == 1
+    reason = relevance.reranker_status()["fallback_reason"]
+    assert "base URL" in reason
+    assert "private" not in reason
 
 
 @pytest.mark.parametrize("items", [

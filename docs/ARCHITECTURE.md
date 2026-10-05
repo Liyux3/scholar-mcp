@@ -94,13 +94,20 @@ arXiv can fall back from Atom to its own HTTPS search. DBLP completes bounded
 same-origin verification redirects. The optional Google recovery worker runs
 in a separate process, saves a private route-bound session and exits; normal
 searches reuse that session through HTTP. Recovery starts headless; macOS can
-retry a declined challenge with a hidden, non-activating desktop browser.
+retry a declined challenge with a native browser launched without a startup
+window, using a CDP hidden page instead of a desktop tab. Its creating connection
+stays alive until the session is captured. Verification waits for visible DOM
+states rather than fixed delays. No browser-library launch hook is patched.
 Only `SCHOLAR_GOOGLE_RECOVERY=headed` permits a visible browser. Missing optional
 browser dependencies do not prevent the MCP server from starting. A cold default fan-out allows 150
 seconds for this setup. Warm Google searches receive a page-count-aware budget
 up to 120 seconds. Explicit caller budgets remain authoritative.
 
-DashScope `qwen3-rerank` is the configured cloud default. A compatible hosted or
+DashScope `qwen3-rerank` is the configured cloud default. `DASHSCOPE_HTTP_BASE_URL`
+selects the workspace/regional API base, and `SCHOLAR_RERANK_MODEL` selects the
+model. Compatible and native Alibaba envelopes use the same HTTP transport,
+batching and score validation, with no additional SDK or provider hierarchy.
+A compatible hosted or
 local reranker can be selected through `SCHOLAR_RERANK_URL`; FlashRank provides
 the portable local fallback when the `rerank` extra is installed. Custom
 endpoints use a separate credential and do not silently fall back to the cloud.
@@ -149,10 +156,17 @@ The core profile exposes six tools:
 The `research` extension adds `build_paper_graph` and `paper_library`.
 The deep-research skill composes these tools into literature-review workflows.
 `scholar://status` exposes diagnostics as a resource.
+Citation-graph PageRank uses one bounded implementation with dangling-node
+redistribution; installing optional scientific packages does not change its
+algorithm. NetworkX supplies the graph structure and betweenness analysis.
 
 Normal search responses contain papers and a short warning when coverage or
 ranking is degraded. `debug=true` adds per-source status and ranking provenance.
 Bibliographic fields remain present independently of debug output.
+Missing abstracts on the final shortlist reuse native-ID metadata lookup and
+its cache; discarded candidates do not trigger extra summary lookups. Citation
+responses request abstracts in the same call. The remote reranker timeout is
+shared across providers, and an unexpected local fallback is reported briefly.
 
 ## Code map
 

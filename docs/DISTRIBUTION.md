@@ -26,9 +26,10 @@ The repository includes `scripts/launch.sh` for macOS/Linux and
 bootstrap it into an application-specific directory using the official
 installer, without editing shell profiles. uv then prepares isolated managed
 Python 3.12 and the `rerank` dependencies before starting the server. Normal
-server arguments pass through unchanged. `SCHOLAR_PACKAGE` can select a
-version or candidate wheel; the default launches the published PyPI package,
-not unpublished development code.
+server arguments pass through unchanged. The launchers pin the release's package
+version rather than running a local checkout. Before that version is published,
+`SCHOLAR_PACKAGE` selects a candidate wheel and `SCHOLAR_WHEEL_INDEX` can select
+its accompanying compatibility-wheel directory.
 
 These launchers need network access on first use. macOS MCPB bundles include a
 relocatable Python runtime and native dependencies, so they do not require an
@@ -43,7 +44,9 @@ uploads those wheels before publishing PyPI. The recommended configurations
 use this index automatically; users do not need Rust or an OpenSSL
 development installation. Other platforms use the upstream PyPI wheels.
 
-Python 3.10 or newer is required. The server supports stdio and Streamable HTTP.
+The managed install path uses Python 3.12. The source test matrix covers Python
+3.10-3.13; plain pip installs additionally depend on native wheel availability
+for that interpreter and platform. The server supports stdio and Streamable HTTP.
 The core profile has six tools; the research extension adds graph and library
 operations.
 
@@ -57,7 +60,8 @@ model weights.
 The optional `google` extra adds browser-based session recovery. It needs
 Chrome, Edge, or Chromium and ffmpeg. Recovery is headless by default; a graphical
 display is needed only for desktop verification. Auto mode first tries headless;
-on macOS, a declined challenge can retry in a hidden, non-activating browser.
+on macOS, a declined challenge can retry with no startup window and a hidden
+browser page.
 Set `SCHOLAR_GOOGLE_RECOVERY=headless` to forbid this retry, or `headed` to
 explicitly permit a visible window.
 `SCHOLAR_GOOGLE_BROWSER` selects a nonstandard browser executable. Browser

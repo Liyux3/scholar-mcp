@@ -20,12 +20,41 @@ def test_strict_type_and_open_access_filters_apply_to_every_source(monkeypatch):
 
 def test_type_filter_uses_adapter_aliases_and_preserves_duplicates_evidence(monkeypatch):
     papers = [
-        {"title": "Same paper", "external_ids": {"DOI": "10.1000/x"}, "publication_types": ["journal-article"]},
+        {"title": "Same paper", "abstract": "Known abstract", "external_ids": {"DOI": "10.1000/x"}, "publication_types": ["journal-article"]},
         {"title": "Same paper", "external_ids": {"DOI": "10.1000/x"}, "publication_types": ["Review"]},
     ]
     monkeypatch.setattr(server, "_pipeline", lambda *a, **kw: (papers, []))
     result = yaml.safe_load(server.search_papers("topic", paper_types="JournalArticle"))
     assert len(result["results"]) == 1
+
+
+def test_summary_completion_only_looks_up_the_displayed_shortlist(monkeypatch):
+    papers = [{"title": "Visible paper", "external_ids": {"ArXiv": "2506.15442"}},
+              {"title": "Discarded paper", "external_ids": {"ArXiv": "2501.12202"}}]
+    monkeypatch.setattr(server, "_pipeline", lambda *a, **kw: (papers, []))
+    monkeypatch.setattr(server.s2_client, "is_healthy", lambda: False)
+    looked_up = []
+    from scholar_mcp import arxiv_client
+    def get_paper(identifier):
+        looked_up.append(identifier)
+        return {"title": "Visible paper", "abstract": "Original abstract.", "source": "arxiv"}
+    monkeypatch.setattr(arxiv_client, "get_paper", get_paper)
+    result = yaml.safe_load(server.search_papers("query", limit=1))
+    assert looked_up == ["ArXiv:2506.15442"]
+    assert result["results"][0]["abstract"] == "Original abstract."
+
+
+def test_summary_lookup_failure_keeps_paper_and_explicit_null(monkeypatch):
+    paper = {"title": "Visible paper", "external_ids": {"ArXiv": "2506.15442"}}
+    monkeypatch.setattr(server, "_pipeline", lambda *a, **kw: ([paper], []))
+    monkeypatch.setattr(server.s2_client, "is_healthy", lambda: False)
+    from scholar_mcp import arxiv_client
+    def unavailable(*args):
+        raise TimeoutError("archive unavailable")
+    monkeypatch.setattr(arxiv_client, "get_paper", unavailable)
+    result = yaml.safe_load(server.search_papers("query", limit=1))
+    assert result["results"][0]["title"] == "Visible paper"
+    assert result["results"][0]["abstract"] is None
 
 
 def test_search_date_sort_handles_mixed_source_types(monkeypatch):

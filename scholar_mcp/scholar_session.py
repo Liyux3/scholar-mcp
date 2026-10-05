@@ -3,7 +3,7 @@
 Browser dependencies are imported only by the short-lived recovery subprocess.
 The MCP process retains cookies, never a browser or a speech-recognition model.
 """
-from contextlib import redirect_stdout
+from contextlib import ExitStack, redirect_stdout
 from http.cookiejar import Cookie
 import hashlib
 import importlib.util
@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -240,7 +241,22 @@ def _audio_answer(url: str, route: str | None) -> str:
     return recognizer.recognize_google(audio)
 
 
-def _bootstrap(query: str, route: str | None, *, headless: bool | None = None) -> dict:
+def _wait_visible(page, selectors: tuple[str, ...], timeout: float = 8) -> str | None:
+    """Advance as soon as a result or verification state is ready."""
+    deadline = time.monotonic() + timeout
+    while True:
+        for selector in selectors:
+            element = page.ele(selector, timeout=0)
+            if element and element.states.is_displayed:
+                return selector
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        time.sleep(min(.2, remaining))
+
+
+def _bootstrap(query: str, route: str | None, *, headless: bool | None = None,
+               windowless: bool = False) -> dict:
     from DrissionPage import ChromiumOptions, ChromiumPage
 
     def interrupted(*_):
@@ -250,14 +266,21 @@ def _bootstrap(query: str, route: str | None, *, headless: bool | None = None) -
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, interrupted)
         signal.alarm(RECOVERY_TIMEOUT)
-    with tempfile.TemporaryDirectory(prefix="scholar-verify-", ignore_cleanup_errors=True) as directory:
+    with tempfile.TemporaryDirectory(prefix="scholar-verify-", ignore_cleanup_errors=True) as directory, ExitStack() as cleanup:
+        if hasattr(signal, "SIGALRM"):
+            cleanup.callback(signal.alarm, 0)
         options = ChromiumOptions(read_file=False).set_browser_path(browser_path())
         options.set_tmp_path(directory).auto_port().headless(
             _recovery_mode() != "headed" if headless is None else headless)
         options.set_timeouts(base=4, page_load=20, script=5)
         if route:
             options.set_proxy(route)
-        page = ChromiumPage(options)
+        if windowless:
+            with socket.socket() as listener:
+                listener.bind(("127.0.0.1", 0))
+                port = listener.getsockname()[1]
+            options.auto_port(False).set_local_port(port).set_user_data_path(directory)
+        page = _background_page(options, cleanup) if windowless else ChromiumPage(options)
         try:
             # Unified Chromium uses the same engine in both modes, but its
             # headless UA can receive a different, non-interactive Scholar
@@ -270,18 +293,21 @@ def _bootstrap(query: str, route: str | None, *, headless: bool | None = None) -
                              acceptLanguage="en-US,en;q=0.9")
             url = "https://scholar.google.co.uk/scholar?" + urlencode({"q": query, "hl": "en"})
             page.get(url, retry=0, timeout=20)
+            results = "css:.gs_ri .gs_rt"
+            anchor_selector = 'css:iframe[src*="/anchor"]'
+            challenge_selector = 'css:iframe[src*="/bframe"]'
             for _ in range(2):
-                time.sleep(3)
-                if page.eles("css:.gs_ri .gs_rt", timeout=1):
+                state = _wait_visible(page, (results, anchor_selector))
+                if state == results:
                     break
-                anchor = page.get_frame('css:iframe[src*="/anchor"]', timeout=5)
+                anchor = page.get_frame(anchor_selector, timeout=1) if state else None
                 if not anchor:
                     raise PermissionError("Google verification widget unavailable")
                 anchor.ele("#recaptcha-anchor", timeout=4).click()
-                time.sleep(3)
-                if page.eles("css:.gs_ri .gs_rt", timeout=1):
+                state = _wait_visible(page, (results, challenge_selector))
+                if state == results:
                     break
-                challenge = page.get_frame('css:iframe[src*="/bframe"]', timeout=4)
+                challenge = page.get_frame(challenge_selector, timeout=1) if state else None
                 if not challenge:
                     continue
                 challenge.ele("#recaptcha-audio-button", timeout=4).click()
@@ -291,7 +317,8 @@ def _bootstrap(query: str, route: str | None, *, headless: bool | None = None) -
                 answer = _audio_answer(audio.attr("src"), route)
                 challenge.ele("#audio-response", timeout=3).input(answer)
                 challenge.ele("#recaptcha-verify-button", timeout=3).click()
-                time.sleep(4)
+                if _wait_visible(page, (results,), timeout=4):
+                    break
             host = urlsplit(page.url).hostname
             if host not in HOSTS or not page.eles("css:.gs_ri .gs_rt", timeout=3):
                 raise PermissionError("Google verification did not return paper results")
@@ -300,47 +327,70 @@ def _bootstrap(query: str, route: str | None, *, headless: bool | None = None) -
                                 if c.get("domain", "").lstrip(".") in COOKIE_DOMAINS]}
         finally:
             page.quit(timeout=5)
-            if hasattr(signal, "SIGALRM"):
-                signal.alarm(0)
 
 
 def _background_bootstrap(query: str, route: str | None) -> dict:
-    """Use the tested native desktop engine without activating its macOS app.
+    """Use the native engine without creating a desktop window or visible tab."""
+    return _bootstrap(query, route, headless=False, windowless=True)
 
-    This hook exists only inside the disposable verification worker. It does
-    not patch browser behavior in the MCP process or touch personal profiles.
-    """
-    import DrissionPage._functions.browser as browser_module
-    original = browser_module._run_browser
-    profiles = set()
 
-    def launch(port, path, args):
-        app = Path(path).parents[2]
-        if app.suffix != ".app":
-            raise PermissionError("No non-activating launcher for this browser")
-        profiles.update(arg.split("=", 1)[1] for arg in args if arg.startswith("--user-data-dir="))
-        return subprocess.Popen(["/usr/bin/open", "-g", "-j", "-n", "-a", str(app), "--args",
-                                 f"--remote-debugging-port={port}", *args],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def _background_page(options, cleanup):
+    """Create one CDP hidden page; its owner connection lives through recovery."""
+    from DrissionPage import ChromiumPage
+    from websocket import create_connection
 
-    browser_module._run_browser = launch
+    app = Path(options.browser_path).parents[2]
+    if app.suffix != ".app":
+        raise PermissionError("No non-activating launcher for this browser")
+    profile = str(options.user_data_path)
+    port = options.address.rsplit(":", 1)[1]
+    cleanup.callback(_close_background_profile, profile)
+    subprocess.Popen(["/usr/bin/open", "-g", "-j", "-n", "-a", str(app), "--args",
+                      f"--remote-debugging-port={port}", "--no-startup-window", *options.arguments],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    deadline = time.monotonic() + 15
     try:
-        return _bootstrap(query, route, headless=False)
-    finally:
-        browser_module._run_browser = original
-        # LaunchServices children can outlive the worker process group. Only
-        # reap processes carrying this invocation's unique temporary profile.
-        for profile in profiles:
-            try:
-                found = subprocess.run(["pgrep", "-f", "--", re.escape("--user-data-dir=" + profile)],
-                                       capture_output=True, text=True, timeout=3)
-            except (OSError, subprocess.TimeoutExpired):
-                continue
-            for value in found.stdout.split():
+        with httpx.Client(trust_env=False, timeout=1) as client:
+            while True:
                 try:
-                    os.kill(int(value), signal.SIGTERM)
-                except (OSError, ValueError):
-                    pass
+                    info = client.get(f"http://127.0.0.1:{port}/json/version").json()
+                    break
+                except (httpx.HTTPError, ValueError):
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("Hidden browser startup exceeded its budget") from None
+                    time.sleep(.1)
+        connection = create_connection(info["webSocketDebuggerUrl"], timeout=5,
+                                       suppress_origin=True, http_no_proxy=["127.0.0.1", "localhost"])
+        cleanup.callback(connection.close)
+        connection.send(json.dumps({"id": 1, "method": "Target.createTarget",
+                                    "params": {"url": "about:blank", "hidden": True, "background": True}}))
+        reply = json.loads(connection.recv())
+        target = reply["result"]["targetId"]
+        # Hidden targets are deliberately absent from /json. Attach by the
+        # browser WebSocket and exact target ID rather than opening a new tab.
+        options.set_address(info["webSocketDebuggerUrl"])
+        page = ChromiumPage(options, tab_id=target)
+        # A hidden target has no OS window to supply a viewport. Give its DOM
+        # normal desktop geometry without creating or resizing a real window.
+        page.run_cdp("Emulation.setDeviceMetricsOverride", width=1280, height=900,
+                     deviceScaleFactor=1, mobile=False)
+        return page
+    except Exception as error:
+        raise PermissionError("Hidden browser recovery unavailable") from error
+
+
+def _close_background_profile(profile: str) -> None:
+    """LaunchServices children are limited to this recovery's unique profile."""
+    try:
+        found = subprocess.run(["pgrep", "-f", "--", re.escape("--user-data-dir=" + profile)],
+                               capture_output=True, text=True, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    for value in found.stdout.split():
+        try:
+            os.kill(int(value), signal.SIGTERM)
+        except (OSError, ValueError):
+            pass
 
 
 def _establish_session(query: str, route: str | None, *, prefer_background: bool = False) -> dict:

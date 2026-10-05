@@ -135,14 +135,25 @@ DashScope `qwen3-rerank` is the primary reranker when configured. Install the `r
 <details>
 <summary>Bring your own reranker</summary>
 
-Set `SCHOLAR_RERANK_URL` to the full endpoint and `SCHOLAR_RERANK_MODEL` to its model name. Add `SCHOLAR_RERANK_API_KEY` if needed. Cloud and self-hosted models use the same Cohere-style contract:
+For an Alibaba workspace or another region, set `DASHSCOPE_HTTP_BASE_URL` to the API Host from the console (with `https://`), or its `/api/v1` base. Keep `DASHSCOPE_API_KEY` from that region. For example:
+
+```text
+DASHSCOPE_HTTP_BASE_URL=https://<workspace-id>.cn-beijing.maas.aliyuncs.com/api/v1
+SCHOLAR_RERANK_MODEL=qwen3-rerank
+```
+
+The default remains `qwen3-rerank`. `SCHOLAR_RERANK_MODEL` can also select `qwen3.7-text-rerank`, `gte-rerank-v2`, or the text input of `qwen3-vl-rerank`, subject to availability in your workspace. Scholar uses the appropriate Alibaba request/response format. Existing installations without a base URL keep the Beijing shared endpoint. Alibaba recommends [workspace-dedicated endpoints](https://help.aliyun.com/en/model-studio/regions/) and states that the shared domain no longer receives new features after September 30, 2026. API keys and model availability are region-specific.
+
+For another provider or a self-hosted model, set `SCHOLAR_RERANK_URL` to the **full rerank endpoint**, `SCHOLAR_RERANK_MODEL` to its model name, and `SCHOLAR_RERANK_API_KEY` if needed. This explicit endpoint takes priority over the Alibaba configuration and uses only its own credential. Compatible endpoints use the Cohere-style contract:
 
 ```text
 Request:  query, documents, top_n, model
 Response: results: [{index, relevance_score}]
 ```
 
-Scores must be finite and in `[0, 1]`, with each query-document score comparable across batches. Raw logits need model-specific normalization in the serving backend. Changing models can change the balance with citation and recency ranking. A custom endpoint replaces DashScope and falls back only to the local model. Set `SCHOLAR_RERANK_BATCH_SIZE` to its per-request document capacity (default 500). Larger candidate pools are scored in batches, not discarded at that limit.
+Alibaba's native `/api/v1/services/rerank/text-rerank/text-rerank` endpoint is also supported, with `input`/`parameters` requests and `output.results` responses. Both formats share the same batching, score validation and local fallback. No provider SDK is required.
+
+Scores must be finite and in `[0, 1]`, with each query-document score comparable across batches. Raw logits need model-specific normalization in the serving backend. Changing models can change the balance with citation and recency ranking. A custom endpoint replaces DashScope and falls back only to the local model. Set `SCHOLAR_RERANK_BATCH_SIZE` to its per-request document capacity (default 500). Larger candidate pools are scored in batches, not discarded at that limit. Use `scholar://status` or `debug=true` to inspect the actual provider/model and any fallback reason; a successful search alone does not confirm that the cloud reranker succeeded.
 
 </details>
 
@@ -151,7 +162,7 @@ Normal responses focus on papers, with a short warning if availability affected 
 <details>
 <summary>Google Scholar session recovery</summary>
 
-With Chrome, Edge, or Chromium and ffmpeg installed, select `scholar-mcp[google,rerank]==0.8.5` in the quick-start configuration to enable automatic verification recovery. A short-lived browser establishes the session, then ordinary HTTP handles searches and pagination. It uses a fresh browser profile, never your personal browser profile, and online audio recognition rather than a local model. Auto mode tries headless first; on macOS, a declined challenge can retry in a hidden browser without activating it.
+With Chrome, Edge, or Chromium and ffmpeg installed, select `scholar-mcp[google,rerank]==0.8.5` in the quick-start configuration to enable automatic verification recovery. A short-lived browser establishes the session, then ordinary HTTP handles searches and pagination. It uses a fresh browser profile, never your personal browser profile, and online audio recognition rather than a local model. Auto mode tries headless first; on macOS, a declined challenge can retry using the native browser engine with no startup window and a hidden page. It reuses the last successful quiet mode for that route. Recovery advances when the page is ready, without fixed multi-second delays.
 
 Sessions are stored privately under `<data>/sessions/` and tied to the configured proxy. A cold search can wait up to 150 seconds for the bounded recovery worker and the subsequent search. Warm sessions use the normal budget. Set `SCHOLAR_GOOGLE_RECOVERY=off` to disable recovery, `headless` to require strictly headless operation, or `headed` to explicitly allow a visible verification window. `SCHOLAR_GOOGLE_BROWSER` selects a browser executable outside standard install locations. No browser is downloaded at server startup. If pagination is interrupted, completed pages remain usable and the response reports partial coverage. Failed recovery backs off while retaining the last verified session.
 
@@ -238,8 +249,10 @@ All credentials are optional and remain in the MCP process environment.
 | `OPENALEX_API_KEY` / `OPENALEX_API_KEYS` | OpenAlex search, semantic search, and graph calls |
 | `OPENALEX_EMAIL` | OpenAlex polite pool and Unpaywall |
 | `DASHSCOPE_API_KEY` | Qwen reranker |
-| `SCHOLAR_RERANK_URL`, `SCHOLAR_RERANK_MODEL`, `SCHOLAR_RERANK_API_KEY` | Compatible hosted or local reranker; separate credential |
-| `SCHOLAR_RERANK_TIMEOUT` | Custom reranker request timeout; default 120 seconds |
+| `DASHSCOPE_HTTP_BASE_URL` | Alibaba workspace API Host or `/api/v1` base; defaults to the Beijing shared endpoint |
+| `SCHOLAR_RERANK_MODEL` | Alibaba model (default `qwen3-rerank`), or the model served by a custom endpoint |
+| `SCHOLAR_RERANK_URL`, `SCHOLAR_RERANK_API_KEY` | Full custom rerank endpoint and its separate credential; overrides Alibaba routing |
+| `SCHOLAR_RERANK_TIMEOUT` | Remote reranker request timeout, including Alibaba; default 120 seconds |
 | `SCHOLAR_RERANK_BATCH_SIZE` | Custom reranker's per-request document capacity; default 500 |
 | `SCHOLAR_GOOGLE_PROXY` | Dedicated Google Scholar proxy; other sources keep their existing route |
 | `SCOPUS_API_KEY` | Optional Scopus metadata source |
@@ -248,6 +261,7 @@ All credentials are optional and remain in the MCP process environment.
 | `OPENREVIEW_USERNAME`, `OPENREVIEW_PASSWORD` | OpenReview API |
 | `SCHOLAR_SOURCE_BUDGET_S` | Per-round source fan-out budget; default 30 seconds |
 | `SCHOLAR_DOWNLOAD_DIR` | Persistent PDF directory; default `<data>/papers` |
+| `LIBRARY_PROXY_BASE`, `LIBRARY_PROXY_COOKIE` | Optional institutional proxy URL and session; no institution is assumed. Cookie file fallback: `<data>/library_cookie.txt` |
 | `SCHOLAR_MCP_EXTENSIONS` | Use `research` for graph and paper-library tools |
 | `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` | Zotero Web API or authorized local API connector |
 | `ZOTERO_LIBRARY_TYPE`, `ZOTERO_API_BASE` | Optional Zotero library type and endpoint override |

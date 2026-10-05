@@ -30,7 +30,11 @@
         "SCHOLAR_MCP_EXTENSIONS": "research",
         "S2_API_KEY": "${user_config.s2_api_key}",
         "OPENALEX_API_KEY": "${user_config.openalex_api_key}",
-        "DASHSCOPE_API_KEY": "${user_config.dashscope_api_key}"
+        "DASHSCOPE_API_KEY": "${user_config.dashscope_api_key}",
+        "DASHSCOPE_HTTP_BASE_URL": "${user_config.dashscope_base_url}",
+        "SCHOLAR_RERANK_MODEL": "${user_config.rerank_model}",
+        "SCHOLAR_RERANK_URL": "${user_config.rerank_url}",
+        "SCHOLAR_RERANK_API_KEY": "${user_config.rerank_api_key}"
       }
     }
   },
@@ -76,6 +80,35 @@
       "type": "string",
       "title": "DashScope reranker API key",
       "description": "Optional key for the Qwen reranker; local fallback remains available.",
+      "required": false,
+      "sensitive": true,
+      "default": ""
+    },
+    "dashscope_base_url": {
+      "type": "string",
+      "title": "Alibaba workspace base URL",
+      "description": "Optional workspace API host (https://...) or /api/v1 base; empty keeps the Beijing shared endpoint.",
+      "required": false,
+      "default": ""
+    },
+    "rerank_model": {
+      "type": "string",
+      "title": "Reranker model",
+      "description": "Alibaba model (default qwen3-rerank), or the model on your custom endpoint.",
+      "required": false,
+      "default": ""
+    },
+    "rerank_url": {
+      "type": "string",
+      "title": "Custom rerank endpoint",
+      "description": "Optional full rerank endpoint for another provider or local model; overrides Alibaba routing.",
+      "required": false,
+      "default": ""
+    },
+    "rerank_api_key": {
+      "type": "string",
+      "title": "Custom reranker API key",
+      "description": "Credential for the custom endpoint only; never inherits the Alibaba key.",
       "required": false,
       "sensitive": true,
       "default": ""

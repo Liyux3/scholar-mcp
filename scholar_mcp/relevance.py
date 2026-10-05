@@ -723,13 +723,30 @@ def _apply_rerank_results(items: list[dict], papers: list[dict], top_n: int,
     return result
 
 
+_DASHSCOPE_NATIVE_RERANK_PATH = "/api/v1/services/rerank/text-rerank/text-rerank"
+
+
+def _dashscope_rerank_url(model: str) -> str:
+    """Resolve a console/SDK base URL while retaining an explicit endpoint."""
+    base = config.DASHSCOPE_HTTP_BASE_URL.rstrip("/")
+    if base.endswith(("/reranks", _DASHSCOPE_NATIVE_RERANK_PATH)):
+        return base
+    for suffix in ("/api/v1", "/compatible-api/v1", "/compatible-mode/v1"):
+        if base.endswith(suffix):
+            base = base[:-len(suffix)]
+            break
+    path = "/compatible-api/v1/reranks" if model == "qwen3-rerank" else _DASHSCOPE_NATIVE_RERANK_PATH
+    return base + path
+
+
 def _rerank_remote(query: str, papers: list[dict], top_n: int, intent: str,
                    *, url: str, model: str, api_key: str | None,
                    provider: str, timeout: float) -> list[dict] | None:
-    """One compatible HTTP contract for cloud and self-hosted rerankers."""
+    """Shared transport and scoring, with two small wire-format adapters."""
     started = time.monotonic()
     try:
         import httpx
+        native = urlsplit(url).path.rstrip("/").endswith(_DASHSCOPE_NATIVE_RERANK_PATH)
         body = {
             "query": query[:500],
             "documents": [rerank_document(paper) for paper in papers],
@@ -737,11 +754,18 @@ def _rerank_remote(query: str, papers: list[dict], top_n: int, intent: str,
         }
         if model:
             body["model"] = model
-        if provider == "dashscope":
+        if (provider == "dashscope" or native) and model != "gte-rerank-v2":
             body["instruct"] = INTENT_INSTRUCTS.get(intent, INTENT_INSTRUCTS[""])
         elif intent:
             # Standard rerank APIs have no shared `instruct` field.
             body["query"] = INTENT_INSTRUCTS.get(intent, "") + "\n" + query[:500]
+        if native:
+            parameters = {"top_n": body["top_n"]}
+            if "instruct" in body:
+                parameters["instruct"] = body["instruct"]
+            body = {"model": model,
+                    "input": {"query": body["query"], "documents": body["documents"]},
+                    "parameters": parameters}
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
@@ -770,7 +794,8 @@ def _rerank_remote(query: str, papers: list[dict], top_n: int, intent: str,
             return ranked[:top_n]
         resp.raise_for_status()
         data = resp.json()
-        reranked = _apply_rerank_results(data.get("results"), papers, top_n, provider, model)
+        output = data.get("output", {}) if native else data
+        reranked = _apply_rerank_results(output.get("results"), papers, top_n, provider, model)
         _reranker_state.update(
             provider=provider,
             model=model or None,
@@ -800,9 +825,9 @@ def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = 
         return None
     return _rerank_remote(
         query, papers, top_n, intent,
-        url="https://dashscope.aliyuncs.com/compatible-api/v1/reranks",
-        model="qwen3-rerank", api_key=config.DASHSCOPE_API_KEY,
-        provider="dashscope", timeout=15,
+        url=_dashscope_rerank_url(config.RERANK_MODEL or "qwen3-rerank"),
+        model=config.RERANK_MODEL or "qwen3-rerank", api_key=config.DASHSCOPE_API_KEY,
+        provider="dashscope", timeout=config.RERANK_TIMEOUT,
     )
 
 
@@ -812,7 +837,9 @@ def _dashscope_reason(exc: Exception) -> str:
     if "Arrearage" in body or "overdue" in body.lower():
         return "account in arrearage, top up at model-studio"
     if "InvalidApiKey" in body or "401" in body:
-        return "invalid API key"
+        return "invalid API key or endpoint region/workspace mismatch"
+    if getattr(getattr(exc, "response", None), "status_code", None) == 404:
+        return "reranker endpoint or model not found; check base URL and model"
     return f"{type(exc).__name__}"
 
 
@@ -866,7 +893,9 @@ def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") ->
     """Score every candidate in provider-sized batches, then select globally."""
     if not papers:
         return papers
-    batch_size = config.RERANK_BATCH_SIZE if config.RERANK_URL else DASHSCOPE_CAP
+    batch_size = config.RERANK_BATCH_SIZE if config.RERANK_URL else (
+        100 if config.RERANK_MODEL == "qwen3-vl-rerank" else DASHSCOPE_CAP)
+    token_budget = min(DASHSCOPE_TOKEN_BUDGET, 27_000) if config.RERANK_MODEL == "gte-rerank-v2" else DASHSCOPE_TOKEN_BUDGET
     batches = []
     batch, tokens = [], 0
     for paper in papers:
@@ -877,7 +906,7 @@ def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") ->
         non_ascii = sum(ord(character) > 127 for character in text)
         estimated = (len(text) - non_ascii + 2) // 3 + non_ascii * 3 + 128
         if batch and (len(batch) >= batch_size or (
-                not config.RERANK_URL and tokens + estimated > DASHSCOPE_TOKEN_BUDGET)):
+                not config.RERANK_URL and tokens + estimated > token_budget)):
             batches.append(batch)
             batch, tokens = [], 0
         batch.append(paper)

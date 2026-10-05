@@ -72,6 +72,26 @@
           "isSecret": true
         },
         {
+          "name": "DASHSCOPE_HTTP_BASE_URL",
+          "description": "Alibaba workspace API host or /api/v1 base URL.",
+          "isRequired": false
+        },
+        {
+          "name": "SCHOLAR_RERANK_MODEL",
+          "description": "Alibaba or custom reranker model name.",
+          "isRequired": false
+        },
+        {
+          "name": "SCHOLAR_RERANK_URL",
+          "description": "Full custom rerank endpoint; overrides Alibaba routing.",
+          "isRequired": false
+        },
+        {
+          "name": "SCHOLAR_RERANK_API_KEY",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
           "name": "EXA_API_KEY",
           "isRequired": false,
           "isSecret": true

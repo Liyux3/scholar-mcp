@@ -1,5 +1,6 @@
 """Provider-native recovery and private browser-to-HTTP handoff contracts."""
 import json
+from contextlib import ExitStack
 import os
 import time
 from unittest.mock import Mock
@@ -10,6 +11,88 @@ import httpx
 import pytest
 
 from scholar_mcp import arxiv_client, scholar_client, scholar_session, sources
+
+
+def test_ready_page_does_not_pay_a_fixed_verification_sleep(monkeypatch):
+    page = Mock()
+    page.ele.return_value = SimpleNamespace(states=SimpleNamespace(is_displayed=True))
+    sleep = Mock(side_effect=AssertionError("ready pages should proceed immediately"))
+    monkeypatch.setattr(scholar_session.time, "sleep", sleep)
+    assert scholar_session._wait_visible(page, ("results", "challenge")) == "results"
+    sleep.assert_not_called()
+
+
+def test_waits_for_visible_state_and_stops_at_deadline(monkeypatch):
+    clock = [0.0]
+    monkeypatch.setattr(scholar_session.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(scholar_session.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds))
+    page = Mock()
+    page.ele.side_effect = lambda selector, timeout: SimpleNamespace(
+        states=SimpleNamespace(is_displayed=clock[0] >= .4))
+    assert scholar_session._wait_visible(page, ("results",), timeout=2) == "results"
+    assert clock[0] == pytest.approx(.4)
+    page.ele.return_value = None
+    page.ele.side_effect = None
+    assert scholar_session._wait_visible(page, ("results",), timeout=.5) is None
+    assert clock[0] == pytest.approx(.9)
+
+
+def test_background_page_has_no_startup_window_and_keeps_hidden_target_owner(monkeypatch):
+    options = Mock(browser_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                   user_data_path="/tmp/scholar-private-fixture", address="127.0.0.1:9231",
+                   arguments=["--user-data-dir=/tmp/scholar-private-fixture"])
+    ws_url = "ws://127.0.0.1:9231/devtools/browser/test"
+    client = Mock()
+    client.__enter__ = Mock(return_value=client)
+    client.__exit__ = Mock(return_value=False)
+    client.get.return_value.json.return_value = {"webSocketDebuggerUrl": ws_url}
+    monkeypatch.setattr(httpx, "Client", Mock(return_value=client))
+    connection = Mock()
+    connection.recv.return_value = '{"id":1,"result":{"targetId":"hidden-target"}}'
+    monkeypatch.setitem(sys.modules, "websocket", SimpleNamespace(create_connection=Mock(return_value=connection)))
+    page = Mock()
+    constructor = Mock(return_value=page)
+    monkeypatch.setitem(sys.modules, "DrissionPage", SimpleNamespace(ChromiumPage=constructor))
+    launch = Mock()
+    monkeypatch.setattr(scholar_session.subprocess, "Popen", launch)
+    close = Mock()
+    monkeypatch.setattr(scholar_session, "_close_background_profile", close)
+    with ExitStack() as cleanup:
+        assert scholar_session._background_page(options, cleanup) is page
+        command = launch.call_args.args[0]
+        assert "--no-startup-window" in command and "-g" in command and "-j" in command
+        body = json.loads(connection.send.call_args.args[0])
+        assert body["params"] == {"url": "about:blank", "hidden": True, "background": True}
+        constructor.assert_called_once_with(options, tab_id="hidden-target")
+        options.set_address.assert_called_once_with(ws_url)
+        page.run_cdp.assert_called_once_with("Emulation.setDeviceMetricsOverride", width=1280, height=900,
+                                            deviceScaleFactor=1, mobile=False)
+        connection.close.assert_not_called()
+    connection.close.assert_called_once()
+    close.assert_called_once_with("/tmp/scholar-private-fixture")
+
+
+def test_background_hidden_target_failure_never_opens_a_visible_retry(monkeypatch):
+    options = Mock(browser_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                   user_data_path="/tmp/scholar-private-fixture", address="127.0.0.1:9231", arguments=[])
+    client = Mock()
+    client.__enter__ = Mock(return_value=client)
+    client.__exit__ = Mock(return_value=False)
+    client.get.return_value.json.return_value = {"webSocketDebuggerUrl": "ws://127.0.0.1:9231/devtools/browser/test"}
+    monkeypatch.setattr(httpx, "Client", Mock(return_value=client))
+    connection = Mock()
+    connection.recv.return_value = '{"id":1,"error":{"message":"unsupported hidden targets"}}'
+    monkeypatch.setitem(sys.modules, "websocket", SimpleNamespace(create_connection=Mock(return_value=connection)))
+    constructor = Mock(side_effect=AssertionError("must not open a regular page"))
+    monkeypatch.setitem(sys.modules, "DrissionPage", SimpleNamespace(ChromiumPage=constructor))
+    launch, close = Mock(), Mock()
+    monkeypatch.setattr(scholar_session.subprocess, "Popen", launch)
+    monkeypatch.setattr(scholar_session, "_close_background_profile", close)
+    with ExitStack() as cleanup, pytest.raises(PermissionError, match="Hidden browser"):
+        scholar_session._background_page(options, cleanup)
+    assert launch.call_count == 1
+    connection.close.assert_called_once()
+    close.assert_called_once()
 
 
 def test_google_pacing_has_no_first_request_delay_and_counts_elapsed_io(monkeypatch):

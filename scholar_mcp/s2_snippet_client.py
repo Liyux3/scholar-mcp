@@ -69,7 +69,7 @@ def enrich_metadata(papers: list[dict]) -> None:
     except (httpx.HTTPError, TimeoutError, s2_client.S2CooldownError):
         return
     fields = (
-        "paper_id", "authors", "year", "venue", "citation_count",
+        "paper_id", "authors", "abstract", "year", "venue", "citation_count",
         "_citation_count_known", "influential_citations", "is_open_access",
         "open_access_url", "fields_of_study", "publication_types", "publication_date", "tldr", "url",
     )
@@ -78,6 +78,8 @@ def enrich_metadata(papers: list[dict]) -> None:
             continue
         enriched = s2_client.format_paper(raw)
         for field in fields:
+            if field == "abstract" and paper.get("abstract"):
+                continue
             if enriched.get(field) not in (None, "", []):
                 paper[field] = enriched[field]
         paper["external_ids"] = {
