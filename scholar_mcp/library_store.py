@@ -48,10 +48,16 @@ def _merge_record(existing: dict, incoming: dict) -> tuple[dict, bool]:
         if not merged.get(field) and incoming.get(field):
             merged[field] = incoming[field]
             changed = True
-    for field in ("abstract", "notes"):
-        if len(str(incoming.get(field) or "")) > len(str(merged.get(field) or "")):
-            merged[field] = incoming[field]
-            changed = True
+    if len(str(incoming.get("abstract") or "")) > len(str(merged.get("abstract") or "")):
+        merged["abstract"] = incoming["abstract"]
+        changed = True
+    old_notes = str(merged.get("notes") or "")
+    new_notes = str(incoming.get("notes") or "")
+    if new_notes.strip() and f"\n\n{new_notes}\n\n" not in f"\n\n{old_notes}\n\n":
+        # Saving more evidence must not erase earlier annotations. Explicit
+        # update_annotations remains the operation for replacing a note.
+        merged["notes"] = f"{old_notes}\n\n{new_notes}" if old_notes else new_notes
+        changed = True
     if len(incoming.get("authors") or []) > len(merged.get("authors") or []):
         merged["authors"] = incoming["authors"]
         changed = True

@@ -20,7 +20,7 @@ def _record_from_paper(paper: dict, notes: str = "") -> dict:
     doi = external.get("DOI", "") or paper.get("doi", "")
     return {
         "title": paper.get("title", ""),
-        "authors": (paper.get("authors") or [])[:20],
+        "authors": list(paper.get("authors") or []),
         "year": paper.get("year"),
         "publication_date": paper.get("publication_date"),
         "citation_count": paper.get("citation_count", 0),
@@ -29,7 +29,7 @@ def _record_from_paper(paper: dict, notes: str = "") -> dict:
         "external_ids": external,
         "doi": doi,
         "venue": paper.get("venue", ""),
-        "abstract": (paper.get("abstract") or "")[:4000],
+        "abstract": paper.get("abstract") or "",
         "tldr": paper.get("tldr", ""),
         "url": paper.get("url", ""),
         "open_access_url": paper.get("open_access_url", ""),

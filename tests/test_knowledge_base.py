@@ -153,6 +153,35 @@ def test_notes():
     _with_tmp_dir(_test)
 
 
+def test_repeated_save_preserves_distinct_notes_and_remains_idempotent(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "DEFAULT_KB_DIR", str(tmp_path))
+    paper = {"title": "Annotated Paper", "external_ids": {"DOI": "10.1234/notes"}}
+    first = "The original observation."
+    second = "A longer, independently useful observation from a later reading."
+    kb.add_papers([paper], collection="test", notes=first)
+    kb.add_papers([paper], collection="test", notes=second)
+    assert kb.get_paper("10.1234/notes", "test")["notes"] == f"{first}\n\n{second}"
+    repeated = kb.add_papers([paper], collection="test", notes=second)
+    assert repeated["updated"] == 0
+    kb.add_papers([paper], collection="test", notes="Short note.")
+    assert kb.get_paper("10.1234/notes", "test")["notes"].endswith("\n\nShort note.")
+    kb.add_papers([paper], collection="test", notes="observation")
+    assert kb.get_paper("10.1234/notes", "test")["notes"].endswith("\n\nobservation")
+    assert kb.add_papers([paper], collection="test", notes="observation")["updated"] == 0
+    assert kb.update_paper("10.1234/notes", "test", notes="An explicit replacement.")
+    assert kb.get_paper("10.1234/notes", "test")["notes"] == "An explicit replacement."
+
+
+def test_saved_metadata_keeps_all_authors_and_the_full_abstract(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "DEFAULT_KB_DIR", str(tmp_path))
+    authors = [f"Author {i}" for i in range(35)]
+    abstract = "Evidence from the study. " * 220
+    kb.add_papers([{"title": "Collaborative Study", "authors": authors, "abstract": abstract}])
+    record = kb.get_paper("Collaborative Study")
+    assert record["authors"] == authors
+    assert record["abstract"] == abstract
+
+
 def test_pdf_path():
     def _test():
         papers = [{"title": "With PDF", "pdf_path": "/tmp/paper.pdf"}]
@@ -169,7 +198,7 @@ def test_keeps_abstract_evidence_beyond_preview_length():
         kb.add_papers([{"title": "Detailed", "abstract": abstract}], collection="test")
         stored = kb.list_papers("test")[0]["abstract"]
         assert len(stored) > 300
-        assert stored == abstract[:4000]
+        assert stored == abstract
 
     _with_tmp_dir(_test)
 

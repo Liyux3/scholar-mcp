@@ -134,11 +134,16 @@ as structured text.
 it in a library collection unless indexing is disabled. Candidate locations
 are resolved and probed with bounded parallel work. The downloader validates a
 PDF before atomically moving its staging file into place.
+The returned path is absolute even when a caller supplies a relative directory,
+so the saved attachment does not depend on the next session's working directory.
 
 The library uses SQLite for persistent records and full-text search. JSONL
 supports migration and snapshots. PDF attachments and Markdown vaults remain
 separate files. Obsidian, Zotero and Notion integrations project or synchronize
 library records through explicit connector operations.
+Stored records retain the supplied author list and full abstract. Repeated saves
+preserve distinct notes without appending duplicates; an explicit annotation
+update replaces a note. Display previews are not the library's authority.
 
 ## MCP surface
 

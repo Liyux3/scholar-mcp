@@ -54,7 +54,7 @@ def _cached_pdf(save_path: str, filename: str) -> str | None:
     try:
         if path.is_file():
             with path.open("rb") as stream:
-                if stream.read(5) == b"%PDF-":
+                if b"%PDF-" in stream.read(PDF_HEADER_SCAN_BYTES):
                     return str(path)
     except OSError:
         pass
@@ -331,7 +331,7 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
     direct record URL -> canonical archive -> registered OA repositories ->
     Unpaywall -> configured library proxy -> optional Sci-Hub.
     """
-    save_path = os.path.expanduser(save_path)
+    save_path = str(Path(save_path).expanduser().resolve())
     filename = _pdf_filename(paper_info)
     cached = _cached_pdf(save_path, filename)
     if cached:

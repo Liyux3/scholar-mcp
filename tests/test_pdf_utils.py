@@ -22,10 +22,11 @@ def test_pdf_identifiers_are_portable_on_windows(identifier):
     assert pdf_utils._pdf_filename({"paper_id": identifier}) == f"paper-{identifier}.pdf"
 
 
-def test_existing_pdf_is_reused(monkeypatch, tmp_path):
+@pytest.mark.parametrize("prefix", [b"", b"\xef\xbb\xbf\n"])
+def test_existing_pdf_is_reused(monkeypatch, tmp_path, prefix):
     paper = {"title": "Cached", "external_ids": {"DOI": "10.1/cache"}}
     path = tmp_path / pdf_utils._pdf_filename(paper)
-    path.write_bytes(b"%PDF-1.7 cached")
+    path.write_bytes(prefix + b"%PDF-1.7 cached")
     monkeypatch.setattr(
         pdf_utils,
         "_try_download",
@@ -37,6 +38,19 @@ def test_existing_pdf_is_reused(monkeypatch, tmp_path):
     assert result["success"] is True
     assert result["source"] == "cache"
     assert result["file_path"] == str(path)
+
+
+def test_relative_download_returns_a_path_that_survives_cwd_changes(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pdf_utils.httpx, "Client", lambda **kwargs: _StreamClient([b"%PDF-1.7\ncomplete"], **kwargs))
+    paper = {"title": "Persistent Path", "paper_id": "stable", "open_access_url": "https://example.test/paper.pdf"}
+    result = pdf_utils.download_paper(paper, "downloads")
+    destination = tmp_path / "downloads" / "stable.pdf"
+    assert result["success"] is True
+    assert result["file_path"] == str(destination.resolve())
+    monkeypatch.chdir(tmp_path.parent)
+    with open(result["file_path"], "rb") as stored:
+        assert stored.read() == b"%PDF-1.7\ncomplete"
 
 
 class _StreamResponse:
