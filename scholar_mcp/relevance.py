@@ -445,14 +445,21 @@ def _merge_two(a: dict, b: dict) -> dict:
                 merged["external_ids"]["DOI"] = b_ids["DOI"]
     except (TypeError, ValueError):
         pass
-    if (not merged.get("venue") or str(merged.get("venue")).casefold() == "arxiv") and b.get("venue"):
+    def text_quality(value):
+        text = str(value or "")
+        return (not bool(re.search(r"…|\.{3}", text)), len(text))
+
+    venue = merged.get("venue") or ""
+    if b.get("venue") and (not venue or str(venue).casefold().startswith("arxiv")
+                            or text_quality(b["venue"])[0] > text_quality(venue)[0]):
         merged["venue"] = b["venue"]
     if not merged.get("title") and b.get("title"):
         merged["title"] = b["title"]
     b_abs = b.get("abstract") or ""
-    if len(b_abs) > len(merged.get("abstract") or ""):
+    if b_abs and (not merged.get("abstract") or text_quality(b_abs) > text_quality(merged["abstract"])):
         merged["abstract"] = b_abs
-    if len(b.get("authors") or []) > len(merged.get("authors") or []):
+    b_authors, a_authors = b.get("authors") or [], merged.get("authors") or []
+    if (len(b_authors), text_quality(" ".join(b_authors))) > (len(a_authors), text_quality(" ".join(a_authors))):
         merged["authors"] = b["authors"]
     if (
         b.get("_citation_count_known")

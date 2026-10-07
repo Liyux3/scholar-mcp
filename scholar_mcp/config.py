@@ -8,8 +8,6 @@ OPENALEX_API_KEY: str | None = os.environ.get("OPENALEX_API_KEY") or None
 OPENALEX_API_KEYS: list[str] = [k.strip() for k in (os.environ.get("OPENALEX_API_KEYS") or "").split(",") if k.strip()]
 OPENALEX_EMAIL: str | None = os.environ.get("OPENALEX_EMAIL") or None
 OPENALEX_EMAILS: list[str] = [e.strip() for e in (os.environ.get("OPENALEX_EMAILS") or "").split(",") if e.strip()]
-OPENREVIEW_USERNAME: str | None = os.environ.get("OPENREVIEW_USERNAME") or None
-OPENREVIEW_PASSWORD: str | None = os.environ.get("OPENREVIEW_PASSWORD") or None
 DASHSCOPE_API_KEY: str | None = os.environ.get("DASHSCOPE_API_KEY") or None
 # Reuse the official SDK's override name without adding an SDK dependency.
 # Accept the workspace API host or its /api/v1 base; old installs stay valid.

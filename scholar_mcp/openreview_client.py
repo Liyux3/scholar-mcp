@@ -1,46 +1,11 @@
-"""OpenReview API v2 client for conference paper search (ICLR, NeurIPS, ICML, etc.).
-Requires OPENREVIEW_USERNAME and OPENREVIEW_PASSWORD env vars for API access."""
+"""Search public conference submissions through OpenReview API v2."""
 
 import httpx
-from . import config
 
 BASE_URL = "https://api2.openreview.net"
 
-_token_cache: dict = {"token": None}
-
-
-def _login() -> str:
-    if _token_cache["token"]:
-        return _token_cache["token"]
-    username = config.OPENREVIEW_USERNAME
-    password = config.OPENREVIEW_PASSWORD
-    if not username or not password:
-        raise RuntimeError(
-            "OpenReview credentials not configured. "
-            "Set OPENREVIEW_USERNAME and OPENREVIEW_PASSWORD env vars."
-        )
-    r = httpx.post(f"{BASE_URL}/login", json={"id": username, "password": password}, timeout=15)
-    r.raise_for_status()
-    token = r.json().get("token", "")
-    if not token:
-        raise RuntimeError("OpenReview login returned no token.")
-    _token_cache["token"] = token
-    return token
-
-
-def _headers() -> dict:
-    token = _login()
-    return {"Authorization": f"Bearer {token}"}
-
-
 def _get(url: str, params: dict = None) -> dict:
-    try:
-        r = httpx.get(url, params=params, headers=_headers(), timeout=30)
-    except RuntimeError:
-        raise
-    if r.status_code == 401:
-        _token_cache["token"] = None
-        r = httpx.get(url, params=params, headers=_headers(), timeout=30)
+    r = httpx.get(url, params=params, timeout=30)
     r.raise_for_status()
     return r.json()
 
@@ -94,8 +59,8 @@ def format_paper(note: dict) -> dict:
         "abstract": abstract,
         "year": year,
         "venue": venue or venueid,
-            "citation_count": 0,
-            "_citation_count_known": False,
+        "citation_count": 0,
+        "_citation_count_known": False,
         "influential_citations": 0,
         "is_open_access": True,
         "open_access_url": pdf_url,
@@ -108,24 +73,18 @@ def format_paper(note: dict) -> dict:
     }
 
 
-def is_configured() -> bool:
-    return bool(config.OPENREVIEW_USERNAME and config.OPENREVIEW_PASSWORD)
-
-
 def search_papers(query: str, max_results: int = 10, venue: str = None) -> list[dict]:
     """Search OpenReview for papers. Optionally filter by venue ID.
 
     venue examples: 'ICLR.cc/2026/Conference', 'NeurIPS.cc/2025/Conference'
     """
-    if not is_configured():
-        return []
-
     params = {
-        "query": query,
-        "limit": min(max_results, 50),
+        "term": query,
+        "source": "forum",
+        "limit": min(max_results, 1000),
     }
     if venue:
-        params["content.venueid"] = venue
+        params["group"] = venue
 
     data = _get(f"{BASE_URL}/notes/search", params=params)
 
@@ -143,9 +102,6 @@ def search_papers(query: str, max_results: int = 10, venue: str = None) -> list[
 
 def search_by_venue(venue_id: str, limit: int = 25) -> list[dict]:
     """List papers from a specific venue (e.g., accepted ICLR 2026 papers)."""
-    if not is_configured():
-        return []
-
     params = {
         "content.venueid": venue_id,
         "limit": min(limit, 100),

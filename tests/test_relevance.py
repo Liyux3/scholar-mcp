@@ -113,6 +113,18 @@ def test_deduplicate_by_title():
     assert len(result) == 2
 
 
+def test_merge_prefers_unabridged_metadata_without_extra_requests():
+    snippet = {"title": "A paper", "venue": "Advances in neural …",
+               "abstract": "Long search excerpt …" * 5, "authors": ["A Author", "B Writer …"]}
+    complete = {"title": "A paper", "venue": "NeurIPS", "abstract": "Complete abstract.",
+                "authors": ["Alice Author", "Bob Writer"]}
+    for first, second in ((snippet, complete), (complete, snippet)):
+        merged = relevance._merge_two(first, second)
+        assert merged["venue"] == "NeurIPS"
+        assert merged["abstract"] == "Complete abstract."
+        assert merged["authors"] == ["Alice Author", "Bob Writer"]
+
+
 def test_deduplicate_merges_cross_source_identity_and_metadata():
     papers = [
         {

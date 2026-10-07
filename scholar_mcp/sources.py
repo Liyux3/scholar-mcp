@@ -540,13 +540,11 @@ def _register_defaults():
         name="openreview",
         search=lambda q, limit, **kw: openreview_client.search_papers(
             q,
-            max_results=min(limit, 50),
+            max_results=limit,
             venue=kw.get("venue") or None,
         ),
         priority=68,
         domains=["computer science"],
-        requires_key=True,
-        key_available=openreview_client.is_configured,
         query_style=QUERY_RAW,
     ))
 

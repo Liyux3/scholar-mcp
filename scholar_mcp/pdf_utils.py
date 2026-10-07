@@ -2,10 +2,16 @@ import os
 import re
 import hashlib
 import tempfile
+import time
+from html import unescape
+from http.cookiejar import Cookie
+from itertools import chain
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 from pathlib import Path
+from urllib.parse import quote, urljoin, urlparse, urlunparse
 
 import httpx
+from bs4 import BeautifulSoup
 
 from . import __version__, config, sources
 
@@ -18,10 +24,12 @@ PDF_PROBE_WORKERS = 4
 USER_AGENT = f"scholar-mcp/{__version__} (academic research tool)"
 _pdf_probe_pool = ThreadPoolExecutor(max_workers=PDF_PROBE_WORKERS)
 
-# Institutional proxy. Off unless its base URL and session are configured.
+# Institutional proxy. Off unless its login prefix and a session are configured.
 # Short on purpose: an expired session or an uncovered paper is the common
 # case, and it must not slow the rest of the download chain.
 PROXY_TIMEOUT = 12
+PROXY_BUDGET = 45
+PROXY_MAX_REQUESTS = 4
 # Proxies and publishers routinely reject non-browser agents outright.
 BROWSER_UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
@@ -63,9 +71,11 @@ def _cached_pdf(save_path: str, filename: str) -> str | None:
 
 def _atomic_pdf_bytes(content: bytes, save_path: str, filename: str) -> str | None:
     """Atomically persist an already-buffered PDF payload."""
-    if b"%PDF-" not in content[:PDF_HEADER_SCAN_BYTES]:
-        return None
+    return _atomic_pdf_chunks((content,), save_path, filename)
 
+
+def _atomic_pdf_chunks(chunks, save_path: str, filename: str) -> str | None:
+    """Share bounded-memory, atomic storage across direct and session downloads."""
     destination = Path(save_path).expanduser() / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
     descriptor, staging_name = tempfile.mkstemp(
@@ -76,12 +86,20 @@ def _atomic_pdf_bytes(content: bytes, save_path: str, filename: str) -> str | No
     staging = Path(staging_name)
     try:
         with os.fdopen(descriptor, "wb") as output:
-            output.write(content)
+            prefix = bytearray()
+            for chunk in chunks:
+                if len(prefix) < PDF_HEADER_SCAN_BYTES:
+                    prefix.extend(chunk[:PDF_HEADER_SCAN_BYTES - len(prefix)])
+                if len(prefix) >= PDF_HEADER_SCAN_BYTES and b"%PDF-" not in prefix:
+                    return None
+                output.write(chunk)
+            if b"%PDF-" not in prefix:
+                return None
             output.flush()
             os.fsync(output.fileno())
         staging.replace(destination)
         return str(destination)
-    except OSError:
+    except (httpx.HTTPError, OSError):
         return None
     finally:
         staging.unlink(missing_ok=True)
@@ -89,40 +107,15 @@ def _atomic_pdf_bytes(content: bytes, save_path: str, filename: str) -> str | No
 
 def _try_download(url: str, save_path: str, filename: str) -> str | None:
     """Stream a PDF to a staging file and atomically publish it on success."""
-    destination = Path(save_path).expanduser() / filename
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, staging_name = tempfile.mkstemp(
-        dir=destination.parent,
-        prefix=f".{destination.name}.",
-        suffix=".part",
-    )
-    os.close(descriptor)
-    staging = Path(staging_name)
     try:
         headers = {"User-Agent": USER_AGENT}
         with httpx.Client(timeout=DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
             with client.stream("GET", url, headers=headers) as response:
                 response.raise_for_status()
-                prefix = bytearray()
-                with staging.open("wb") as output:
-                    for chunk in response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE):
-                        if not chunk:
-                            continue
-                        if len(prefix) < PDF_HEADER_SCAN_BYTES:
-                            remaining = PDF_HEADER_SCAN_BYTES - len(prefix)
-                            prefix.extend(chunk[:remaining])
-                        output.write(chunk)
-                    output.flush()
-                    os.fsync(output.fileno())
-
-        if b"%PDF-" not in prefix:
-            return None
-        staging.replace(destination)
-        return str(destination)
+                return _atomic_pdf_chunks(response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE),
+                                          save_path, filename)
     except (httpx.HTTPError, OSError):
         return None
-    finally:
-        staging.unlink(missing_ok=True)
 
 
 def _probe_pdf(url: str) -> bool:
@@ -207,7 +200,7 @@ def _try_scihub(doi: str, save_path: str, filename: str) -> str | None:
 
 
 def _library_cookie() -> str:
-    """Session cookie for the institutional proxy, if the user set one up.
+    """Legacy raw Cookie header for the institutional proxy, if one was set up.
 
     Read from LIBRARY_PROXY_COOKIE or <DATA_DIR>/library_cookie.txt. Kept
     out of the repo and out of any output, since it is a live credential.
@@ -222,29 +215,294 @@ def _library_cookie() -> str:
         return ""
 
 
-def _try_ezproxy(doi: str, save_path: str, filename: str) -> str | None:
-    """Resolve one requested DOI using an explicitly configured EZproxy session."""
-    cookie = _library_cookie()
-    base = os.environ.get("LIBRARY_PROXY_BASE", "").strip()
-    if not cookie or not base:
+def _library_proxy() -> tuple[str, str]:
+    """Login prefix and proxy host, or ("", "") when no proxy is configured.
+
+    LIBRARY_PROXY_PREFIX is the full login prefix (".../login?url="). The
+    older LIBRARY_PROXY_BASE (scheme and host only) still works. A prefix
+    that is not an http(s) URL returns ("", "") with the prefix kept out of
+    the result, so callers report it instead of sending requests to it.
+    """
+    prefix = os.environ.get("LIBRARY_PROXY_PREFIX", "").strip()
+    if not prefix:
+        base = os.environ.get("LIBRARY_PROXY_BASE", "").strip()
+        prefix = f"{base.rstrip('/')}/login?url=" if base else ""
+    parts = urlparse(prefix)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return "", ""
+    return prefix, parts.hostname.lower()
+
+
+def _proxied(prefix: str, target: str) -> str:
+    """Wrap a target URL in the login prefix (encoded when the prefix is qurl=)."""
+    return prefix + (quote(target, safe="") if prefix.endswith("qurl=") else target)
+
+
+def _in_proxy_tree(url: str, proxy_host: str) -> bool:
+    """True for the proxy host itself and the hostnames it rewrites publishers to."""
+    host = (urlparse(url).hostname or "").lower()
+    return host == proxy_host or host.endswith("." + proxy_host)
+
+
+def _cookie_applies_to(domain: str, proxy_host: str) -> bool:
+    """Keep only cookies a browser would send to the proxy tree.
+
+    A cookies.txt export may hold every site the user is signed in to; the
+    rest must never be attached to a request, so they are dropped on load.
+    """
+    d = domain.lstrip(".").lower()
+    return bool(d) and (proxy_host == d or proxy_host.endswith("." + d)
+                        or d.endswith("." + proxy_host))
+
+
+def _load_cookie_file(path: Path, proxy_host: str) -> tuple[httpx.Cookies, int]:
+    """Parse a Netscape cookies.txt into a jar scoped to the proxy tree.
+
+    Returns the jar and how many in-scope cookies were already expired.
+    Browser exports mark HttpOnly cookies with a "#HttpOnly_" prefix on the
+    domain, which a plain comment filter would silently drop.
+    """
+    jar = httpx.Cookies()
+    expired = 0
+    now = time.time()
+    for raw in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw.strip("\r\n")
+        if line.startswith("#HttpOnly_"):
+            line = line[len("#HttpOnly_"):]
+        elif not line.strip() or line.startswith("#"):
+            continue
+        fields = line.split("\t", 6)
+        if len(fields) < 6:
+            continue
+        domain, subdomains, cookie_path, secure, expires, name = fields[:6]
+        value = fields[6] if len(fields) > 6 else ""
+        if not name or not _cookie_applies_to(domain, proxy_host):
+            continue
+        try:
+            lifetime = int(float(expires))
+        except (ValueError, OverflowError):
+            lifetime = 0
+        if 0 < lifetime < now:
+            expired += 1
+            continue
+        if subdomains.upper() == "TRUE" and not domain.startswith("."):
+            domain = "." + domain
+        jar.jar.set_cookie(Cookie(
+            version=0, name=name, value=value, port=None, port_specified=False,
+            domain=domain, domain_specified=subdomains.upper() == "TRUE",
+            domain_initial_dot=domain.startswith("."), path=cookie_path or "/",
+            path_specified=True, secure=secure.upper() == "TRUE",
+            expires=lifetime or None, discard=lifetime == 0, comment=None,
+            comment_url=None, rest={}, rfc2109=False,
+        ))
+    return jar, expired
+
+
+def _library_cookies(proxy_host: str, notes: list[str]) -> httpx.Cookies | None:
+    """Session cookies for the proxy, or None (with the reason in notes).
+
+    LIBRARY_PROXY_COOKIES is a cookies.txt the user exported from their own
+    logged-in browser. The legacy raw Cookie header is accepted too and is
+    scoped to the proxy domain tree rather than sent to every redirect hop.
+    Passwords are never read, and cookie values never reach notes or logs.
+    """
+    configured = os.environ.get("LIBRARY_PROXY_COOKIES", "").strip()
+    if configured:
+        path = Path(configured).expanduser()
+        try:
+            jar, expired = _load_cookie_file(path, proxy_host)
+        except OSError:
+            notes.append(f"Library proxy cookie file {path} could not be read; "
+                         "check LIBRARY_PROXY_COOKIES.")
+            return None
+        if len(jar.jar) == 0:
+            reason = "all of them expired" if expired else "none belong to the proxy"
+            notes.append(f"Library proxy cookie file {path} has no usable cookies for "
+                         f"{proxy_host} ({reason}). Log in to the library in your "
+                         "browser and export cookies.txt again.")
+            return None
+        return jar
+
+    legacy = _library_cookie()
+    if legacy:
+        jar = httpx.Cookies()
+        for pair in legacy.split(";"):
+            name, _, value = pair.strip().partition("=")
+            if name:
+                jar.set(name, value, domain="." + proxy_host, path="/")
+        return jar
+
+    notes.append("Library proxy has no session cookies; set LIBRARY_PROXY_COOKIES to a "
+                 "cookies.txt exported from your browser after logging in to the library.")
+    return None
+
+
+# Publisher PDF locations that follow one pattern per DOI prefix. They are
+# requested through the proxy before the DOI landing page, which costs an
+# extra request and is often an interstitial. IEEE and Elsevier have no
+# DOI-derived pattern, so they are resolved from their landing page below.
+_PUBLISHER_PDF_PATTERNS = (
+    ("10.1126/", "https://www.science.org/doi/pdf/{doi}"),                # Science / AAAS
+    ("10.1038/", "https://www.nature.com/articles/{suffix}.pdf"),         # Nature
+    ("10.1007/", "https://link.springer.com/content/pdf/{doi}.pdf"),      # Springer
+    ("10.1145/", "https://dl.acm.org/doi/pdf/{doi}"),                     # ACM
+    ("10.1002/", "https://onlinelibrary.wiley.com/doi/pdfdirect/{doi}"),  # Wiley
+    ("10.1111/", "https://onlinelibrary.wiley.com/doi/pdfdirect/{doi}"),
+)
+# A path segment that starts a login flow: the proxy's own /login, a CAS or
+# Shibboleth identity provider. Anchored to segment starts so DOIs do not match.
+_LOGIN_PATH = re.compile(r"/(?:login|signin|saml\d*|shibboleth|idp)(?:[/.?]|$)", re.I)
+
+
+def _publisher_pdf_urls(doi: str) -> list[str]:
+    lowered = doi.lower()
+    for prefix, template in _PUBLISHER_PDF_PATTERNS:
+        if lowered.startswith(prefix):
+            safe = "/()._-;:"
+            return [template.format(doi=quote(doi, safe=safe),
+                                    suffix=quote(doi[len(prefix):], safe=safe))]
+    return []
+
+
+def _landing_pdf_url(page_url: str, html: str) -> str | None:
+    """Find the PDF a publisher landing page points to.
+
+    Highwire citation_pdf_url meta tags come first (the indexing standard
+    publishers already provide). IEEE Xplore and ScienceDirect article URLs
+    carry the identifier their PDF endpoint needs, so those are rebuilt on
+    the same host, which keeps a proxy-rewritten hostname intact.
+    """
+    for tag in re.finditer(r"<meta\b[^>]*>", html, re.I):
+        text = tag.group(0)
+        if re.search(r"""(?:name|property)\s*=\s*["']citation_pdf_url["']""", text, re.I):
+            content = re.search(r"""content\s*=\s*(?:"([^"]*)"|'([^']*)')""", text, re.I)
+            if content:
+                url = unescape(content.group(1) or content.group(2) or "").strip()
+                if url:
+                    return urljoin(page_url, url)
+    parts = urlparse(page_url)
+    host = parts.hostname or ""
+    if "ieeexplore" in host:
+        match = re.match(r"/document/(\d+)", parts.path)
+        if match:
+            return urlunparse(parts._replace(path="/stampPDF/getPDF.jsp", params="",
+                                             query=f"tp=&arnumber={match.group(1)}", fragment=""))
+    if "sciencedirect" in host:
+        match = re.match(r"/science/article/(?:abs/)?pii/([A-Za-z0-9]+)", parts.path)
+        if match:
+            return urlunparse(parts._replace(path=f"/science/article/pii/{match.group(1)}/pdfft",
+                                             params="", query="isDTMRedir=true&download=true",
+                                             fragment=""))
+    return None
+
+
+def _is_login_page(url: str, html: str, proxy_host: str) -> bool:
+    """An expired proxy session ends on the library or identity-provider login."""
+    parts = urlparse(url)
+    if _LOGIN_PATH.search(parts.path or ""):
+        return True
+    return ((parts.hostname or "").lower() == proxy_host
+            and re.search(r"""type\s*=\s*["']?password""", html, re.I) is not None)
+
+
+def _try_ezproxy(doi: str, save_path: str, filename: str,
+                 notes: list[str] | None = None) -> str | None:
+    """Fetch one requested DOI through the user's library proxy session.
+
+    The cookie jar is the user's own export; no password is handled. Each
+    candidate (a publisher PDF pattern, then the DOI landing page and the
+    PDF it points to) is requested through the login prefix and accepted
+    only if the bytes are a PDF. Why the route failed is appended to notes.
+    """
+    notes = notes if notes is not None else []
+    prefix, proxy_host = _library_proxy()
+    if not prefix:
+        if os.environ.get("LIBRARY_PROXY_PREFIX", "").strip():
+            notes.append("LIBRARY_PROXY_PREFIX is not an http(s) URL; library proxy skipped.")
+        return None
+    cookies = _library_cookies(proxy_host, notes)
+    if cookies is None:
         return None
 
-    url = f"{base.rstrip('/')}/login?url=https://doi.org/{doi}"
-    try:
-        response = httpx.get(
-            url, headers={"Cookie": cookie, "User-Agent": BROWSER_UA},
-            timeout=PROXY_TIMEOUT, follow_redirects=True)
-    except Exception:
-        return None
+    queue = _publisher_pdf_urls(doi) + [f"https://doi.org/{doi}"]
+    seen: set[str] = set()
+    reasons: list[str] = []
+    deadline = time.monotonic() + PROXY_BUDGET
+    headers = {"User-Agent": BROWSER_UA, "Accept": "application/pdf,text/html;q=0.9,*/*;q=0.8"}
 
-    if response.status_code != 200:
-        return None
-    if not response.headers.get("content-type", "").lower().startswith("application/pdf"):
-        # Landing page or login form rather than the file itself. Following
-        # publisher-specific paths from here is where scraping would begin.
-        return None
+    def scope_session(request):
+        # Parent-domain cookies must not escape through an external redirect.
+        if not _in_proxy_tree(str(request.url), proxy_host):
+            request.headers.pop("cookie", None)
 
-    return _atomic_pdf_bytes(response.content, save_path, filename)
+    with httpx.Client(headers=headers, cookies=cookies, timeout=PROXY_TIMEOUT,
+                      follow_redirects=True, event_hooks={"request": [scope_session]}) as client:
+        requests = 0
+        while queue and requests < PROXY_MAX_REQUESTS and time.monotonic() < deadline:
+            target = queue.pop(0)
+            if target in seen:
+                continue
+            seen.add(target)
+            url = target if _in_proxy_tree(target, proxy_host) else _proxied(prefix, target)
+            requests += 1
+            try:
+                with client.stream("GET", url, timeout=min(PROXY_TIMEOUT, max(0.1, deadline - time.monotonic()))) as response:
+                    chunks = response.iter_bytes(chunk_size=DOWNLOAD_CHUNK_SIZE)
+                    first = next(chunks, b"")
+                    if response.is_success and b"%PDF-" in first[:PDF_HEADER_SCAN_BYTES]:
+                        saved = _atomic_pdf_chunks(chain((first,), chunks), save_path, filename)
+                        if saved:
+                            return saved
+                        reasons.append("PDF could not be written")
+                        continue
+                    # A landing page needs only a bounded head for its PDF pointer.
+                    head = bytearray(first[:200_000])
+                    while len(head) < 200_000:
+                        chunk = next(chunks, b"")
+                        if not chunk:
+                            break
+                        head.extend(chunk[:200_000 - len(head)])
+                    html = head.decode("utf-8", errors="ignore")
+                    final_url = str(response.url)
+            except httpx.HTTPError as error:
+                reasons.append(f"request failed ({type(error).__name__})")
+                continue
+
+            if urlparse(final_url).hostname == proxy_host:
+                # Some proxies finish login with a script and a visible continue
+                # link, not an HTTP redirect. Follow only one same-proxy target.
+                page = BeautifulSoup(html, "html.parser")
+                handoffs = {urljoin(final_url, a["href"]) for a in page.select("a[href]")}
+                handoffs = {target for target in handoffs
+                            if _in_proxy_tree(target, proxy_host)
+                            and urlparse(target).hostname != proxy_host
+                            and urlparse(target).scheme == urlparse(prefix).scheme}
+                if len(handoffs) == 1 and not page.select("input[type=password]"):
+                    target = handoffs.pop()
+                    if target not in seen:
+                        queue.insert(0, target)
+                        continue
+
+            if _is_login_page(final_url, html, proxy_host):
+                notes.append(
+                    "Library proxy session looks expired (the proxy returned a login "
+                    f"page). Log in at {proxy_host} in your browser, export cookies.txt "
+                    "again, and retry.")
+                return None
+            if response.status_code >= 400:
+                reasons.append(f"HTTP {response.status_code} from "
+                               f"{urlparse(final_url).hostname}")
+                continue
+            pointer = _landing_pdf_url(final_url, html)
+            if pointer and pointer not in seen:
+                queue.insert(0, pointer)
+            else:
+                reasons.append(f"no PDF at {urlparse(final_url).hostname}")
+
+    notes.append("Library proxy did not return a PDF ("
+                 + ("; ".join(dict.fromkeys(reasons)) or "time budget used up")
+                 + "); the library may not subscribe to this paper.")
+    return None
 
 
 def _try_unpaywall(doi: str) -> str | None:
@@ -393,10 +651,12 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
                 return {"success": True, "file_path": result, "source": "unpaywall",
                         "message": "Downloaded via Unpaywall (legal open access)."}
 
-    # 7. Institutional proxy, if a session cookie is configured. Tried before
-    # Sci-Hub because it is the licensed route to the same paper.
+    # 7. Institutional proxy, if a login prefix and session cookies are
+    # configured. Tried before Sci-Hub because it is the licensed route to
+    # the same paper. Why it failed is kept for the final message.
+    proxy_notes: list[str] = []
     if doi:
-        result = _try_ezproxy(doi, save_path, filename)
+        result = _try_ezproxy(doi, save_path, filename, proxy_notes)
         if result:
             return {"success": True, "file_path": result, "source": "library_proxy",
                     "message": f"Downloaded via institutional proxy (DOI: {doi})."}
@@ -406,13 +666,20 @@ def download_paper(paper_info: dict, save_path: str) -> dict:
         result = _try_scihub(doi, save_path, filename)
         if result:
             return {"success": True, "file_path": result, "source": "scihub",
-                    "message": f"Downloaded via Sci-Hub (DOI: {doi})."}
+                    "message": " ".join(
+                        [f"Downloaded via Sci-Hub (DOI: {doi})."] + proxy_notes)}
 
     # 9. Return useful identities and landing pages when no PDF was resolved.
     s2_url = paper_info.get("url", "")
     doi_link = f" or via DOI: https://doi.org/{doi}" if doi else ""
+    message = (f"Could not download PDF (may not be open access). "
+               f"Try: {s2_url}{doi_link}")
+    prefix, _ = _library_proxy()
+    if prefix and doi:
+        # Opens the paper through the library login when clicked in a browser.
+        message += "".join(f" {note}" for note in proxy_notes)
+        message += f" Library proxy link: {_proxied(prefix, f'https://doi.org/{doi}')}"
     return {
         "success": False, "file_path": None, "source": "none",
-        "message": f"Could not download PDF (may not be open access). "
-                   f"Try: {s2_url}{doi_link}",
+        "message": message,
     }

@@ -236,6 +236,19 @@ The shared resolution chain covers:
 
 `scholar-mcp sources` prints the registry-derived capability matrix. Add `--check` to test configured search providers, or `--check --source arxiv --query "retrieval augmented generation"` to inspect one. arXiv falls back to its own HTTPS search when its Atom API is unavailable. Zenodo participates in PDF resolution but stays out of default discovery because its broad publication records add more candidate noise than retrieval value.
 
+### Library proxy access
+
+For paywalled papers, `download_paper` can fetch through your university library's EZproxy login. It runs after Unpaywall and before the optional Sci-Hub step, and only for a single paper you asked for. Scholar never asks for or stores a password. It reuses the session cookies you export from your own browser after logging in.
+
+1. Set `LIBRARY_PROXY_PREFIX` to your library's proxy login prefix, the part that comes before the paper address, for example `https://proxy.library.example.edu/login?url=`. Copy it from any proxied link or the library's bookmarklet; no institution is assumed.
+2. In Edge or Chrome, log in to the library proxy and open any proxied page.
+3. Export cookies for the proxy domain in Netscape cookies.txt format with a cookies.txt extension (for example Get cookies.txt LOCALLY; Edge can install Chrome Web Store extensions). Save the file somewhere private and set `LIBRARY_PROXY_COOKIES` to its path.
+4. Restart the MCP client so it picks up the new environment.
+
+Library sessions are short lived and are controlled by the library, so the export stops working after some hours or when the library ends the session. When the proxy returns its login page, the download message says the session expired; log in again and export a fresh file. The file is a live session credential, so keep it out of git and shared folders. Only cookies belonging to the proxy domain are read; any others in the file are ignored. When a download fails, the message includes a proxied link you can open in your browser while logged in.
+
+If your terminal uses an HTTP proxy, keep the library requests on the same network route as your logged-in browser. For direct library access, add its proxy hostname and subdomains to `NO_PROXY`.
+
 ## Configuration
 
 All credentials are optional and remain in the MCP process environment.
@@ -258,16 +271,17 @@ All credentials are optional and remain in the MCP process environment.
 | `SCOPUS_API_KEY` | Optional Scopus metadata source |
 | `CORE_API_KEY` | Optional CORE repository source |
 | `EXA_API_KEY` | Optional Exa research-paper source |
-| `OPENREVIEW_USERNAME`, `OPENREVIEW_PASSWORD` | OpenReview API |
 | `SCHOLAR_SOURCE_BUDGET_S` | Per-round source fan-out budget; default 30 seconds |
 | `SCHOLAR_DOWNLOAD_DIR` | Persistent PDF directory; default `<data>/papers` |
-| `LIBRARY_PROXY_BASE`, `LIBRARY_PROXY_COOKIE` | Optional institutional proxy URL and session; no institution is assumed. Cookie file fallback: `<data>/library_cookie.txt` |
+| `LIBRARY_PROXY_PREFIX`, `LIBRARY_PROXY_COOKIES` | Optional library proxy login prefix and a cookies.txt exported from your logged-in browser; no institution is assumed. See Library proxy access |
+| `LIBRARY_PROXY_BASE`, `LIBRARY_PROXY_COOKIE` | Older form of the same setting: proxy URL and a raw Cookie header. Cookie file fallback: `<data>/library_cookie.txt` |
 | `SCHOLAR_MCP_EXTENSIONS` | Use `research` for graph and paper-library tools |
 | `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` | Zotero Web API or authorized local API connector |
 | `ZOTERO_LIBRARY_TYPE`, `ZOTERO_API_BASE` | Optional Zotero library type and endpoint override |
 | `NOTION_API_KEY`, `NOTION_DATA_SOURCE_ID` | Notion one-way publisher |
 
 Errors returned to the model redact request URLs and credentials.
+OpenReview public submissions are searched without an account or password.
 
 ## Development
 

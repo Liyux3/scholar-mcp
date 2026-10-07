@@ -13,6 +13,24 @@ import pytest
 from scholar_mcp import arxiv_client, scholar_client, scholar_session, sources
 
 
+def test_openreview_search_uses_public_submission_contract(monkeypatch):
+    from scholar_mcp import openreview_client
+    seen = {}
+
+    def get(url, **kwargs):
+        seen.update(url=url, **kwargs)
+        return httpx.Response(200, json={"notes": [{"id": "paper", "content": {
+            "title": {"value": "A transformer paper"}, "authors": {"value": ["A Author"]},
+        }}]}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", get)
+    papers = openreview_client.search_papers("transformer", 150, "ICLR")
+    assert seen["params"] == {"term": "transformer", "source": "forum", "limit": 150, "group": "ICLR"}
+    assert "headers" not in seen
+    assert papers[0]["title"] == "A transformer paper"
+    assert sources.get("openreview").available()
+
+
 def test_ready_page_does_not_pay_a_fixed_verification_sleep(monkeypatch):
     page = Mock()
     page.ele.return_value = SimpleNamespace(states=SimpleNamespace(is_displayed=True))
