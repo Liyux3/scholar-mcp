@@ -28,8 +28,6 @@
 
 Scholar MCP finds papers from natural-language questions, follows citations and related work, and opens the primary text. Save selected papers and notes in a local library that carries your research across sessions.
 
-`Natural-language discovery` · `Related-work discovery` · `Primary evidence` · `Field maps` · `Zotero · Obsidian · Notion connectors`
-
 ## Quick demo
 
 ![Scholar MCP quick demo](docs/assets/quick-demo.gif)
