@@ -1,6 +1,49 @@
 """Tests for relevance scoring, deduplication, query optimization, and field filtering."""
 
+import pytest
+
 from scholar_mcp import relevance
+
+
+@pytest.mark.parametrize("authors, expected", [
+    ([{"name": " Alice Author ", "authorId": "123"}, "Bob Writer"],
+     ["Alice Author", "Bob Writer"]),
+    ([{"full_name": "Author, Alice"}, {"fullName": "Bob Writer"},
+      {"display_name": "Carol Reader"}, {"text": "Dan Editor"},
+      {"given": "Eve", "family": "Researcher"}],
+     ["Author, Alice", "Bob Writer", "Carol Reader", "Dan Editor", "Eve Researcher"]),
+    ("Alice Author", ["Alice Author"]),
+    ({"name": "Alice Author"}, ["Alice Author"]),
+    ([None, {}, {"name": None}, {"name": {"bad": "value"}}, 42, " "], []),
+    (None, []),
+    (42, []),
+])
+def test_deduplicate_normalizes_authors_even_without_duplicates(authors, expected):
+    result = relevance.deduplicate([{"title": "A paper", "authors": authors}])
+    assert result[0]["authors"] == expected
+
+
+def test_merge_structured_authors_preserves_quality_in_either_order():
+    snippet = {"title": "A research paper", "authors": ["A Author", "B Writer …"]}
+    complete = {"title": "A research paper", "authors": [
+        {"name": "Alice Author", "authorId": "1"}, {"name": "Bob Writer"},
+    ]}
+    for first, second in ((snippet, complete), (complete, snippet)):
+        assert relevance._merge_two(first, second)["authors"] == ["Alice Author", "Bob Writer"]
+        result = relevance.deduplicate([first, second])
+        assert len(result) == 1
+        assert result[0]["authors"] == ["Alice Author", "Bob Writer"]
+    assert isinstance(complete["authors"][0], dict)
+
+
+def test_deduplicate_uses_names_from_structured_authors_for_title_variants():
+    first = {"title": "Learning from a large data set", "year": 2024,
+             "authors": [{"name": "Alice Author", "authorId": "1"},
+                         {"name": "Bob Writer", "authorId": "2"}]}
+    second = {"title": "Learning from a large dataset", "year": 2024,
+              "authors": ["A Author", "B Writer"]}
+    for papers in ([first, second], [second, first]):
+        assert len(relevance.deduplicate(papers)) == 1
 
 
 def test_extract_keywords_removes_stopwords():
