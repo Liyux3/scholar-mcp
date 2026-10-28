@@ -420,6 +420,28 @@ def physical_source_count(paper: dict) -> int:
     return len({channel.split("::", 1)[0] for channel in ranks}) or 1
 
 
+def _normalize_authors(authors) -> list[str]:
+    """Extract names from source metadata without stringifying author objects."""
+    if isinstance(authors, (str, dict)):
+        authors = [authors]
+    if not isinstance(authors, (list, tuple)):
+        return []
+    names = []
+    for author in authors:
+        if isinstance(author, dict):
+            name = next((author[key] for key in
+                         ("name", "full_name", "fullName", "display_name", "text")
+                         if isinstance(author.get(key), str) and author[key].strip()), "")
+            if not name:
+                name = " ".join(author[key].strip() for key in ("given", "family")
+                                if isinstance(author.get(key), str) and author[key].strip())
+        else:
+            name = author
+        if isinstance(name, str) and name.strip():
+            names.append(name.strip())
+    return names
+
+
 def _merge_two(a: dict, b: dict) -> dict:
     """Merge two paper dicts for the same paper from different sources.
     Take the best of each field: longest abstract, most authors, highest cites.
@@ -458,9 +480,11 @@ def _merge_two(a: dict, b: dict) -> dict:
     b_abs = b.get("abstract") or ""
     if b_abs and (not merged.get("abstract") or text_quality(b_abs) > text_quality(merged["abstract"])):
         merged["abstract"] = b_abs
-    b_authors, a_authors = b.get("authors") or [], merged.get("authors") or []
+    b_authors = _normalize_authors(b.get("authors"))
+    a_authors = _normalize_authors(merged.get("authors"))
+    merged["authors"] = a_authors
     if (len(b_authors), text_quality(" ".join(b_authors))) > (len(a_authors), text_quality(" ".join(a_authors))):
-        merged["authors"] = b["authors"]
+        merged["authors"] = b_authors
     if (
         b.get("_citation_count_known")
         and not merged.get("_citation_count_known")
@@ -520,6 +544,9 @@ def deduplicate(papers: list[dict]) -> list[dict]:
     """Deduplicate papers by DOI or normalized title, merging metadata from duplicates.
     Tracks _source_count for consensus scoring.
     """
+    # Normalize before identity matching as well as merging. Work on copies so
+    # cached source records retain their original metadata.
+    papers = [{**p, "authors": _normalize_authors(p.get("authors"))} for p in papers]
     for p in papers:
         if "_source_count" not in p:
             p["_source_count"] = 1

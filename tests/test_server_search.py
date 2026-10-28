@@ -6,6 +6,29 @@ import yaml
 from scholar_mcp import server
 
 
+def test_search_papers_merges_structured_authors_from_sources(monkeypatch):
+    from scholar_mcp.sources import SourceResult
+
+    common = {"title": "Learning from a large dataset", "year": 2024,
+              "abstract": "A complete abstract.", "external_ids": {"DOI": "10.1234/test"}}
+    monkeypatch.setattr(server.sources, "parallel_search", lambda *a, **kw: [
+        SourceResult("first", "ok", [{**common, "authors": ["A Author"]}], 0),
+        SourceResult("second", "ok", [{**common, "authors": [
+            {"name": "Alice Author", "authorId": "1"}, {"name": "Bob Writer"},
+        ]}], 0),
+    ])
+    monkeypatch.setattr(server.metadata, "hydrate", lambda *a, **kw: None)
+    monkeypatch.setattr(server.s2_client, "is_healthy", lambda: False)
+    monkeypatch.setattr(server.relevance, "rerank", lambda query, papers, **kw: papers)
+    monkeypatch.setattr(server.relevance, "rank_final", lambda papers: papers)
+    monkeypatch.setattr(server.expansion, "expand", lambda *a, **kw: {})
+
+    result = yaml.safe_load(server.search_papers("learning dataset"))
+
+    assert len(result["results"]) == 1
+    assert result["results"][0]["authors"] == ["Alice Author", "Bob Writer"]
+
+
 def test_strict_type_and_open_access_filters_apply_to_every_source(monkeypatch):
     papers = [
         {"title": "Allowed review", "publication_types": ["review"], "is_open_access": True},
