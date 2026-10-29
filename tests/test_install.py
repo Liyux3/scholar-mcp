@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 
@@ -13,6 +14,9 @@ from scholar_mcp import cli, config, install  # noqa: E402
 @pytest.fixture
 def home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "AppData/Roaming"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "AppData/Local"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / ".config"))
     monkeypatch.delenv("CODEX_HOME", raising=False)
     monkeypatch.delenv("DSH_HOME", raising=False)
@@ -29,17 +33,20 @@ SPEC = install.Spec("/opt/bin/scholar-mcp", [], {"SCHOLAR_MCP_EXTENSIONS": "rese
 def test_json_client_install_is_idempotent_and_reversible(home):
     path = home / ".cursor/mcp.json"
     path.parent.mkdir()
-    path.write_text(json.dumps({"mcpServers": {"other": {"command": "x"}}}))
+    original = {"mcpServers": {"other": {"command": "x"}}, "workspace": "研究资料"}
+    path.write_text(json.dumps(original, ensure_ascii=False), encoding="utf-8")
 
     assert install.install("cursor", SPEC)["status"] == "installed"
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["workspace"] == original["workspace"]
     assert data["mcpServers"]["other"] == {"command": "x"}
     assert data["mcpServers"]["scholar"]["env"] == {"SCHOLAR_MCP_EXTENSIONS": "research"}
     assert install.install("cursor", SPEC)["status"] == "unchanged"
+    assert next(row for row in install.status() if row["client"] == "cursor")["registered"]
 
     removed = install.uninstall("cursor")
     assert removed["status"] == "removed"
-    assert json.loads(path.read_text()) == {"mcpServers": {"other": {"command": "x"}}}
+    assert json.loads(path.read_text(encoding="utf-8")) == original
     assert list((home / ".scholar-mcp/backups/cursor").iterdir())
 
 
@@ -450,13 +457,13 @@ def test_each_added_client_gets_its_own_layout_and_round_trips(home, monkeypatch
 
 def test_global_key_file_reaches_every_client_without_printing_values(home, monkeypatch, capsys):
     import io
-    import os
     monkeypatch.setenv("SCHOLAR_DATA_DIR", str(home / ".scholar-mcp"))
     monkeypatch.delenv("ADS_API_TOKEN", raising=False)
     monkeypatch.setattr("sys.stdin", io.StringIO("token-value\n"))
     assert cli.main(["keys", "set", "ADS_API_TOKEN"]) == 0
     path = config.key_file()
-    assert oct(path.stat().st_mode & 0o777) == "0o600"
+    if os.name == "posix":  # Windows uses ACLs rather than POSIX mode bits.
+        assert path.stat().st_mode & 0o777 == 0o600
     assert cli.main(["keys"]) == 0
     out = capsys.readouterr().out
     assert "ADS_API_TOKEN" in out and "token-value" not in out
@@ -479,7 +486,8 @@ def test_keys_set_replaces_an_exported_entry_and_tightens_the_mode(home, monkeyp
     monkeypatch.setattr("sys.stdin", io.StringIO("new\n"))
     assert cli.main(["keys", "set", "OPENALEX_API_KEY"]) == 0
     assert path.read_text() == "# mine\nS2_API_KEY=keep\nOPENALEX_API_KEY=new\n"
-    assert oct(path.stat().st_mode & 0o777) == "0o600"
+    if os.name == "posix":
+        assert path.stat().st_mode & 0o777 == 0o600
     assert [config.key_name(line) for line in ("export A=1", "B = 2", "# C=3", "", "D")] == ["A", "B", "", "", ""]
 
 

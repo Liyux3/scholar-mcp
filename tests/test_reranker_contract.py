@@ -32,7 +32,7 @@ def test_gpu_loader_uses_local_assets_before_any_download(monkeypatch, cache_pre
     monkeypatch.setattr(relevance, '_gpu_models', {})
     monkeypatch.setattr(relevance, 'cached_cpu_model_directory', lambda: None)
     assert relevance._load_gpu_model('mps', relevance.GPU_MODEL)[1] is model
-    assert calls == ([('/cached/snapshot', True)] if cache_present else [(relevance.GPU_MODEL, False)])
+    assert calls == ([(str(Path('/cached/snapshot')), True)] if cache_present else [(relevance.GPU_MODEL, False)])
 
 
 @pytest.mark.integration
@@ -139,7 +139,7 @@ def test_local_model_runs_on_the_gpu_and_falls_back_to_the_cpu_for_good(monkeypa
     assert relevance._gpu_device == "" and relevance._reranker_state["device"] == "cpu"
     assert relevance._reranker_state["gpu_error"].startswith("ZeroDivisionError")
     # The CPU session runs without ONNX Runtime's arena, in batches sized in tokens.
-    assert sessions == [("/models/ms-marco-MiniLM-L-12-v2/model.onnx", False, 2, ["CPUExecutionProvider"])]
+    assert sessions == [(str(Path('/models') / relevance.FLASHRANK_MODEL / 'model.onnx'), False, 2, ["CPUExecutionProvider"])]
     monkeypatch.setattr(relevance, "FLASHRANK_BATCH_TOKENS", 256)
     batches.clear()
     ORIGINAL_FLASHRANK_SCORES("q", [{"title": str(i)} for i in range(5)], 128)

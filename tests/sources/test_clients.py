@@ -1,5 +1,7 @@
 """Tests for new source clients: Europe PMC, DBLP, INSPIRE-HEP."""
 
+import os
+
 import pytest
 
 
@@ -217,7 +219,9 @@ class TestDBLP:
         assert delays == [3]
         assert len(calls) == len(paced) == 3
         saved = Path(config.DATA_DIR) / "sessions" / "dblp.cookies"
-        assert saved.stat().st_mode & 0o777 == 0o600
+        assert saved.is_file()
+        if os.name == "posix":  # Windows uses ACLs rather than POSIX mode bits.
+            assert saved.stat().st_mode & 0o777 == 0o600
         # A new CLI/MCP process needs neither a new challenge nor a browser.
         dblp._client.close()
         monkeypatch.setattr(dblp, "_client", None)

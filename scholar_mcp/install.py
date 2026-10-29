@@ -264,7 +264,7 @@ def _state_dir() -> Path:
 
 def _ledger() -> dict:
     try:
-        return json.loads((_state_dir() / "installs.json").read_text())
+        return json.loads((_state_dir() / "installs.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
@@ -607,7 +607,7 @@ def uninstall(name: str, *, project: bool = False, dry_run: bool = False, force:
 
 def _claude_entry() -> dict | None:
     try:
-        data = json.loads((_home() / ".claude.json").read_text())
+        data = json.loads((_home() / ".claude.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     return (data.get("mcpServers") or {}).get(NAME)
@@ -672,7 +672,7 @@ def status() -> list[dict]:
         row = {"client": client.name, "detected": client.detected(), "path": str(path)}
         try:
             if client.kind == "toml":
-                text = path.read_text() if path.exists() else ""
+                text = path.read_text(encoding="utf-8") if path.exists() else ""
                 entry = tomllib.loads(text).get("mcp_servers", {}).get(NAME) if (tomllib and text) else None
                 owned = MARK_BEGIN in text
             elif client.kind == "claude":
@@ -683,7 +683,8 @@ def status() -> list[dict]:
                 entry = plugin.get("config") if plugin else None
                 owned = MARK_BEGIN in text
             else:
-                data = json.loads(path.read_text()) if path.exists() and path.read_text().strip() else {}
+                text = path.read_text(encoding="utf-8") if path.exists() else ""
+                data = json.loads(text) if text.strip() else {}
                 if not isinstance(data, dict):
                     raise Skipped("configuration must be a JSON object")
                 parent, key, _ = _json_parent(data, client.key)
