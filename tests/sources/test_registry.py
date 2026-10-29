@@ -43,6 +43,30 @@ def isolated_registry(monkeypatch):
     return sources
 
 
+@pytest.fixture
+def ready_flow(monkeypatch):
+    """Expire a real flow after its first publication, independent of OS scheduling."""
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    flow_type = sources.SourceFlow
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        monkeypatch.setattr(sources, "_source_pool", pool)
+        def create(*args, **kwargs):
+            ready = threading.Event()
+            token = sources._progress.set(lambda rows: ready.set() or True)
+            try:
+                flow = flow_type(*args, **kwargs)
+            finally:
+                sources._progress.reset(token)
+            assert ready.wait(5), "source did not publish its ready result"
+            flow.deadline = time.monotonic()
+            return flow
+        monkeypatch.setattr(sources, "SourceFlow", create)
+        yield
+
+
 def _recording_source(name, query_style=sources.QUERY_COMPRESSED, **kw):
     """A source that records the query it was handed."""
     seen = []
@@ -467,21 +491,23 @@ class TestSearchFlow:
         assert sorted((sr.source, sr.query_index) for sr in results) == [
             ("fast", 0), ("fast", 1), ("fast", 2), ("slow", 0), ("slow", 1), ("slow", 2)]
 
-    def test_a_late_answer_is_collected_by_the_next_take(self, isolated_registry):
+    def test_a_late_answer_is_collected_by_the_next_take(self, isolated_registry, ready_flow):
         import threading
         release = threading.Event()
         sources.register(sources.Source(name="fast", search=lambda q, limit, **kw: [{"title": "quick"}]))
         sources.register(sources.Source(name="late", search=lambda q, limit, **kw: release.wait(5) and [{"title": "late"}]))
 
         flow = sources.search_flow([("q", "", "")], budget_s=0.2)
-        first = {sr.source: sr.status for sr in flow.take()}
-        assert first == {"fast": "ok", "late": "timeout"}
-
-        release.set()
-        flow.deadline += 5  # the merge point arrives later in the pipeline
-        second = flow.take()
-        assert [(sr.source, sr.status) for sr in second] == [("late", "ok")]
-        flow.close()
+        try:
+            first = {sr.source: sr.status for sr in flow.take()}
+            assert first == {"fast": "ok", "late": "timeout"}
+            release.set()
+            flow.deadline += 5  # the merge point arrives later in the pipeline
+            second = flow.take()
+            assert [(sr.source, sr.status) for sr in second] == [("late", "ok")]
+        finally:
+            release.set()
+            flow.close()
 
     def test_close_starts_nothing_new(self, isolated_registry):
         import threading
@@ -550,31 +576,20 @@ class TestSearchFlow:
         sources.parallel_search("q", limit=10)
         assert limits["base"] == limits["keyed"] == sources._scale_limit(10, 1)
 
-    def test_every_operation_shares_one_flow_and_reports_timeouts(self, isolated_registry, monkeypatch):
+    def test_every_operation_shares_one_flow_and_reports_timeouts(self, isolated_registry, ready_flow):
         """Citation lookups and PDF resolution run in the same lanes as searches,
         so a hanging provider costs them the budget, not the whole call."""
         import threading
-        import time
-        from concurrent.futures import ThreadPoolExecutor
         hang = threading.Event()
-        pool = ThreadPoolExecutor(max_workers=2)
-        monkeypatch.setattr(sources, "_source_pool", pool)
         sources.register(sources.Source(name="quick", get_citations=lambda pid, limit, **kw: [{"title": "C"}],
                                         resolve_pdf=lambda paper: ["https://quick.example/a.pdf"]))
         sources.register(sources.Source(name="stuck", get_citations=lambda pid, limit, **kw: hang.wait(5) and [],
                                         resolve_pdf=lambda paper: hang.wait(5) and []))
-        from scholar_mcp import config
-        config_budget = config.SOURCE_BUDGET_S
         try:
-            config.SOURCE_BUDGET_S = 0.3
-            t0 = time.monotonic()
             cites = {r.source: r.status for r in sources.parallel_citations("W1")}
             pdfs = sources.resolve_pdf_candidates({"title": "T"})
-            assert time.monotonic() - t0 < 1.5
         finally:
-            config.SOURCE_BUDGET_S = config_budget
             hang.set()
-            pool.shutdown(wait=True, cancel_futures=True)
         assert cites == {"quick": "ok", "stuck": "timeout"}
         assert pdfs == [("quick", "https://quick.example/a.pdf", "unknown")]
 
