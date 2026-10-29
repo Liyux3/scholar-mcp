@@ -47,6 +47,15 @@ def run_http(mcp, idle: IdleExit, *, host: str, port: int, path: str, stateless_
         if scope["type"] == "http":
             with idle.request():
                 await app(scope, receive, send)
+        elif scope["type"] == "lifespan":
+            async def lifespan_send(message):
+                if message["type"] == "lifespan.startup.complete":
+                    # Count idle time from readiness, excluding app startup.
+                    with idle.request():
+                        await send(message)
+                else:
+                    await send(message)
+            await app(scope, receive, lifespan_send)
         else:
             await app(scope, receive, send)
 

@@ -80,9 +80,16 @@ from pathlib import Path
 import sys
 import time
 from starlette.responses import StreamingResponse
-from scholar_mcp import server
+from scholar_mcp import http_server, server
 
 directory = Path(sys.argv[1])
+
+# Make startup exceed the test's short idle window, as a cold native host can.
+run_http = http_server.run_http
+def cold_start(*args, **kwargs):
+    time.sleep(.5)
+    return run_http(*args, **kwargs)
+http_server.run_http = cold_start
 
 @server.mcp.custom_route('/idle-test', methods=['GET'])
 async def stream(request):
@@ -135,7 +142,9 @@ def http_process(tmp_path):
 
 def test_unused_http_process_exits_cleanly(http_process):
     process, _, _ = http_process
+    ready = time.monotonic()
     assert process.wait(timeout=10) == 0
+    assert time.monotonic() - ready >= .3
 
 
 def test_streamed_reply_holds_process_until_the_last_chunk(http_process):
