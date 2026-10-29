@@ -228,7 +228,7 @@ def recover(query: str, previous: dict, *, target: str = "") -> dict:
     ready = current()
     if not target and ready and ready.get('created') != previous.get('created'):
         return ready
-    started = time.time()
+    failures_before = _read().get('recovery_failures', 0)
     budget = max(1, pacing.remaining(RECOVERY_TIMEOUT))
     with tempfile.TemporaryDirectory(prefix='scholar-page-') as folder:
         out = str(Path(folder) / 'page') if target else ''
@@ -274,7 +274,7 @@ def recover(query: str, previous: dict, *, target: str = "") -> dict:
                 raise ValueError('Google browser did not return a bounded page')
             return {**current(), '_html': page.read_text(encoding='utf-8'), '_final_url': data.get('final_url', target)}
         except Exception as error:
-            if _read().get('failed_at', 0) < started:
+            if _read().get('recovery_failures', 0) == failures_before:
                 _record_failure(current() or previous, error)
             raise
 

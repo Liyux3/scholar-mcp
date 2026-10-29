@@ -411,6 +411,9 @@ def test_recovery_reuses_another_workers_session(monkeypatch):
 
 
 def test_failed_recovery_does_not_freeze_subsequent_attempts(monkeypatch):
+    # Distinct attempts can share a wall-clock tick, especially on Windows.
+    now = time.time()
+    monkeypatch.setattr(scholar_session.time, "time", lambda: now)
     monkeypatch.setattr(scholar_session, "recovery_available", lambda: True)
     process = Mock(returncode=1)
     process.communicate.return_value = ("", None)

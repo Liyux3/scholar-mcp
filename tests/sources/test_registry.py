@@ -550,12 +550,15 @@ class TestSearchFlow:
         sources.parallel_search("q", limit=10)
         assert limits["base"] == limits["keyed"] == sources._scale_limit(10, 1)
 
-    def test_every_operation_shares_one_flow_and_reports_timeouts(self, isolated_registry):
+    def test_every_operation_shares_one_flow_and_reports_timeouts(self, isolated_registry, monkeypatch):
         """Citation lookups and PDF resolution run in the same lanes as searches,
         so a hanging provider costs them the budget, not the whole call."""
         import threading
         import time
+        from concurrent.futures import ThreadPoolExecutor
         hang = threading.Event()
+        pool = ThreadPoolExecutor(max_workers=2)
+        monkeypatch.setattr(sources, "_source_pool", pool)
         sources.register(sources.Source(name="quick", get_citations=lambda pid, limit, **kw: [{"title": "C"}],
                                         resolve_pdf=lambda paper: ["https://quick.example/a.pdf"]))
         sources.register(sources.Source(name="stuck", get_citations=lambda pid, limit, **kw: hang.wait(5) and [],
@@ -571,6 +574,7 @@ class TestSearchFlow:
         finally:
             config.SOURCE_BUDGET_S = config_budget
             hang.set()
+            pool.shutdown(wait=True, cancel_futures=True)
         assert cites == {"quick": "ok", "stuck": "timeout"}
         assert pdfs == [("quick", "https://quick.example/a.pdf", "unknown")]
 

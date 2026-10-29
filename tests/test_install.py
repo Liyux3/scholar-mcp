@@ -164,7 +164,7 @@ def test_client_specific_shapes(home):
 
 
 def test_commented_json_is_left_untouched(home):
-    path = home / ".config/zed/settings.json"
+    path = home / ("AppData/Roaming/Zed/settings.json" if os.name == "nt" else ".config/zed/settings.json")
     path.parent.mkdir(parents=True)
     path.write_text('{\n  // my settings\n  "theme": "One Dark"\n}\n')
     report = install.install("zed", SPEC)
@@ -439,6 +439,8 @@ def test_each_added_client_gets_its_own_layout_and_round_trips(home, monkeypatch
     for variable in ("KIMI_CODE_HOME", "MINIMAX_DATA_DIR", "CLINE_MCP_SETTINGS_PATH", "COPILOT_HOME"):
         monkeypatch.delenv(variable, raising=False)
     relative, key, fields = NEW_CLIENTS[name]
+    if os.name == "nt" and name == "devin":
+        relative = "AppData/Roaming/devin/mcp_config.json"
     path = home / relative
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps({key: {"other": {"command": "x"}}, "theme": "dark"}))
