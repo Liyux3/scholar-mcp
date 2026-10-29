@@ -1,0 +1,40 @@
+---
+slug: zh-cn/python
+title: Python API
+description: 在 Python 里把 Scholar 的工具当普通函数用，返回字典。
+---
+
+`scholar_mcp.api` 把每个 MCP 工具变成一个普通函数。MCP、命令行和 Python 用的是同一套代码，所以每个函数返回一个普通的 `dict`，字段和工具的结构化输出一样。
+
+```python
+from scholar_mcp import api
+
+query = "diffusion policy for dexterous manipulation"
+hits = api.search(query, limit=10, year="2024-2026")
+for paper in hits["results"]:
+    print(paper["year"], paper["title"], paper["id"])
+
+detail = api.info("arXiv:2303.04137", include="detail,citations")
+neighbours = api.related("arXiv:2303.04137", relation="similar")
+people = api.authors("Fei-Fei Li")
+text = api.read("arXiv:2303.04137", pages="1-4")
+saved = api.download("10.1038/s41586-021-03819-2", save_dir="papers")
+graph = api.graph(["arXiv:2303.04137"], max_hops=1)
+```
+
+## 函数
+
+| 函数 | MCP 工具 | 返回 |
+|---|---|---|
+| `api.search` | [`search_papers`](/scholar-mcp/zh-cn/tools/#search_papers) | `results`，有数据源没响应时带 `warning` |
+| `api.info` | [`paper_info`](/scholar-mcp/zh-cn/tools/#paper_info) | 按 `include` 返回 `paper`、`citations` 和 `references` |
+| `api.related` | [`recommend_papers`](/scholar-mcp/zh-cn/tools/#recommend_papers) | `relation`、`seed`、`papers` 和 `total` |
+| `api.authors` | [`search_authors`](/scholar-mcp/zh-cn/tools/#search_authors) | 作者资料 |
+| `api.read` | [`read_paper`](/scholar-mcp/zh-cn/tools/#read_paper) | 按页标好的正文，以及图表的名字 |
+| `api.download` | [`download_paper`](/scholar-mcp/zh-cn/tools/#download_paper) | 文件路径，以及记进的集合 |
+| `api.graph` | [`build_paper_graph`](/scholar-mcp/zh-cn/tools/#build_paper_graph) | `nodes`、`edges`、PageRank、桥接论文和 Mermaid 图 |
+| `api.library` | [`paper_library`](/scholar-mcp/zh-cn/tools/#paper_library) | 对应文献库操作的结果 |
+
+参数名和默认值与 [MCP 工具](/scholar-mcp/zh-cn/tools/)相同，唯一的便利是 `api.graph` 的种子既可以是逗号分隔的字符串，也可以是列表。查找无果时返回带 `error` 的字典，与工具报错方式一致。
+
+这些函数读的环境变量和服务器一样，[配置](/scholar-mcp/zh-cn/configuration/)里的密钥、数据目录和排序设置都照样生效。

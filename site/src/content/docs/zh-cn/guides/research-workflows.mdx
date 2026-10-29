@@ -1,0 +1,54 @@
+---
+slug: zh-cn/research-workflows
+title: 研究工作流
+description: 从第一个问题到一份存好、带笔记的阅读清单，智能体如何用好 Scholar。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+工具由智能体自己选择，结果是否扎实取决于几个习惯：搜得宽，筛得快，读得细，把站得住的留下。
+
+## 直接用问题搜索
+
+`search_papers` 专为整句提问设计。像问同事那样把问题交给它即可，也可以给一句记得的原话或一个标题。语义数据源收到原句，关键词数据源收到从原句提炼的关键词，所以自己先改写成关键词，往往反而丢了信息。
+
+缩小范围靠参数，而非改措辞。
+
+- `year="2024-2026"` 或 `year="2023"` 限定年份，`venue="NeurIPS"` 限定会议或期刊。
+- `min_citations`、`paper_types` 和 `open_access_only` 让候选更严格。
+- `intent="survey"`、`"foundational"`、`"recent"`、`"method"` 或 `"dataset"` 让排序偏向某类需求，相关性照常计入。
+- `sort="citations"` 或 `sort="date"` 会直接替换排序结果，仅在确需硬排序时使用。
+
+用目标文献的语言提问。计算机和 AI 方向通常用英文。
+
+## 先筛，再读
+
+每条结果有标题、作者、会议或期刊、引用数、简短摘要，以及供后续调用使用的 `id`。Scholar 给出的任何标识符、论文链接或准确标题，在所有工具中均可使用。先根据这些信息筛一遍，再用 `read_paper` 打开要紧的论文。
+
+- 默认读 `pages="1-10"`，一篇 AI 会议论文通常能读到结论。
+- 参考文献和附录用 `pages="11-20"`，一次最多 20 页。范围很长时，读满 100,000 字会在页边界停下，`next_pages` 给出下一段的页码。
+- 每次读取都会列出图和表的名字。用其中一个名字再读一次，例如 `visual="Figure 3"`，智能体就能看到这张图和它周围的文字。
+
+`read_paper` 可以复用已保留的 PDF，新临时副本在读完后清理。需要保留文件时，用 `download_paper`。
+
+## 沿引用查找
+
+`paper_info` 一次可取回详情、被引和参考文献，即 `include="detail,citations,references"`。被引是后来引用它的论文，参考文献是它引用的论文，两个列表均按引用数排序。
+
+`recommend_papers` 横向扩展。`relation="similar"` 找内容相近的论文，`"peers"` 找常与它一同被引用的论文，`"kin"` 找与它引用同一批文献的论文，后者常能发现跨领域的联系。
+
+## 留下有用的
+
+`download_paper` 把校验过的 PDF 存入论文目录，并记入文献库的一个集合（默认名为 `downloads`，也可指定）。启用研究工具集后，`paper_library` 可以保存论文、写笔记、打标签、搜索已存内容，也可把集合导出到 Obsidian。存下的内容跨会话保留，下次对话可从文献库接着做。详见[文献库](/scholar-mcp/zh-cn/paper-library/)。
+
+## 梳理一个领域
+
+`build_paper_graph` 从一篇或几篇种子论文出发，沿引用向外扩展，返回节点、边、PageRank、桥接论文和一张 Mermaid 图。先从一跳、30 篇左右开始。形状合适后，再调高 `max_hops`（最多 3）或 `max_papers`（最多 100），并给出 `topic_filter`，防止大图偏题。
+
+<Aside type="tip" title="Deep Research 技能">
+Claude Code 和 Codex 插件自带 Deep Research 技能。它把搜索、查看论文、遍历引用图和把选中论文写入文献库串成一个流程，最终得到一张持续更新的领域地图。
+</Aside>
+
+## 结果偏少时
+
+若有数据源未响应并影响了结果，回复中会附一句提醒。加 `debug=true` 可查看每个数据源的状态、条数、耗时和实际使用的排序模型，也可读取 `scholar://status`。搜索慢、数据源缺失等情况，见[常见问题](/scholar-mcp/zh-cn/faq/)。

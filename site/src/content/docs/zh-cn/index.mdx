@@ -1,0 +1,49 @@
+---
+title: 简介
+description: 让智能体搜论文、读全文、顺着引用找相关工作，再把有用的论文存进本地文献库。
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+用一句话说清要找什么，智能体便能拿到一份排好序的论文列表。之后它可以打开原文读正文和图表，沿引用向前、向后追溯，再把有用的论文和笔记存下，下次会话接着用。
+
+Scholar 支持 Claude、Codex、Cursor、VS Code、Gemini CLI、OpenCode 等所有 MCP 客户端。同样的功能也可在[命令行](/scholar-mcp/zh-cn/cli/)和 [Python](/scholar-mcp/zh-cn/python/) 中使用。
+
+<figure class="sc-demo" id="watch">
+	<video controls preload="metadata" playsinline poster="/scholar-mcp/media/scholar-film-poster.jpg">
+		<source src="/scholar-mcp/media/scholar-film.mp4" type="video/mp4" />
+	</video>
+</figure>
+
+## 能做什么
+
+<div class="sc-grid-3">
+<CardGrid>
+	<Card title="搜索" icon="magnifier">
+		输入一个问题、记得的一句话或一个标题。学术数据源并行搜索，密钥可启用额外索引，结果去重后统一排序。
+	</Card>
+	<Card title="读原文" icon="open-book">
+		正文按页转成 Markdown，表格保留结构，需要时可单独查看某张图。
+	</Card>
+	<Card title="文献库" icon="list-format">
+		论文、笔记、标签和 PDF 存在本地，可全文搜索，也可同步到 Obsidian、Zotero 或 Notion。
+	</Card>
+</CardGrid>
+</div>
+
+## 有何不同
+
+**多个数据源，一份排序。** 数据源理解问题的方式各不相同，语义检索要读整句话，关键词检索则是词越精越准，所以每个数据源收到它最擅长的问法，结果汇入同一个候选池。同一篇论文在 DOI、arXiv、Semantic Scholar、OpenAlex、PubMed 和 OpenReview 中的记录合并为一条。再从最相关的几篇出发沿引用多找一轮，最后用同一个模型统一排序。在 LitSearch 测试中，前五条命中率为 0.62，比 Exa 的论文搜索高 10 个百分点，见[基准测试](/scholar-mcp/zh-cn/benchmarks/)。
+
+**读全文，不只读摘要。** `read_paper` 会在存档库、开放仓库和预印本服务器中寻找可下载的 PDF，默认读第 1 到 10 页，并列出每张图和表的名字。用这个名字再读一次，智能体就能看到那张图和它周围的文字。
+
+**文献库跨会话保留。** 存下的论文带有固定的标识符、笔记、标签和 PDF 路径，保存在本地的 SQLite 库中，可全文搜索。同一份记录可导出到 Obsidian、同步到 Zotero 或发布到 Notion。你在那里改过的笔记，智能体下次读取时会读到。
+
+## 下一步
+
+<div class="sc-cards-2">
+	<LinkCard title="快速开始" description="安装 Scholar，接入智能体，完成第一次搜索。" href="/scholar-mcp/zh-cn/quickstart/" />
+	<LinkCard title="接入客户端" description="Claude、Codex、Cursor、VS Code 等客户端的配置方法。" href="/scholar-mcp/zh-cn/clients/" />
+	<LinkCard title="研究工作流" description="智能体如何用好这些工具。" href="/scholar-mcp/zh-cn/research-workflows/" />
+	<LinkCard title="MCP 工具" description="所有工具和参数。" href="/scholar-mcp/zh-cn/tools/" />
+</div>

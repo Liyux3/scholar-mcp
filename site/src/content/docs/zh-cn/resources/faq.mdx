@@ -1,0 +1,53 @@
+---
+slug: zh-cn/faq
+title: 常见问题
+description: 关于密钥、排序、速度、存储、付费墙和更新的常见问题。
+---
+
+import Accordion from '../../../../components/Accordion.astro';
+
+## 安装和设置
+
+<Accordion title="需要 API 密钥吗？">
+无需。密钥均为可选，没有密钥也能搜索 Semantic Scholar、OpenAlex、arXiv、Crossref、PubMed 等开放数据源。Semantic Scholar 和 OpenAlex 的密钥可提高限额、扩大覆盖，DashScope 密钥启用云端排序模型，Exa、Scopus 和 CORE 则需各自的密钥才会参与搜索。可用的数据源较少时，Scholar 会向其余数据源多要一些结果，保持候选池足够宽。有了密钥，用 `scholar-mcp keys set 名称` 保存一次，所有客户端都能用，见[配置](/scholar-mcp/zh-cn/configuration/)。
+</Accordion>
+
+<Accordion title="智能体能看到哪些工具？">
+核心是六个工具，即 `search_papers`、`paper_info`、`recommend_papers`、`search_authors`、`read_paper` 和 `download_paper`。设置 `SCHOLAR_MCP_EXTENSIONS=research` 会加入 `build_paper_graph` 和 `paper_library`。插件和桌面安装包默认启用，`scholar-mcp install --profile research` 也会自动写好。
+</Accordion>
+
+<Accordion title="Intel 版 Mac 和 ARM 版 Windows 能用吗？">
+能。`--find-links` 指向的发布索引为这些平台准备了现成的 `cryptography` 安装包，无需安装 Rust 或 OpenSSL。桌面安装包支持 Apple 芯片和 Intel 的 Mac，并自带 Python。启动脚本已在 macOS、Linux 和 Windows 的 x64 与 ARM64 上测试过。
+</Accordion>
+
+<Accordion title="如何更新？">
+运行 `scholar-mcp update`，只想检查有无新版可用 `scholar-mcp update --check`。它会按原来的安装方式升级。`scholar-mcp install` 注册的是已安装的命令，因此客户端重启后都会用上新版本。用 uvx 写死版本号的配置，需要修改命令中的版本号。Claude Desktop 安装包请从 [GitHub Releases](https://github.com/Liyux3/scholar-mcp/releases) 打开新版 `.mcpb`。每个版本的变化见[更新日志](/scholar-mcp/zh-cn/changelog/)。
+</Accordion>
+
+## 搜索和阅读
+
+<Accordion title="用的是哪个排序模型？">
+设置了 `DASHSCOPE_API_KEY` 时使用 DashScope 的 `qwen3-rerank`，设置了 `SCHOLAR_RERANK_URL` 时使用你自己的服务。两者都没有，或远程调用失败时，由 `rerank` 扩展中的本地 FlashRank 模型接替，推荐的 uvx 命令、容器镜像和桌面安装包均已包含它。`scholar://status` 和 `debug=true` 会显示实际使用的服务和模型，改用本地模型时还会注明原因。
+</Accordion>
+
+<Accordion title="搜索为什么慢？">
+一次搜索要同时询问十几个数据源，再从最相关的几篇沿引用找一轮，最后对全部候选重新排序，比单次 API 调用多做很多事。挑选种子论文前最多等待 30 秒（`SCHOLAR_SOURCE_BUDGET_S`），未赶上的数据源不会被丢弃，会在最终排序前并入。检索、扩展和元数据共用 40 秒的获取窗口，随后完成最终排序。首次使用本地排序模型还需下载一次模型。加 `debug=true` 可查看每个数据源的耗时和条数，若是限额拖慢了速度，可添加 Semantic Scholar 或 OpenAlex 的密钥。
+</Accordion>
+
+<Accordion title="付费墙后的论文能读吗？">
+Scholar 先找开放副本，来源包括存档库、开放仓库、预印本服务器和 Unpaywall。学校订阅的论文，可借助你自己登录得到的会话，通过图书馆的 EZproxy 获取，每次只取你指定的那一篇。Scholar 从不索要或保存密码。见[机构访问](/scholar-mcp/zh-cn/institutional-access/)。
+</Accordion>
+
+<Accordion title="Google Scholar 要求验证，怎么办？">
+安装可选的 `google` 扩展，例如在服务器命令中使用 `scholar-mcp[google,rerank]`，并装好 Chrome、Edge 或 Chromium 和 ffmpeg。独立 worker 会复用私有浏览器配置并直接读取验证后的页面，HTTP 保持自己的 Cookie。设置 `SCHOLAR_GOOGLE_RECOVERY=off` 可关闭。详见[数据源](/scholar-mcp/zh-cn/sources/#google-scholar-会话恢复)。
+</Accordion>
+
+## 数据和部署
+
+<Accordion title="论文和笔记存在哪里？">
+默认在 `~/.scholar-mcp` 下，PDF 在 `papers/`，SQLite 文献库和 JSONL 快照在 `kb/`，Markdown 导出在 `vault/`。`SCHOLAR_DATA_DIR`、`SCHOLAR_KB_DIR` 和 `SCHOLAR_DOWNLOAD_DIR` 可更改位置。`read_paper` 可以复用已保留的副本，或在读完后清理本次临时下载。`download_paper` 会保留 PDF。
+</Accordion>
+
+<Accordion title="能通过 HTTP 运行吗？">
+能。平时客户端在本机直接启动 Scholar，经标准输入输出（stdio）通信。客户端不能自己启动程序时，比如网页里的智能体，或几个人共用一台服务器，就让 Scholar 作为网络服务运行。运行 `scholar-mcp serve --http`，或设置 `SCHOLAR_MCP_TRANSPORT=http`，服务地址为 `http://127.0.0.1:8000/mcp`。更改地址可用 `SCHOLAR_MCP_HOST`、`SCHOLAR_MCP_PORT` 和 `SCHOLAR_MCP_PATH`。云端智能体无法访问你电脑上的 localhost，远程客户端需要一个可访问且有保护的部署。
+</Accordion>

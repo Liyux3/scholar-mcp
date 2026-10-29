@@ -1,0 +1,371 @@
+---
+title: 接入客户端
+description: 在 Claude Code、Claude Desktop、Codex、Cursor、VS Code、Gemini CLI、OpenCode、Windsurf、Kiro、Zed、Pi 或任何 stdio MCP 客户端里注册 Scholar。
+---
+
+import { Aside, LinkButton, TabItem, Tabs } from '@astrojs/starlight/components';
+
+各客户端启动 Scholar 的方式相同。最快的办法是使用 `scholar-mcp` 命令，它会找出电脑上已安装的客户端并写好配置。
+
+```bash
+uv tool install --python 3.12 \
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
+  "scholar-mcp[rerank]"
+scholar-mcp install --all --dry-run   # 预览所有检测到的客户端
+scholar-mcp install --all             # 或者逐个指定：claude-code codex cursor
+```
+
+写入前会先备份，中途出错也不会留下损坏的文件，重复运行结果相同。你手写的 `scholar` 条目不会被改动，除非加 `--force`。全部选项和各客户端的配置文件位置见[命令行](/scholar-mcp/zh-cn/cli/#install-和-uninstall)。
+
+## 手动配置
+
+以下配置均通过 `uvx` 启动，无需提前安装。首次启动时，uvx 会准备好 Python 3.12 和本地排序模型。`--find-links` 为 Intel 版 macOS 和 ARM 版 Windows 提供现成的安装包，其他平台照常从 PyPI 安装。每段配置都用 `SCHOLAR_MCP_EXTENSIONS=research` 启用了研究工具集，删去这一行即只保留六个核心工具。
+
+<Tabs syncKey="client">
+<TabItem label="Claude Code">
+
+在终端中添加，`--scope user` 让它对所有项目生效。
+
+```bash
+claude mcp add scholar --scope user -e SCHOLAR_MCP_EXTENSIONS=research \
+  -- uvx --python 3.12 \
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
+  --from 'scholar-mcp[rerank]' scholar-mcp
+```
+
+也可装插件，效果一样，还会带上研究工具集和 Deep Research 技能。
+
+```bash
+claude plugin marketplace add Liyux3/scholar-mcp
+claude plugin install scholar-mcp@scholar-mcp
+```
+
+</TabItem>
+<TabItem label="Claude Desktop">
+
+macOS 上最省事的是用安装包。在[最新版本](https://github.com/Liyux3/scholar-mcp/releases/latest)里下载 `scholar-mcp-darwin-arm64-<version>.mcpb`（Apple 芯片）或 `scholar-mcp-darwin-x86_64-<version>.mcpb`（Intel），用 Claude Desktop 打开即可。安装包自带 Python、本地排序模型和研究工具，安装时会问你要不要填密钥。
+
+任何平台都可以手动编辑 `claude_desktop_config.json`（Settings → Developer → Edit Config）。
+
+```json title="claude_desktop_config.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+保存后重启 Claude Desktop。
+
+</TabItem>
+<TabItem label="Codex">
+
+在 `~/.codex/config.toml` 里加一段。
+
+```toml title="~/.codex/config.toml"
+[mcp_servers.scholar]
+command = "uvx"
+args = [
+  "--python", "3.12",
+  "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+  "--from", "scholar-mcp[rerank]", "scholar-mcp",
+]
+startup_timeout_sec = 60
+tool_timeout_sec = 600
+
+[mcp_servers.scholar.env]
+SCHOLAR_MCP_EXTENSIONS = "research"
+```
+
+超时要设得长一些，因为首次启动需要准备环境，一次完整的搜索也要等待多个数据源和引用扩展。若只想对单个项目生效，写在项目中的 `.codex/config.toml` 即可。
+
+也可装插件，会一起带上研究工具集和 Deep Research 技能。
+
+```bash
+codex plugin marketplace add Liyux3/scholar-mcp
+codex plugin add scholar-mcp@scholar-mcp
+```
+
+</TabItem>
+<TabItem label="Cursor">
+
+<LinkButton href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZmluZC1saW5rcyIsImh0dHBzOi8vZ2l0aHViLmNvbS9MaXl1eDMvc2Nob2xhci1tY3AvcmVsZWFzZXMvZG93bmxvYWQvdjAuOS4wL3doZWVsLWluZGV4Lmh0bWwiLCItLWZyb20iLCJzY2hvbGFyLW1jcFtyZXJhbmtdPT0wLjkuMCIsInNjaG9sYXItbWNwIl0sImVudiI6eyJTQ0hPTEFSX01DUF9FWFRFTlNJT05TIjoicmVzZWFyY2gifX19" variant="secondary" icon="external">添加到 Cursor</LinkButton>
+
+也可写入 `~/.cursor/mcp.json`，或项目里的 `.cursor/mcp.json`。
+
+```json title="~/.cursor/mcp.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="VS Code">
+
+<LinkButton href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">在 VS Code 中安装</LinkButton>
+
+也可写入工作区的 `.vscode/mcp.json`，或者用 **MCP: Open User Configuration** 打开用户级的 `mcp.json`。注意 VS Code 用的键是 `servers`。
+
+```json title=".vscode/mcp.json"
+{
+  "servers": {
+    "scholar": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Gemini CLI">
+
+写入 `~/.gemini/settings.json`，或项目里的 `.gemini/settings.json`。
+
+```json title="~/.gemini/settings.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="OpenCode">
+
+OpenCode 的本地服务器写在 `mcp` 下，命令写成数组。`~/.config/opencode/opencode.json` 对所有项目生效，项目里的 `opencode.json` 只管这个项目。
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "scholar": {
+      "type": "local",
+      "command": [
+        "uvx", "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "environment": { "SCHOLAR_MCP_EXTENSIONS": "research" },
+      "enabled": true
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Windsurf">
+
+写入 `~/.codeium/windsurf/mcp_config.json`，然后在 Cascade 里刷新服务器列表。
+
+```json title="~/.codeium/windsurf/mcp_config.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Kiro">
+
+<LinkButton href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">添加到 Kiro</LinkButton>
+
+也可写入 `~/.kiro/settings/mcp.json`，或工作区里的 `.kiro/settings/mcp.json`。
+
+```json title="~/.kiro/settings/mcp.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Zed">
+
+Zed 把 MCP 服务器叫作 context server。写入设置文件（**zed: open settings file**），或项目里的 `.zed/settings.json`。
+
+```json title="settings.json"
+{
+  "context_servers": {
+    "scholar": {
+      "source": "custom",
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Pi">
+
+Pi 通过 [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter) 连接 MCP 服务器。先装好它并重启 Pi，再把 Scholar 写入项目里的 `.mcp.json`，或对所有项目生效的 `~/.config/mcp/mcp.json`。
+
+```bash
+pi install npm:pi-mcp-adapter
+```
+
+```json title=".mcp.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+仓库里的插件目录符合 Agent Plugins 标准，Pi 和兼容的环境可以直接加载。
+
+</TabItem>
+<TabItem label="其他">
+
+能启动 stdio 服务器的客户端，都用这套命令和参数。
+
+```json
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+也可用容器镜像，默认走 stdio。
+
+```bash
+docker run -i --rm -e SCHOLAR_MCP_EXTENSIONS=research \
+  ghcr.io/liyux3/scholar-mcp:latest
+```
+
+客户端不能自己启动程序时，比如网页里的智能体，可以让 Scholar 作为网络服务运行。运行 `scholar-mcp serve --http`，或设置 `SCHOLAR_MCP_TRANSPORT=http`，默认地址是 `http://127.0.0.1:8000/mcp`。云端智能体访问不到你电脑上的 localhost，需要一个能从外部访问、并且有保护的部署。
+
+</TabItem>
+</Tabs>
+
+<Aside>
+接入后，客户端中应能看到 `search_papers`、`paper_info`、`recommend_papers`、`search_authors`、`read_paper` 和 `download_paper`，启用研究工具集时还有 `build_paper_graph` 和 `paper_library`。`scholar://status` 会显示可用的数据源和当前使用的排序模型。
+</Aside>
+
+## 更多智能体
+
+`scholar-mcp install` 还能为以下智能体写好配置，并带上各自需要的超时和字段：
+
+| 智能体 | 命令 |
+|---|---|
+| Qwen Code | `scholar-mcp install qwen-code` |
+| Kimi Code | `scholar-mcp install kimi-code` |
+| Qoder CLI | `scholar-mcp install qoder-cli` |
+| CodeBuddy Code | `scholar-mcp install codebuddy` |
+| iFlow CLI (legacy) | `scholar-mcp install iflow` |
+| MiniMax Code | `scholar-mcp install minimax` |
+| DeepSeek Harness | `scholar-mcp install deepseek` |
+| TRAE CLI 2.0 | `scholar-mcp install trae-cli` |
+| MiMo Code | `scholar-mcp install mimocode` |
+| ZCode | `scholar-mcp install zcode` |
+| Cline CLI、Kilo Code、Amp | `scholar-mcp install cline`、`kilo`、`amp` |
+| GitHub Copilot CLI、Factory Droid、Junie CLI、Augment CLI | `scholar-mcp install copilot-cli`、`factory`、`junie`、`augment` |
+| Warp、LM Studio | `scholar-mcp install warp`、`lmstudio` |
+
+Trae、通义灵码、百度 Comate、Cherry Studio、ChatWise，以及 Cline 和 Roo Code 的编辑器插件（Cline 命令行版可用 `install` 写好），把 MCP 列表保存在各自的设置界面里。把上方**其他**标签中的 JSON 粘贴到它们的 MCP 设置中即可。
+
+### DeepSeek Harness
+
+安装器将官方 `@deepseek-ai/dsh-mcp-client` 插件写入 `~/.dsh/cordis.patch.yml`，也支持 `DSH_HOME` 指定的数据目录。这份用户级 Cordis 补丁对各个 profile 生效，已有的 YAML、注释和 `!!js` 表达式保持原样；Scholar 的受管区块可以用同一安装器更新或卸载。
+
+插件调用其他客户端共用的 Scholar 命令，工具超时为 600 秒，工具名称形如 `mcp__scholar__search_papers`。只给某个自定义 profile 使用时，可将同样的 insert 放进该 profile 的 `cordis.patch.yml`；项目目录中的补丁需要通过 `dsh <profile> --patch <file>` 显式加载。详见 [DeepSeek 官方 MCP 说明](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/mcp/mcp-client)。
+
+### ZCode 与自定义配置目录
+
+`scholar-mcp install zcode` 将 stdio 配置写入 `~/.zcode/cli/config.json` 的 `mcp.servers`。用户显式设置的 `features.mcp=false` 会保留，并提示用户检查这项选择。模型凭据由 ZCode 自行管理。
+
+安装器遵循各智能体自己的目录设置，包括 `QWEN_HOME`、`KIMI_CODE_HOME`、`CODEBUDDY_CONFIG_DIR`、`QODER_CONFIG_DIR`、`MINIMAX_DATA_DIR`（也支持 `MAVIS_DATA_DIR`）和 `TRAE_HOME`。安装 Scholar 和启动智能体时，使用相同的目录设置即可。Kimi Code 2.4 与 MiniMax Code 0.7 会直接加载各自的 MCP 配置文件。
+
+## 智能体框架
+
+框架可以通过原生 MCP 客户端启动同一条 Scholar 命令。[LangChain 与 LangGraph](https://github.com/langchain-ai/langchain-mcp-adapters) 使用 `MultiServerMCPClient`，[AgentScope](https://github.com/agentscope-ai/agentscope/tree/main/src/agentscope/mcp) 使用 `MCPClient` 与 `StdioMCPConfig`。加载 Scholar 的工具后，将它们交给智能体现有的工具注册表即可。
+
+一次研究会连续调用多个工具时，保持连接，结束后按框架的会话生命周期关闭。Scholar 在独立进程中运行，框架和 Scholar 可以各自管理 Python 依赖。托管框架则使用前面说明的可达 HTTP 部署。
+
+## 其他安装方式
+
+| 渠道 | 入口 |
+|---|---|
+| PyPI + uv tool | `uv tool install scholar-mcp`，再用 `scholar-mcp install` 注册客户端 |
+| PyPI + uvx | 在任意客户端配置里写 `uvx scholar-mcp` |
+| 官方 MCP Registry | `io.github.Liyux3/scholar-mcp` |
+| 容器 | `ghcr.io/liyux3/scholar-mcp:<version>` |
+| Claude Desktop | [GitHub Releases](https://github.com/Liyux3/scholar-mcp/releases) 里的 MCPB 安装包 |
+| Codex、Claude Code、Cursor | 仓库里的插件和插件市场清单 |
+
+仓库中还有启动脚本，macOS 和 Linux 用 `scripts/launch.sh`，Windows 用 `scripts/launch.cmd` 或 `scripts/launch.ps1`。已有 uv 时直接使用，否则把 uv 装进一个独立目录，不改动 shell 配置。

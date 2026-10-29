@@ -9,18 +9,20 @@ from PIL import Image, ImageChops
 from pdftext.extraction import dictionary_output
 from pypdf import PdfReader
 
+from . import config
+
 DEFAULT_READ_PAGE_COUNT = 10
 DEFAULT_READ_PAGES = f"1-{DEFAULT_READ_PAGE_COUNT}"
 MAX_READ_PAGES = 20
 PDF_RENDER_SCALE = 2.5
 _pdfium_lock = threading.Lock()
 
-_CAPTION_RE = re.compile(
-    r"^(?P<kind>Figure|Fig\.?|Table)\s*"
-    r"(?P<label>(?:[A-Za-z]\.?)?\d+(?:\.\d+)*(?:[A-Za-z])?)\s*"
-    r"[:.\-]\s*(?P<caption>.+)$",
-    re.IGNORECASE | re.DOTALL,
+_CAPTION_LABEL = (
+    r"^(?:(?P<section>Extended\s+Data|Supplementary)\s+)?(?P<kind>Figure|Fig\.?|Table)\s*"
+    r"(?P<label>(?:[A-Za-z]\.?)?\d+(?:\.\d+)*(?:[A-Za-z])?)"
 )
+_CAPTION_RE = re.compile(_CAPTION_LABEL + r"\s*[:.\-|]\s*(?P<caption>.+)$", re.I | re.S)
+_TYPESET_CAPTION_RE = re.compile(_CAPTION_LABEL + r"\s+(?P<caption>.+)$", re.I | re.S)
 _NUMBERED_HEADING_RE = re.compile(
     r"^(?P<number>(?:[A-Z]\.)?\d+(?:\.\d+)*)\s+(?P<title>\S.+)$"
 )
@@ -110,11 +112,27 @@ def _caption(block: dict, page_number: int) -> dict | None:
     lines = block.get("lines", [])
     for index, line in enumerate(lines):
         text = _lines_text([line])
-        match = _CAPTION_RE.match(text)
+        pattern = _CAPTION_RE
+        match = pattern.match(text)
+        if not match:
+            # Some publishers separate a caption label by typography, not a colon.
+            # Require an isolated label span and a font change into the caption;
+            # plain body references such as "Figure 2 shows ..." still do not match.
+            candidate = _TYPESET_CAPTION_RE.match(text)
+            spans = [s for s in line.get("spans", []) if s.get("text", "").strip()]
+            if candidate and len(spans) >= 2:
+                label_text = text[:candidate.start("caption")].strip()
+                label_font = (spans[0].get("font") or {}).get("name")
+                body_font = (spans[1].get("font") or {}).get("name")
+                if (spans[0]["text"].strip() == label_text
+                        and label_font and body_font and label_font != body_font):
+                    pattern, match = _TYPESET_CAPTION_RE, candidate
         if not match:
             continue
         kind = "figure" if match.group("kind").lower().startswith("fig") else "table"
         prefix = "Figure" if kind == "figure" else "Table"
+        if match.group('section'):
+            prefix = ' '.join(match.group('section').split()).title() + ' ' + prefix
         label = match.group("label")
         consumed = [line]
         bbox = [float(value) for value in line.get("bbox", [0, 0, 0, 0])]
@@ -146,7 +164,7 @@ def _caption(block: dict, page_number: int) -> dict | None:
             previous_bbox = next_bbox
             next_index += 1
         caption_text = _lines_text(consumed)
-        caption_match = _CAPTION_RE.match(caption_text)
+        caption_match = pattern.match(caption_text)
         remainder = lines[:index] + lines[next_index:]
         return {
             "selector": f"{prefix} {label}",
@@ -210,7 +228,7 @@ def _find_captions(layout_pages: list[dict]) -> list[dict]:
 
 
 def _normalize_selector(value: str) -> str:
-    value = re.sub(r"^fig\.?(?=\s*\w)", "figure", value.strip(), flags=re.I)
+    value = re.sub(r"\bfig\.?(?=\s*[A-Za-z]?\d)", "figure", value.strip(), flags=re.I)
     return re.sub(r"[^a-z0-9]+", "", value.lower())
 
 
@@ -415,12 +433,7 @@ def _figure_region(file_path: str, target: dict) -> list[float] | None:
         page = document.pages[target["page"] - 1]
         caption = target["_bbox"]
         center = (caption[0] + caption[2]) / 2
-        if center < page.width * 0.42:
-            left, right = page.width * 0.02, page.width * 0.54
-        elif center > page.width * 0.58:
-            left, right = page.width * 0.46, page.width * 0.98
-        else:
-            left, right = page.width * 0.02, page.width * 0.98
+        left, right = page.width * 0.02, page.width * 0.98
         above = caption[1] >= page.height * 0.2
         search = [
             left,
@@ -441,10 +454,9 @@ def _figure_region(file_path: str, target: dict) -> list[float] | None:
             if bbox[3] <= bbox[1]:
                 bbox[3] = bbox[1] + 0.5
             if _intersects(bbox, search):
-                objects.append([
-                    max(bbox[0], search[0]), max(bbox[1], search[1]),
-                    min(bbox[2], search[2]), min(bbox[3], search[3]),
-                ])
+                # A caption may occupy one column under a spanning figure.
+                # Search selects primitives; it must not cut their geometry.
+                objects.append(bbox)
         if not objects:
             return None
 
@@ -645,6 +657,7 @@ def _render_visual(file_path: str, target: dict, table: dict | None = None) -> b
         document.close()
 
     crop_kind = "full-page"
+    pixel_left = pixel_top = 0
     crop = None
     if table:
         caption_bbox = target.get("_bbox") or table["bbox"]
@@ -685,10 +698,13 @@ def _render_visual(file_path: str, target: dict, table: dict | None = None) -> b
         right = min(width, crop[2] + margin) * PDF_RENDER_SCALE
         bottom = min(height, crop[3] + margin) * PDF_RENDER_SCALE
         image = image.crop((round(left), round(top), round(right), round(bottom)))
+        pixel_left, pixel_top = round(left), round(top)
     background = Image.new(image.mode, image.size, "white")
     content_bbox = ImageChops.difference(image, background).getbbox()
     if content_bbox:
         pad = 18
+        pixel_left += max(0, content_bbox[0] - pad)
+        pixel_top += max(0, content_bbox[1] - pad)
         image = image.crop((
             max(0, content_bbox[0] - pad),
             max(0, content_bbox[1] - pad),
@@ -699,6 +715,8 @@ def _render_visual(file_path: str, target: dict, table: dict | None = None) -> b
     image.save(buffer, format="PNG", optimize=True)
     target["crop"] = crop_kind
     target["image_size"] = list(image.size)
+    target['rendered_bbox'] = [round(v / PDF_RENDER_SCALE, 3) for v in
+                               (pixel_left, pixel_top, pixel_left + image.width, pixel_top + image.height)]
     return buffer.getvalue()
 
 
@@ -747,6 +765,7 @@ def read(
     file_path: str,
     pages: str = DEFAULT_READ_PAGES,
     visual: str = "",
+    budget: int | None = None,
 ) -> dict:
     """Extract page-aware Markdown and an optional focused visual from a PDF."""
     reader = PdfReader(file_path)
@@ -788,7 +807,205 @@ def read(
         image = _render_visual(file_path, target, matching_table)
         result["visual"] = {key: value for key, value in target.items() if not key.startswith("_")}
         result["_image_bytes"] = image
-    elif end < total_pages:
+        return result
+    end = _fit_budget(result, start, end, budget)
+    if end < total_pages:
         next_end = min(end + DEFAULT_READ_PAGE_COUNT, total_pages)
         result["next_pages"] = f"{end + 1}-{next_end}"
+    return result
+
+
+def _fit_budget(result: dict, start: int, end: int, budget: int | None = None) -> int:
+    """Stop at a page boundary once the text exceeds the response budget.
+
+    Clients persist or reject large tool results (Claude Code above roughly
+    50 KB), which costs the agent a second step or the whole read. The pages
+    left out are reported through next_pages, never dropped silently.
+    """
+    budget = config.READ_CHAR_BUDGET if budget is None else budget
+    if budget <= 0 or len(result["content"]) <= budget:
+        return end
+    sections = re.split(r"(?m)(?=^--- Page \d+ ---$)", result["content"])
+    kept, size, last = [], 0, None
+    for section in filter(None, sections):
+        match = re.match(r"--- Page (\d+) ---", section)
+        if match and last is not None and size + len(section) > budget:
+            break
+        kept.append(section)
+        size += len(section)
+        if match:
+            last = int(match.group(1))
+    if last is None or last >= end:
+        return end
+    result["content"] = "".join(kept).rstrip()
+    result["pages"] = f"{start}-{last}" if start != last else str(start)
+    result["budget_note"] = f"Stopped after page {last} to keep the response small; continue with next_pages."
+    for key in ("visuals", "tables"):
+        if key in result:
+            result[key] = [item for item in result[key] if not isinstance(item, dict) or item.get("page", 0) <= last]
+            if not result[key]:
+                del result[key]
+    return last
+
+
+def read_jats(content: bytes, pages: str = DEFAULT_READ_PAGES, visual: str = '',
+              budget: int | None = None) -> dict:
+    """Render original article structure with stable locators, never invented PDF pages."""
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(content)
+    href = '{http://www.w3.org/1999/xlink}href'
+    parts, sections, visuals, tables = [], [], [], []
+
+    def tag(node):
+        return node.tag.rsplit('}', 1)[-1]
+
+    def inline(node):
+        if tag(node) in {'fig', 'table-wrap'}:
+            label = node.find('label')
+            text = inline(label) if label is not None else node.get('id', '')
+            return f"[{text}](xml:{node.get('id', '')})"
+        if tag(node) == 'alternatives':
+            preferred = next((child for child in node if tag(child) == 'tex-math'), None)
+            if preferred is None:
+                preferred = next((child for child in node if tag(child) == 'math'), None)
+            return inline(preferred) if preferred is not None else ''.join(node.itertext())
+        if tag(node) == 'tex-math':
+            text = ''.join(node.itertext()).strip()
+            match = re.search(r'\\begin\{document\}(.*?)\\end\{document\}', text, re.S)
+            text = match[1].strip() if match else text
+            return text if text.startswith(('$', r'\(', r'\[')) else '$' + text + '$'
+        if tag(node) == 'math':
+            return ET.tostring(node, encoding='unicode')
+        text = (node.text or '') + ''.join(
+            (' ' if tag(child) in {'p', 'title', 'list-item'} else '') + inline(child) + (child.tail or '')
+            for child in node)
+        text = re.sub(r'\s+', ' ', text).strip()
+        name = tag(node)
+        if name in {'italic', 'bold'}:
+            mark = '*' if name == 'italic' else '**'
+            return f'{mark}{text}{mark}'
+        if name in {'sup', 'sub'}:
+            return f'<{name}>{text}</{name}>'
+        if name == 'xref' and node.get('rid'):
+            return f"[{text}](xml:{node.get('rid').split()[0]})"
+        if name in {'ext-link', 'uri'} and node.get(href):
+            return f'[{text}]({node.get(href)})'
+        return text
+
+    def add(node, text):
+        if text.strip():
+            parts.append({'text': text.strip(), 'node': node})
+
+    def walk(node, level=2):
+        name, xml_id = tag(node), node.get('id', '')
+        if name in {'sec', 'abstract', 'ref-list', 'ack', 'app'}:
+            title = node.find('title')
+            heading = inline(title) if title is not None else {'abstract': 'Abstract', 'ref-list': 'References', 'ack': 'Acknowledgments'}.get(name, '')
+            if heading:
+                if xml_id:
+                    sections.append({'title': heading, 'selector': f'xml:{xml_id}'})
+                add(node, '#' * min(level, 6) + ' ' + heading)
+            for child in node:
+                if tag(child) != 'title':
+                    walk(child, level + 1)
+        elif name in {'fig', 'table-wrap'}:
+            label = node.find('label')
+            caption = node.find('caption')
+            selector = inline(label) if label is not None else f'xml:{xml_id}'
+            item = {'selector': selector, 'xml_id': xml_id,
+                    'caption': inline(caption) if caption is not None else ''}
+            graphic = node.find('.//graphic')
+            if graphic is not None:
+                item['asset'] = graphic.get(href, '')
+            text = f"**{selector}** {item['caption']}"
+            if name == 'table-wrap':
+                table = node.find('.//table')
+                if table is not None:
+                    cells = list(table.iter('td')) + list(table.iter('th'))
+                    spans = any(cell.get(key, '1') != '1' for cell in cells for key in ('rowspan', 'colspan'))
+                    rows = [[inline(cell) for cell in row if tag(cell) in {'td', 'th'}]
+                            for row in table.iter('tr')]
+                    rows = [row for row in rows if row]
+                    if rows and not spans:
+                        width = max(map(len, rows))
+                        item['format'] = 'markdown'
+                        item['content'] = _markdown_table([row + [''] * (width - len(row)) for row in rows])
+                    else:
+                        item['format'] = 'html'
+                        item['content'] = ET.tostring(table, encoding='unicode')
+                    text += '\n\n' + item['content']
+                tables.append(item)
+            else:
+                visuals.append(item)
+            add(node, text)
+        elif name == 'list':
+            add(node, '\n'.join(f'- {inline(child)}' for child in node if tag(child) == 'list-item'))
+        elif name in {'p', 'disp-formula', 'ref', 'statement', 'disp-quote', 'preformat'}:
+            add(node, inline(node))
+            # Publishers may embed floating figures/tables inside a paragraph.
+            for child in node.iter():
+                if child is not node and tag(child) in {'fig', 'table-wrap'}:
+                    walk(child, level)
+        elif name not in {'label', 'title', 'caption', 'graphic', 'media'}:
+            for child in node:
+                walk(child, level)
+
+    title = root.find('./front/article-meta/title-group/article-title')
+    if title is not None:
+        add(title, '# ' + inline(title))
+    for abstract in root.findall('./front/article-meta/abstract'):
+        walk(abstract)
+    for name in ('body', 'back', 'floats-group'):
+        container = root.find(name)
+        if container is not None:
+            walk(container)
+    if not parts:
+        raise ValueError('JATS contains no readable article text')
+
+    result = {'format': 'jats', 'pages': None, 'total_pages': None,
+              'section_index': sections, 'visuals': visuals, 'tables': tables}
+    selected = list(range(len(parts)))
+    selector = visual or (pages[4:] if pages.startswith('xml:') else '')
+    if selector:
+        normalized = _normalize_selector(selector.removeprefix('xml:'))
+        target = next((item for item in [*visuals, *tables]
+                       if normalized in {_normalize_selector(item['selector']), _normalize_selector(item['xml_id'])}), None)
+        xml_id = target['xml_id'] if target else selector.removeprefix('xml:')
+        node = next((node for node in root.iter() if node.get('id') == xml_id), None)
+        if node is None:
+            return {**result, 'error': f'No native article selection matches {selector!r}.',
+                    'hint': 'Use a visual selector or xml:ID from the indexes; PDF page numbers are unavailable.'}
+        descendants = set(node.iter())
+        selected = [index for index, part in enumerate(parts) if part['node'] in descendants]
+        if not selected:
+            return {**result, 'error': 'This XML element has no standalone readable text.',
+                    'hint': 'Select its enclosing section or a figure from the indexes.'}
+        if target:
+            result['visual'] = target
+    elif pages.startswith('parts:'):
+        match = re.fullmatch(r'parts:(\d+)(?:-(\d+))?', pages)
+        if not match:
+            raise ValueError('Use parts:N-M or xml:ID for a structured article')
+        start, end = int(match[1]), int(match[2] or match[1])
+        if not 1 <= start <= end <= len(parts):
+            raise ValueError(f'This structured article has {len(parts)} parts')
+        selected = list(range(start - 1, end))
+    elif pages != DEFAULT_READ_PAGES:
+        return {**result, 'error': f'PDF pages {pages!r} are unavailable for this structured copy.',
+                'hint': 'Use a section xml:ID or parts:N-M; parts refer to source text blocks, not pages.'}
+    else:
+        result['selection_note'] = 'Read from the native structured article. This copy has no PDF page boundaries.'
+    limit = config.READ_CHAR_BUDGET if budget is None else budget
+    kept, size = [], 0
+    for index in selected:
+        text = parts[index]['text']
+        if kept and limit > 0 and size + len(text) > limit:
+            result['next_pages'] = f'parts:{index + 1}-{selected[-1] + 1}'
+            break
+        kept.append(text)
+        size += len(text) + 2
+    result['content'] = '\n\n'.join(kept)
+    result['parts'] = f'{selected[0] + 1}-{selected[len(kept) - 1] + 1}' if kept else ''
+    result['total_parts'] = len(parts)
     return result

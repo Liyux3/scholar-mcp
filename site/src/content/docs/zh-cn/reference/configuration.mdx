@@ -1,0 +1,102 @@
+---
+slug: zh-cn/configuration
+title: 配置
+description: 数据位置、数据源密钥、排序模型、连接方式和文献库连接器的环境变量。
+---
+
+所有设置都是环境变量，全部可选，不设也能正常使用。
+
+密钥最省事的放法是全局密钥文件。`scholar-mcp keys set OPENALEX_API_KEY` 会提示输入，保存到 `<data>/keys.env`（仅你本人可读），所有启动 Scholar 的客户端重启后都会读到。`scholar-mcp keys` 只列出已保存的名称，不显示值。写在某个客户端 `env` 里或 shell 中的同名变量依然有效，并且优先。密钥只留在 Scholar 进程里，不会出现在请求链接和返回给模型的错误信息中。
+
+## 环境变量
+
+### 数据、工具集和运行方式
+
+| 变量 | 用途 |
+|---|---|
+| `SCHOLAR_DATA_DIR` | 数据根目录，默认 `~/.scholar-mcp` |
+| `SCHOLAR_KB_DIR` | SQLite 文献库和 JSONL 快照目录 |
+| `SCHOLAR_DOWNLOAD_DIR` | 保存 PDF 的目录，默认 `<data>/papers` |
+| `SCHOLAR_OBSIDIAN_VAULT` | Obsidian 同步目录，无需登录 |
+| `SCHOLAR_MCP_EXTENSIONS` | 设成 `research` 加上引用图谱和文献库 |
+| `SCHOLAR_READ_CHAR_BUDGET` | 每次 `read_paper` 最多返回多少字的正文，在页边界截断，默认 100,000，`0` 不限 |
+| `SCHOLAR_USAGE_LOG` | 本地调用记录，存在 `<data>/usage/`，最多约 4 MB，`scholar-mcp doctor` 会汇总：`on`（默认，不含查询内容）、`full`（含参数）或 `off` |
+| `SCHOLAR_MCP_TRANSPORT` | 设成 `http` 时作为网络服务运行（Streamable HTTP），供不能自己启动程序的客户端连接，默认由客户端经 stdio 启动 |
+| `SCHOLAR_MCP_HOST`、`SCHOLAR_MCP_PORT`、`SCHOLAR_MCP_PATH` | HTTP 地址、端口和路径，默认 `127.0.0.1`、`8000` 和 `/mcp` |
+| `SCHOLAR_IDLE_EXIT` | HTTP 空闲退出时间，单位分钟，默认 `20`，`0` 关闭。由 launchd KeepAlive 等进程管理器重新启动，释放已加载的模型内存；所有工具任务和流式回复结束后才开始计时，stdio 保持现有生命周期。 |
+
+### 数据源
+
+| 变量 | 用途 |
+|---|---|
+| `S2_API_KEY` | 提高 Semantic Scholar 的限额，打开全文片段搜索和推荐 |
+| `OPENALEX_API_KEY` | OpenAlex 的搜索、语义搜索和引用数据 |
+| `S2_API_KEYS`、`OPENALEX_API_KEYS` | 逗号分隔的密钥池 |
+| `OPENALEX_EMAIL` | 联系邮箱，OpenAlex 和 Crossref 会给更宽的限额，Unpaywall 需要它 |
+| `SCOPUS_API_KEY` | Scopus 数据源，也用于 Elsevier 接口下载有权限的 PDF |
+| `CORE_API_KEY` | CORE 开放仓库数据源 |
+| `OPENAIRE_CLIENT_ID`、`OPENAIRE_CLIENT_SECRET` | 免费[注册的 OpenAIRE 服务](https://develop.openaire.eu/personal-token)，把 OpenAIRE 的额度从每小时 60 次提到 7,200 次 |
+| `EXA_API_KEY` | Exa 论文搜索数据源 |
+| `ADS_API_TOKEN` | NASA ADS 数据源，覆盖天文和物理（ADS 账号免费） |
+| `SPRINGER_API_KEY` | Springer Nature 数据源（开发者密钥免费，每天 500 次） |
+| `WOS_API_KEY` | Web of Science Starter 数据源（Clarivate 密钥，不含摘要） |
+| `LENS_API_TOKEN` | Lens.org 数据源，附专利引用数 |
+| `SCHOLAR_SOURCE_BUDGET_S` | 挑种子论文前最多等多久，默认 30 秒，迟到的数据源会在最后并进来 |
+| `SCHOLAR_GOOGLE_PROXY` | 只给 Google Scholar 用的代理，其他数据源不受影响 |
+| `SCHOLAR_GOOGLE_RECOVERY` | Google Scholar 会话恢复：`off`、`headless` 或 `headed`（由你自己完成验证） |
+| `SCHOLAR_GOOGLE_BROWSER` | 浏览器装在非标准位置时，指定它的路径 |
+
+OpenReview 的公开投稿无需账号即可搜索。
+
+### 排序模型
+
+| 变量 | 用途 |
+|---|---|
+| `DASHSCOPE_API_KEY` | Qwen 重排模型 |
+| `DASHSCOPE_HTTP_BASE_URL` | 阿里云业务空间的 API 地址或 `/api/v1` 地址，默认用北京地域的公共地址 |
+| `SCHOLAR_RERANK_MODEL` | 阿里云模型（默认 `qwen3-rerank`），或自定义服务的模型 |
+| `SCHOLAR_RERANK_URL`、`SCHOLAR_RERANK_API_KEY` | 自定义排序服务的完整地址和它自己的密钥，优先于阿里云 |
+| `SCHOLAR_RERANK_TIMEOUT` | 远程排序请求的超时，包括阿里云，默认 120 秒 |
+| `SCHOLAR_RERANK_BATCH_SIZE` | 自定义排序服务每次能处理多少篇，默认 500 |
+
+### 图书馆访问和连接器
+
+| 变量 | 用途 |
+|---|---|
+| `LIBRARY_PROXY_PREFIX`、`LIBRARY_PROXY_COOKIES` | 图书馆代理的前缀，和从已登录浏览器导出的 cookies.txt，见[机构访问](/scholar-mcp/zh-cn/institutional-access/) |
+| `LIBRARY_PROXY_BASE`、`LIBRARY_PROXY_COOKIE` | 旧写法：代理地址和原始 Cookie 请求头。备用 Cookie 文件是 `<data>/library_cookie.txt` |
+| `ZOTERO_API_KEY`、`ZOTERO_LIBRARY_ID` | Zotero 连接器，走 Web API 或本地 API |
+| `ZOTERO_LIBRARY_TYPE`、`ZOTERO_API_BASE` | Zotero 文献库类型和服务地址（可选） |
+| `NOTION_API_KEY`、`NOTION_DATA_SOURCE_ID` | 发布到 Notion |
+
+## 排序模型
+
+搜索先为第一轮结果排序，从最相关的几篇沿引用再找一轮，最后对全部候选重新排序。设置了 `DASHSCOPE_API_KEY` 时，首选 DashScope 的 `qwen3-rerank`。`rerank` 扩展附带一个本地 FlashRank 模型作为备选，推荐的 uvx 配置、容器镜像和桌面安装包均已包含，首次使用时下载。它是约 30 MB 的 MiniLM 模型，在普通 CPU 上很快；在 Apple 芯片上同一个模型会改用 GPU 运行，快约十倍（装了 torch 的 GPU 服务器也会这样用 CUDA）。它分两遍读，先只看标题和摘要开头给全部候选粗排，再把排在前面的论文连同完整摘要细读一遍重新排序。有 GPU 时，细读换成更强的 GTE-ModernBERT（1.49 亿参数，首次使用下载约 600 MB），细读前 300 篇而不是 100 篇，在真实的 Scholar 搜索上把排序质量（nDCG@10）提高了约三分之一。只有 CPU 时两遍都由 MiniLM 完成，区分细微差别的能力弱一些。候选较多时分批打分，每批都在服务允许的篇数和 token 之内，不会直接截断多余部分。
+
+### 阿里云业务空间和地域
+
+使用阿里云业务空间或其他地域时，把 `DASHSCOPE_HTTP_BASE_URL` 设为控制台显示的 API 地址（带 `https://`）或其 `/api/v1` 地址，并使用同一地域的密钥。
+
+```text
+DASHSCOPE_HTTP_BASE_URL=https://<workspace-id>.cn-beijing.maas.aliyuncs.com/api/v1
+SCHOLAR_RERANK_MODEL=qwen3-rerank
+```
+
+若业务空间中提供，`SCHOLAR_RERANK_MODEL` 也可选 `qwen3.7-text-rerank`、`gte-rerank-v2` 或 `qwen3-vl-rerank`（文本输入），Scholar 会使用相应的请求格式。未设地址时，沿用北京地域的公共地址。阿里云推荐使用[业务空间专属地址](https://help.aliyun.com/en/model-studio/regions/)，公共域名 2026 年 9 月 30 日后不再获得新功能。密钥和可用模型均与地域相关。
+
+### 自定义排序服务
+
+使用其他服务或自行部署的模型时，把 `SCHOLAR_RERANK_URL` 设为完整地址，`SCHOLAR_RERANK_MODEL` 设为模型名，需要时再设 `SCHOLAR_RERANK_API_KEY`。它优先于阿里云，只使用自己的密钥，失败时只会改用本地模型。接口遵循 Cohere 的格式。
+
+```text
+Request:  query, documents, top_n, model
+Response: results: [{index, relevance_score}]
+```
+
+也支持阿里云原生的 `/api/v1/services/rerank/text-rerank/text-rerank`，请求使用 `input` 和 `parameters`，返回 `output.results`。两种格式共用同一套分批、分数校验和本地备选，无需安装任何厂商的 SDK。
+
+分数须在 `[0, 1]` 之间且不同批次可比，因此原始 logits 需在服务端先归一化。`SCHOLAR_RERANK_BATCH_SIZE` 设为服务单次能处理的篇数。更换模型可能改变它与引用数、新旧程度等因素在最终排序中的权重。
+
+远程服务无法连接时，Scholar 等待 10 秒即放弃，改用本地模型排序，五分钟内不再尝试远程，以免一个失效的服务拖慢每次搜索。
+
+要确认实际使用的排序模型，可读取 `scholar://status` 或加 `debug=true` 搜索一次，两者都会显示服务、模型，以及改用本地模型的原因。

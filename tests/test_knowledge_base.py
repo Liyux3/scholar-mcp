@@ -8,6 +8,44 @@ from scholar_mcp import knowledge_base as kb
 from scholar_mcp.library_connectors import publish_notion, sync_zotero
 
 
+def test_pmc_aliases_reuse_legacy_notes_and_pdf_indexes(tmp_path):
+    from scholar_mcp.library_store import LibraryStore
+    from scholar_mcp.records import paper_identity_keys
+    store = LibraryStore(tmp_path)
+    record = {'title': 'A saved trial', 'external_ids': {'PMC': '5990470'},
+              'notes': 'Human-edited interpretation'}
+    store.add_records([record], 'work')
+    # A pre-upgrade database had only the unprefixed native identifier.
+    with store.connection() as connection:
+        connection.execute("DELETE FROM identifiers WHERE identity_key != 'pubmedcentral:5990470'")
+    store.remember_pdf_copy({'pubmedcentral:5990470'}, {
+        'file_path': str(tmp_path / 'original.pdf'), 'source': 'europepmc', 'version': 'accepted'})
+    for identifier in ('PMC:5990470', 'PMC5990470', 'pmc5990470.1'):
+        assert store.get_record('work', identifier)['notes'] == 'Human-edited interpretation'
+        copies = store.find_pdf_copies(paper_identity_keys({'paper_id': identifier}, include_title=False))
+        assert copies[0]['file_path'] == str(tmp_path / 'original.pdf')
+    with store.connection() as connection:
+        assert connection.execute('SELECT count(*) FROM identifiers').fetchone()[0] == 1
+
+
+def test_publication_upgrade_keeps_identifiers_and_human_notes(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, 'DEFAULT_KB_DIR', str(tmp_path))
+    preprint = {'title': 'Original manuscript', 'year': 2023, 'authors': [{'name': 'Ada Example'}],
+                'publication_types': ['Preprint'], 'external_ids': {'DOI': '10.1000/preprint'},
+                'relations': [{'type': 'is-preprint-of', 'id': '10.1000/published', 'id_type': 'doi'}]}
+    published = {'title': 'Final published title', 'year': 2024, 'authors': ['Ada Example'],
+                 'publication_types': ['JournalArticle'], 'external_ids': {'DOI': '10.1000/published'},
+                 'citation_count': 0, '_citation_count_known': True}
+    kb.add_papers([preprint], collection='work', notes='My original reasoning')
+    kb.add_papers([published], collection='work')
+    first = kb.get_paper('10.1000/preprint', collection='work')
+    second = kb.get_paper('10.1000/published', collection='work')
+    assert first == second and first['title'] == published['title']
+    assert first['year'] == 2024 and first['authors'] == ['Ada Example']
+    assert first['notes'] == 'My original reasoning' and first['_citation_count_known']
+    assert len(kb.list_papers('work')) == 1
+
+
 def _with_tmp_dir(fn):
     """Run test with a temporary KB directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -251,3 +289,10 @@ def test_persistent_fts_and_connector_dry_runs():
         assert notion["create"] == 1 and not notion["apply"]
 
     _with_tmp_dir(_test)
+def test_non_latin_titles_remain_distinct_in_legacy_title_index():
+    kb.add_papers([{'paper_id': 'cn-quantum', 'title': '量子纠缠与信息'},
+                   {'paper_id': 'cn-learning', 'title': '机器学习与推断'}])
+    assert kb.get_paper('量子纠缠与信息')['paper_id'] == 'cn-quantum'
+    assert kb.update_paper('机器学习与推断', notes='Human annotation')
+    assert kb.get_paper('cn-learning')['notes'] == 'Human annotation'
+    assert kb.get_paper('cn-quantum')['notes'] == ''

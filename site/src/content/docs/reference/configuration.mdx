@@ -1,0 +1,102 @@
+---
+slug: configuration
+title: Configuration
+description: Environment variables for data locations, source keys, reranking, transports and library connectors.
+---
+
+Every setting is an environment variable, and all of them are optional.
+
+The simplest place for keys is the global key file. `scholar-mcp keys set OPENALEX_API_KEY` asks for the value and saves it in `<data>/keys.env` (readable only by you), and every client that starts Scholar picks it up after a restart. `scholar-mcp keys` lists the saved names without values. The same variable in a client's `env` block or in the shell still works and takes precedence. Keys stay inside the Scholar process and never appear in request links or in errors shown to the model.
+
+## Environment variables
+
+### Data, profile and how Scholar runs
+
+| Variable | Purpose |
+|---|---|
+| `SCHOLAR_DATA_DIR` | Shared data root, default `~/.scholar-mcp` |
+| `SCHOLAR_KB_DIR` | SQLite library and JSONL snapshot directory |
+| `SCHOLAR_DOWNLOAD_DIR` | Persistent PDF directory, default `<data>/papers` |
+| `SCHOLAR_OBSIDIAN_VAULT` | Obsidian projection root, no authentication required |
+| `SCHOLAR_MCP_EXTENSIONS` | `research` adds the graph and paper-library tools |
+| `SCHOLAR_READ_CHAR_BUDGET` | Characters of paper text per `read_paper` response, cut at a page boundary, default 100,000, `0` disables |
+| `SCHOLAR_USAGE_LOG` | Local call record in `<data>/usage/`, about 4 MB at most, summarized by `scholar-mcp doctor`: `on` (default, no query text), `full` (with arguments) or `off` |
+| `SCHOLAR_MCP_TRANSPORT` | `http` runs Scholar as a network service (Streamable HTTP) for clients that cannot start it themselves; by default each client starts it over stdio |
+| `SCHOLAR_MCP_HOST`, `SCHOLAR_MCP_PORT`, `SCHOLAR_MCP_PATH` | HTTP bind address and endpoint, default `127.0.0.1`, `8000` and `/mcp` |
+| `SCHOLAR_IDLE_EXIT` | HTTP idle exit in minutes, default `20`, `0` disables. A supervisor such as launchd KeepAlive restarts the process with model memory released. The window starts after all tool workers and streamed replies finish; stdio keeps its existing lifecycle. |
+
+### Sources
+
+| Variable | Purpose |
+|---|---|
+| `S2_API_KEY` | Higher Semantic Scholar limits, full-text snippets and recommendations |
+| `OPENALEX_API_KEY` | OpenAlex search, semantic search and graph calls |
+| `S2_API_KEYS`, `OPENALEX_API_KEYS` | Comma-separated pools of keys |
+| `OPENALEX_EMAIL` | Contact address that earns wider limits from OpenAlex and Crossref, and that Unpaywall requires |
+| `SCOPUS_API_KEY` | Scopus source, also used to download entitled PDFs through Elsevier's API |
+| `CORE_API_KEY` | Optional CORE repository source |
+| `OPENAIRE_CLIENT_ID`, `OPENAIRE_CLIENT_SECRET` | A free [registered OpenAIRE service](https://develop.openaire.eu/personal-token); raises OpenAIRE from 60 to 7,200 requests an hour |
+| `EXA_API_KEY` | Optional Exa research-paper source |
+| `ADS_API_TOKEN` | Opt-in NASA ADS source for astronomy and physics (free ADS account) |
+| `SPRINGER_API_KEY` | Opt-in Springer Nature Meta API source (free developer key, 500 requests a day) |
+| `WOS_API_KEY` | Opt-in Web of Science Starter source (Clarivate key; no abstracts) |
+| `LENS_API_TOKEN` | Opt-in Lens.org scholarly source, with patent citation counts |
+| `SCHOLAR_SOURCE_BUDGET_S` | Per-round source fan-out budget, default 30 seconds |
+| `SCHOLAR_GOOGLE_PROXY` | Dedicated Google Scholar proxy, other sources keep their existing route |
+| `SCHOLAR_GOOGLE_RECOVERY` | Google Scholar session recovery: `off`, `headless` or `headed` |
+| `SCHOLAR_GOOGLE_BROWSER` | Browser executable for recovery outside standard install locations |
+
+OpenReview's public submissions need no account.
+
+### Reranking
+
+| Variable | Purpose |
+|---|---|
+| `DASHSCOPE_API_KEY` | Qwen reranker |
+| `DASHSCOPE_HTTP_BASE_URL` | Alibaba workspace API host or `/api/v1` base, defaults to the Beijing shared endpoint |
+| `SCHOLAR_RERANK_MODEL` | Alibaba model (default `qwen3-rerank`), or the model served by a custom endpoint |
+| `SCHOLAR_RERANK_URL`, `SCHOLAR_RERANK_API_KEY` | Full custom rerank endpoint and its separate credential, overrides Alibaba routing |
+| `SCHOLAR_RERANK_TIMEOUT` | Remote reranker request timeout, including Alibaba, default 120 seconds |
+| `SCHOLAR_RERANK_BATCH_SIZE` | Custom reranker's per-request document capacity, default 500 |
+
+### Library access and connectors
+
+| Variable | Purpose |
+|---|---|
+| `LIBRARY_PROXY_PREFIX`, `LIBRARY_PROXY_COOKIES` | Library proxy login prefix and a cookies.txt exported from your signed-in browser, see [Institutional access](/scholar-mcp/institutional-access/) |
+| `LIBRARY_PROXY_BASE`, `LIBRARY_PROXY_COOKIE` | Older form of the same setting: proxy URL and a raw Cookie header. Cookie file fallback: `<data>/library_cookie.txt` |
+| `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` | Zotero Web API or authorized local API connector |
+| `ZOTERO_LIBRARY_TYPE`, `ZOTERO_API_BASE` | Optional Zotero library type and endpoint override |
+| `NOTION_API_KEY`, `NOTION_DATA_SOURCE_ID` | Notion publisher |
+
+## Reranker
+
+Search ranks the first results, follows citations from the most relevant papers, then ranks every candidate again. With `DASHSCOPE_API_KEY` set, DashScope `qwen3-rerank` is used first. The `rerank` extra adds a local FlashRank model as the fallback. The recommended uvx configuration, the container and the desktop bundles include it, and it downloads on first use. It is a MiniLM model of about 30 MB, quick on an ordinary CPU, and on Apple silicon the same model runs on the GPU, about ten times faster (a GPU server that has torch installed uses CUDA the same way). It reads in two passes, the title and the start of each abstract for the whole pool, then the whole abstract for the leaders. On a GPU the leaders are read by a stronger model, GTE-ModernBERT (149M parameters, about 600 MB downloaded on first use), 300 of them instead of 100, which raised ranking quality (nDCG@10) on real Scholar searches by about a third. On a CPU alone MiniLM reads both passes and tells fine distinctions apart less well. Large pools are scored in batches within the service's document and token limits, never cut off at the batch size.
+
+### Alibaba workspaces and regions
+
+For an Alibaba workspace or another region, set `DASHSCOPE_HTTP_BASE_URL` to the API host shown in the console (with `https://`) or to its `/api/v1` base, and use a key from the same region.
+
+```text
+DASHSCOPE_HTTP_BASE_URL=https://<workspace-id>.cn-beijing.maas.aliyuncs.com/api/v1
+SCHOLAR_RERANK_MODEL=qwen3-rerank
+```
+
+If your workspace offers them, `SCHOLAR_RERANK_MODEL` can also be `qwen3.7-text-rerank`, `gte-rerank-v2` or `qwen3-vl-rerank` (text input), and Scholar uses the matching request format. Without a base URL, Scholar keeps the shared Beijing endpoint. Alibaba recommends [workspace endpoints](https://help.aliyun.com/en/model-studio/regions/) and says the shared domain gets no new features after September 30, 2026. Keys and available models depend on the region.
+
+### Your own ranking service
+
+For another provider or a model you host, set `SCHOLAR_RERANK_URL` to the full endpoint, `SCHOLAR_RERANK_MODEL` to the model name and, if needed, `SCHOLAR_RERANK_API_KEY`. It takes priority over Alibaba, uses only its own key, and falls back only to the local model. The interface follows Cohere's format.
+
+```text
+Request:  query, documents, top_n, model
+Response: results: [{index, relevance_score}]
+```
+
+Alibaba's native `/api/v1/services/rerank/text-rerank/text-rerank` is supported too, with `input` and `parameters` in the request and `output.results` in the response. Both formats share the same batching, score checks and local fallback, and no vendor SDK is needed.
+
+Scores must lie within `[0, 1]` and be comparable across batches, so raw logits need normalizing on the server. Set `SCHOLAR_RERANK_BATCH_SIZE` to what the service handles per request. A different model can shift its weight against citations and recency in the final ranking.
+
+When the remote service cannot be reached, Scholar gives up after 10 seconds, ranks with the local model and does not retry the remote one for five minutes, so a dead service does not slow every search.
+
+To see which ranking model actually ran, read `scholar://status` or search once with `debug=true`. Both show the service, the model and the reason for any fallback.

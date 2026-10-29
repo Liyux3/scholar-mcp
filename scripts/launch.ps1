@@ -11,8 +11,8 @@ if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 
 }
 $constraints = $env:SCHOLAR_WHEEL_INDEX
 if (-not $package) {
-    $package = "scholar-mcp[rerank]==0.8.5"
-    if (-not $constraints) { $constraints = "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html" }
+    $package = "scholar-mcp[rerank]==0.9.0"
+    if (-not $constraints) { $constraints = "https://github.com/Liyux3/scholar-mcp/releases/download/v0.9.0/wheel-index.html" }
 }
 $uvBin = $env:SCHOLAR_UV
 if (-not $uvBin) {

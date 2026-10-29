@@ -1,0 +1,108 @@
+---
+title: 快速开始
+description: 几分钟安装 Scholar，接入智能体，完成第一次搜索。无需账号，也无需 API 密钥。
+---
+
+import { Aside, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+
+Scholar 是一个本地 MCP 服务器，与智能体运行在同一台电脑上。下面以 Claude Code 为例，其他客户端步骤相同，配置写法见[接入客户端](/scholar-mcp/zh-cn/clients/)。
+
+<Steps>
+
+1. ## 安装 uv
+
+   Scholar 通过 [uv](https://docs.astral.sh/uv/) 运行，uv 会为它单独准备一个 Python 3.12 环境。若 `uv --version` 已可用，跳过此步。
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS 和 Linux">
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+   </TabItem>
+   <TabItem label="Windows">
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+   </TabItem>
+   </Tabs>
+
+2. ## 接入智能体
+
+   <Tabs syncKey="install">
+   <TabItem label="用 Scholar 命令">
+   先安装 `scholar-mcp` 命令，再由它把配置写入客户端。
+
+   ```bash
+   uv tool install --python 3.12 \
+     --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
+     "scholar-mcp[rerank]"
+   scholar-mcp install claude-code
+   ```
+
+   `install` 改动文件前会先备份，可重复运行。`--all` 配置所有检测到的客户端，`--dry-run` 只预览改动，`--profile research` 额外加入引用图谱和文献库。之后运行一次 `scholar-mcp update`，所有客户端一同升级。
+   </TabItem>
+   <TabItem label="手动">
+   若不想安装命令，也可直接用 uvx 注册。首次启动时，uvx 会自动准备 Python 3.12 和本地排序模型。
+
+   ```bash
+   claude mcp add scholar -- uvx --python 3.12 \
+     --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
+     --from 'scholar-mcp[rerank]' scholar-mcp
+   ```
+
+   这样注册的是当前项目中的六个核心工具。加 `--scope user` 对所有项目生效，在 `--` 之前加 `-e SCHOLAR_MCP_EXTENSIONS=research` 会同时启用引用图谱和文献库。
+   </TabItem>
+   <TabItem label="让智能体安装">
+   适用于任何客户端，包括本站没有列出的。把下面这段话发给你的智能体：
+
+   ```text
+   按照 https://raw.githubusercontent.com/Liyux3/scholar-mcp/main/llms-install.md
+   把 Scholar MCP 装进你当前所在的客户端。完成后提醒我重启，
+   并确认能看到 search_papers。
+   ```
+
+   这份说明写明了要启动的命令，以及常见客户端的写法，智能体会据此配置自己所在的客户端。
+   </TabItem>
+   </Tabs>
+
+3. ## 确认已连接
+
+   新开一个 Claude Code 会话并运行 `/mcp`，`scholar` 应显示为已连接。在终端运行 `scholar-mcp doctor`，可查看版本、已注册的客户端，以及可用的数据源和排序模型。
+
+4. ## 提出研究问题
+
+   像问同事一样提问即可，智能体会自己选择工具。
+
+   ```text
+   找一些评估 LLM 智能体长期记忆的近期工作，
+   读一下引用最多的那篇，比较它用到的基准测试。
+   ```
+
+   智能体会先用 `search_papers` 搜索，再用 `read_paper` 打开选中的论文，依据原文作答。接着可以问“谁引用了这篇？”，或者“把这三篇存到 memory 集合”。
+
+5. ## 按需添加 API 密钥
+
+   密钥均为可选，添加后覆盖更广、限额更高。用 `scholar-mcp keys set 名称` 保存一次，所有客户端都能用。也可以写在某个客户端配置的 `env` 中。
+
+   ```json title="服务器环境变量"
+   "env": {
+     "S2_API_KEY": "your-semantic-scholar-key",
+     "OPENALEX_API_KEY": "your-openalex-key",
+     "DASHSCOPE_API_KEY": "your-dashscope-key"
+   }
+   ```
+
+   如果只加两个，先加这两个免费的，它们解开的限制最紧：OpenAlex 密钥（没有时每天只够大约一百次搜索），以及注册的 OpenAIRE 服务 `OPENAIRE_CLIENT_ID` 和 `OPENAIRE_CLIENT_SECRET`（没有时每小时 60 次请求，有了 7,200 次）。Semantic Scholar 密钥提高限额，并启用全文片段搜索和推荐。OpenAlex 密钥用于其关键词搜索、语义搜索和引用数据。DashScope 密钥让排序改用云端的 Qwen3 重排模型。全部变量见[配置](/scholar-mcp/zh-cn/configuration/)。
+
+</Steps>
+
+<Aside type="tip" title="研究工具集">
+核心工具集有六个工具。做文献综述时，通常还会用到 `build_paper_graph` 和 `paper_library`。安装时加 `--profile research`，或设置 `SCHOLAR_MCP_EXTENSIONS=research` 即可。Claude Code 和 Codex 插件默认启用，并自带 Deep Research 技能。
+</Aside>
+
+## 下一步
+
+<div class="sc-cards-2">
+	<LinkCard title="研究工作流" description="搜索、筛选、阅读、保存，如何又快又准。" href="/scholar-mcp/zh-cn/research-workflows/" />
+	<LinkCard title="命令行" description="在终端使用所有工具，以及 install、doctor 和 update。" href="/scholar-mcp/zh-cn/cli/" />
+</div>

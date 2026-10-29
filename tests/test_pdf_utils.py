@@ -7,6 +7,14 @@ import tempfile
 from urllib.parse import urlparse
 
 from scholar_mcp import pdf_utils
+from pathlib import Path
+
+
+def _fake_download(url, save_path, filename, body=b"%PDF-1.7 fake"):
+    """A download that writes the file it was asked for, like the real one."""
+    path = Path(save_path) / filename
+    path.write_bytes(body + url.encode())
+    return str(path)
 
 
 def test_title_only_papers_get_distinct_stable_filenames():
@@ -46,7 +54,8 @@ def test_relative_download_returns_a_path_that_survives_cwd_changes(monkeypatch,
     monkeypatch.setattr(pdf_utils.httpx, "Client", lambda **kwargs: _StreamClient([b"%PDF-1.7\ncomplete"], **kwargs))
     paper = {"title": "Persistent Path", "paper_id": "stable", "open_access_url": "https://example.test/paper.pdf"}
     result = pdf_utils.download_paper(paper, "downloads")
-    destination = tmp_path / "downloads" / "stable.pdf"
+    destination = Path(result['file_path'])
+    assert destination.parent == tmp_path / 'downloads'
     assert result["success"] is True
     assert result["file_path"] == str(destination.resolve())
     monkeypatch.chdir(tmp_path.parent)
@@ -177,38 +186,12 @@ def test_registered_repository_candidate_uses_shared_download_path(monkeypatch, 
         "resolve_pdf_candidates",
         lambda paper: [("hal", "https://example.test/paper.pdf")],
     )
-    monkeypatch.setattr(
-        pdf_utils,
-        "_prioritize_pdf_candidates",
-        lambda candidates: candidates,
-    )
-    monkeypatch.setattr(
-        pdf_utils,
-        "_try_download",
-        lambda url, save_path, filename: str(tmp_path / filename),
-    )
+    monkeypatch.setattr(pdf_utils, "_try_download", _fake_download)
 
     result = pdf_utils.download_paper(paper_info, str(tmp_path))
 
     assert result["success"] is True
     assert result["source"] == "hal"
-
-
-def test_repository_probes_move_confirmed_pdfs_forward_without_dropping_fallbacks(monkeypatch):
-    candidates = [
-        ("openaire", "https://example.test/landing"),
-        ("hal", "https://example.test/paper.pdf"),
-        ("zenodo", "https://example.test/archive.pdf"),
-    ]
-    monkeypatch.setattr(
-        pdf_utils,
-        "_probe_pdf",
-        lambda url: url.endswith(".pdf"),
-    )
-
-    ordered = pdf_utils._prioritize_pdf_candidates(candidates)
-
-    assert ordered == [candidates[1], candidates[2], candidates[0]]
 
 
 PROXY_ENV = ("LIBRARY_PROXY_PREFIX", "LIBRARY_PROXY_BASE",
@@ -352,7 +335,7 @@ class TestLibraryProxyRoute:
     def chain(self, monkeypatch):
         """Everything before the proxy finds nothing; Sci-Hub is recorded."""
         monkeypatch.setattr(pdf_utils.sources, "resolve_pdf_candidates", lambda info: [])
-        monkeypatch.setattr(pdf_utils, "_try_unpaywall", lambda doi: None)
+        monkeypatch.setattr(pdf_utils, "_unpaywall_locations", lambda doi: [])
         monkeypatch.setattr(pdf_utils.config, "SCIHUB_ENABLED", True)
         calls = []
         monkeypatch.setattr(pdf_utils, "_try_scihub",
@@ -376,7 +359,7 @@ class TestLibraryProxyRoute:
         result = pdf_utils.download_paper(self.PAPER, str(tmp_path))
 
         assert result["success"] and result["source"] == "library_proxy"
-        assert (tmp_path / "10.1126_science.abc123.pdf").read_bytes() == b"%PDF-1.7 proxied paper"
+        assert Path(result["file_path"]).read_bytes() == b"%PDF-1.7 proxied paper"
         assert requests[0][0] == (PREFIX + "https://www.science.org/doi/pdf/10.1126/science.abc123")
         # The session cookie follows the redirect to the rewritten hostname;
         # cookies the file held for other sites, or expired, are never sent.
@@ -439,7 +422,7 @@ class TestLibraryProxyRoute:
             302, headers={"location": "https://eproxy.example.edu/login?url=x"})
             if request.url.path != "/login" else httpx.Response(
                 200, headers={"content-type": "text/html"}, content=b"<html>Sign in</html>"))
-        monkeypatch.setattr(pdf_utils, "_try_scihub", lambda doi, save_path, filename: "/tmp/a.pdf")
+        monkeypatch.setattr(pdf_utils, "_try_scihub", lambda doi, save_path, filename: _fake_download("scihub", save_path, filename))
 
         result = pdf_utils.download_paper(self.PAPER, str(tmp_path))
 
@@ -572,3 +555,180 @@ class TestLibraryProxyRoute:
             "<html></html>")
         assert elsevier.endswith("/science/article/pii/S0092867420300001/pdfft"
                                  "?isDTMRedir=true&download=true")
+
+
+def test_linkinghub_hop_maps_to_the_sciencedirect_article_inside_the_proxy():
+    from scholar_mcp import pdf_utils
+    proxied = "https://linkinghub-elsevier-com.eproxy.lib.hku.hk/retrieve/pii/S0927025626001234"
+    assert pdf_utils._landing_pdf_url(proxied, "<html></html>") == (
+        "https://www-sciencedirect-com.eproxy.lib.hku.hk/science/article/pii/S0927025626001234")
+    assert pdf_utils._landing_pdf_url("https://linkinghub.elsevier.com/retrieve/pii/S1", "") == (
+        "https://www.sciencedirect.com/science/article/pii/S1")
+
+
+@pytest.mark.parametrize("html,expected", [
+    ("<title>Just a moment...</title>", "cloudflare"),
+    ('<iframe src="https://challenges.cloudflare.com/turnstile/v0"></iframe>', "cloudflare"),
+    ('<script src="https://validate.perfdrive.com/x.js"></script>', "radware"),
+    ("<p>Please complete the CAPTCHA</p>", "captcha"),
+    ("<html><body>Article abstract</body></html>", None),
+])
+def test_browser_checks_are_told_apart_from_ordinary_pages(html, expected):
+    from scholar_mcp import pdf_utils
+    assert pdf_utils._wall("https://publisher.example/article", html) == expected
+
+
+@pytest.mark.parametrize("status,saved", [("OK", True), ("WARNING - Response limited to first page", False)])
+def test_elsevier_api_accepts_only_full_text(monkeypatch, tmp_path, status, saved):
+    import httpx
+    from scholar_mcp import config, pdf_utils
+    monkeypatch.setattr(config, "SCOPUS_API_KEY", "key")
+    real_client = httpx.Client
+    def reply(request):
+        return httpx.Response(200, headers={"x-els-status": status}, content=b"%PDF-1.7 one page")
+    monkeypatch.setattr(httpx, "Client", lambda **kw: real_client(transport=httpx.MockTransport(reply), **kw))
+    result = pdf_utils._try_elsevier_api("10.1016/j.x.2026.1", str(tmp_path), "p.pdf")
+    assert bool(result) == saved
+    assert pdf_utils._try_elsevier_api("10.1021/other", str(tmp_path), "q.pdf") is None
+
+
+def test_only_the_library_or_its_identity_provider_means_the_session_expired():
+    proxy = "eproxy.example.edu"
+    assert pdf_utils._is_login_page("https://eproxy.example.edu/login?url=x", "", proxy)
+    assert pdf_utils._is_login_page("https://sso.example.edu/idp/profile/SAML2", "", proxy)
+    # A publisher's own sign-in seen through the proxy: not covered, not expired.
+    assert not pdf_utils._is_login_page("https://www-publisher-com.eproxy.example.edu/login", "", proxy)
+    assert not pdf_utils._is_login_page("https://www-publisher-com.eproxy.example.edu/article",
+                                        '<input type="password">', proxy)
+
+
+class TestVersionRace:
+    """Copies download side by side; the best version that arrives in time is kept, alone."""
+
+    PAPER = {"title": "A paper", "paper_id": "p", "publication_types": ["JournalArticle"], "external_ids": {"DOI": "10.1/p", "ArXiv": "2401.00001"}}
+
+    @pytest.fixture(autouse=True)
+    def quiet(self, monkeypatch):
+        monkeypatch.setattr(pdf_utils.sources, "resolve_pdf_candidates", lambda info: [])
+        monkeypatch.setattr(pdf_utils, "_resolve_preprint_pdf", lambda doi, oa: None)
+        monkeypatch.setattr(pdf_utils, "_try_elsevier_api", lambda *args: None)
+        monkeypatch.setattr(pdf_utils.config, "SCIHUB_ENABLED", False)
+        monkeypatch.setattr(pdf_utils.access, "available", lambda: False)
+
+    def slow(self, delays):
+        import time
+        def download(url, save_path, filename):
+            time.sleep(delays.get(urlparse(url).hostname, 0))
+            return _fake_download(url, save_path, filename)
+        return download
+
+    def test_the_published_copy_wins_over_a_faster_preprint(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(pdf_utils, "_unpaywall_locations", lambda doi: [("https://pub.example/p.pdf", "published")])
+        monkeypatch.setattr(pdf_utils, "_try_download", self.slow({"pub.example": .3}))
+        result = pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        assert (result["source"], result["version"]) == ("unpaywall", "published")
+        assert Path(result["file_path"]).read_bytes().endswith(b"pub.example/p.pdf")
+        import time
+        time.sleep(.1)
+        assert list(tmp_path.glob("*.pdf")) == [Path(result["file_path"])], "only the winner is stored"
+
+    def test_a_better_version_gets_only_the_grace_window(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(pdf_utils, "UPGRADE_GRACE_S", .2)
+        monkeypatch.setattr(pdf_utils, "_unpaywall_locations", lambda doi: [("https://pub.example/p.pdf", "published")])
+        monkeypatch.setattr(pdf_utils, "_try_download", self.slow({"pub.example": 1.0}))
+        result = pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        assert (result["source"], result["version"]) == ("arxiv", "preprint")
+        import time
+        time.sleep(1.2)
+        assert list(tmp_path.glob("*.pdf")) == [Path(result["file_path"])], "a late copy is removed when it lands"
+
+    def test_the_library_upgrades_a_free_preprint_and_stays_silent_when_it_fails(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(pdf_utils, "_unpaywall_locations", lambda doi: [])
+        monkeypatch.setattr(pdf_utils, "_try_download", _fake_download)
+        monkeypatch.setattr(pdf_utils, "_try_ezproxy", lambda doi, folder, name, notes: _fake_download("lib", folder, name))
+        result = pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        assert (result["source"], result["version"]) == ("library_proxy", "published")
+        Path(result["file_path"]).unlink()
+        monkeypatch.setattr(pdf_utils, "_try_ezproxy", lambda *args: None)
+        result = pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        assert result["success"] and result["version"] == "preprint"
+
+    def test_a_free_published_copy_leaves_the_library_alone_unless_it_fails(self, monkeypatch, tmp_path):
+        calls = []
+        monkeypatch.setattr(pdf_utils, "_try_ezproxy", lambda doi, folder, name, notes: calls.append(doi))
+        monkeypatch.setattr(pdf_utils, "_unpaywall_locations", lambda doi: [("https://pub.example/p.pdf", "published")])
+        monkeypatch.setattr(pdf_utils, "_try_download", _fake_download)
+        result = pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        assert result["version"] == "published" and calls == []
+        Path(result["file_path"]).unlink()
+        monkeypatch.setattr(pdf_utils, "_try_download", lambda *args: None)
+        pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        assert calls == ["10.1/p"]
+
+    def test_upgrade_retains_the_annotated_copy_and_temporary_reads_reuse_the_best(self, monkeypatch, tmp_path):
+        from scholar_mcp import knowledge_base as kb
+        monkeypatch.setattr(pdf_utils, '_unpaywall_locations', lambda doi: [])
+        monkeypatch.setattr(pdf_utils, '_try_download', _fake_download)
+        monkeypatch.setattr(pdf_utils, '_try_ezproxy', lambda *args: None)
+        first = pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        older = Path(first['file_path'])
+        older.write_bytes(older.read_bytes() + b' human annotation')
+        monkeypatch.setattr(pdf_utils, '_unpaywall_locations', lambda doi: [('https://pub.example/p.pdf', 'published')])
+        formal = pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        assert formal['version'] == 'published' and formal['file_path'] != str(older)
+        assert older.read_bytes().endswith(b'human annotation')
+        assert len(kb.get_store().find_pdf_copies(pdf_utils._copy_keys(self.PAPER))) == 2
+        assert kb.list_papers('downloads') == []  # Copy provenance is separate from indexing.
+        monkeypatch.setattr(pdf_utils, '_locate', lambda *args: pytest.fail('retained VoR needs no network'))
+        read = pdf_utils.download_paper(self.PAPER, str(tmp_path / 'temporary'), temporary=True)
+        assert read['source'] == 'cache' and read['file_path'] == formal['file_path']
+
+    def test_temporary_read_does_not_retain_a_copy_or_create_a_library(self, monkeypatch, tmp_path):
+        from scholar_mcp import knowledge_base as kb
+        monkeypatch.setattr(pdf_utils, '_unpaywall_locations', lambda doi: [])
+        monkeypatch.setattr(pdf_utils, '_try_download', _fake_download)
+        monkeypatch.setattr(pdf_utils, '_try_ezproxy', lambda *args: None)
+        result = pdf_utils.download_paper(self.PAPER, str(tmp_path), temporary=True)
+        assert result['success'] and not Path(kb.DEFAULT_KB_DIR).exists()
+
+    def test_host_recovery_reaches_a_deposited_manuscript_after_the_publisher_fails(self, monkeypatch, tmp_path):
+        url = 'https://repository.example/manuscript.pdf'
+        monkeypatch.setattr(pdf_utils.access, 'available', lambda: True)
+        monkeypatch.setattr(pdf_utils, '_locate', lambda *args: [('repository', url, 'preprint')])
+        monkeypatch.setattr(pdf_utils, '_try_download', lambda *args: None)
+        monkeypatch.setattr(pdf_utils, '_try_ezproxy', lambda *args: None)
+        def host(target_url, target):
+            if target_url == url:
+                target.write_bytes(b'%PDF-1.7 manuscript')
+                return True
+            return False
+        monkeypatch.setattr(pdf_utils.access, 'download', host)
+        result = pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        assert result['success'] and result['version'] == 'preprint' and result['source'] == 'host_access'
+
+    def test_explicit_arxiv_revision_never_uses_a_formal_copy(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(pdf_utils, '_unpaywall_locations', lambda doi: [('https://pub.example/p.pdf', 'published')])
+        monkeypatch.setattr(pdf_utils, '_try_download', _fake_download)
+        formal = pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        paper = {**self.PAPER, '_requested_arxiv': '2401.00001v1'}
+        revision = pdf_utils.download_paper(paper, str(tmp_path))
+        assert revision['version'] == 'preprint' and revision['file_path'] != formal['file_path']
+        assert Path(revision['file_path']).read_bytes().endswith(b'2401.00001v1.pdf')
+
+    def test_upgrades_wait_for_no_library_slot(self, monkeypatch, tmp_path):
+        monkeypatch.setitem(pdf_utils.pacing.LIMITS, "library-proxy", (((1, 3600),),) * 2)
+        pdf_utils.pacing.wait("library-proxy")
+        calls = []
+        monkeypatch.setattr(pdf_utils, "_unpaywall_locations", lambda doi: [])
+        monkeypatch.setattr(pdf_utils, "_try_download", _fake_download)
+        monkeypatch.setattr(pdf_utils, "_try_ezproxy", lambda doi, folder, name, notes: calls.append(doi))
+        result = pdf_utils.download_paper(self.PAPER, str(tmp_path))
+        assert result["version"] == "preprint" and calls == [] and "Library proxy skipped" in result["message"]
+
+
+def test_a_repository_hostname_does_not_prove_which_version_it_holds():
+    assert pdf_utils._version_of("https://arxiv.org/pdf/2401.00001") == "preprint"
+    assert pdf_utils._version_of("https://www.biorxiv.org/content/10.1101/x.full.pdf") == "preprint"
+    assert pdf_utils._version_of("https://hal.science/hal-01/document") == "unknown"
+    assert pdf_utils._version_of("https://pmc.ncbi.nlm.nih.gov/articles/PMC1/pdf") == "unknown"
+    assert pdf_utils._version_of("https://link.springer.com/content/pdf/10.1007/x.pdf") == "unknown"

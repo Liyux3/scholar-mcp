@@ -1,0 +1,246 @@
+---
+slug: cli
+title: Command line
+description: The scholar-mcp command starts the MCP server, offers every research tool in the terminal, and registers Scholar in your clients.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+One `scholar-mcp` command does three jobs. Without arguments it starts the MCP server, which is how clients start it over stdio. With a research command it finds and reads papers in your terminal, using the same functions as the MCP tools. With a setup command it registers clients, saves keys, checks health and upgrades. Install it once with uv.
+
+```bash
+uv tool install --python 3.12 \
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
+  "scholar-mcp[rerank]"
+```
+
+Research and setup commands print readable YAML, or JSON with `--json` for `jq` and scripts, and `library` and `sources` print JSON. Every command has `--help`.
+
+| Command | Purpose |
+|---|---|
+| [`search`](#search) | Find papers across all sources, like `search_papers` |
+| [`info`](#info) | Paper detail, citations and references, like `paper_info` |
+| [`related`](#related) | Related work, like `recommend_papers` |
+| [`authors`](#authors) | Author profiles, like `search_authors` |
+| [`read`](#read) | Pages, figures or tables of a paper, like `read_paper` |
+| [`download`](#download) | Keep a PDF in your library, like `download_paper` |
+| [`graph`](#graph) | Citation graph around seed papers, like `build_paper_graph` |
+| [`library`](#library) | Local library, Obsidian, Zotero and Notion |
+| [`install`](#install-and-uninstall), [`uninstall`](#install-and-uninstall) | Register Scholar in agent clients, or remove it |
+| [`doctor`](#doctor) | Version, install method, clients and providers |
+| [`keys`](#keys) | Save source keys once for every client |
+| [`update`](#update) | Upgrade through the install method |
+| [`sources`](#sources) | Source capability matrix and live checks |
+| [`serve`](#serve) | Run the MCP server explicitly, over stdio or HTTP |
+| `version` | Print the installed version |
+
+Paper identifiers work as in the MCP tools, so any `id` Scholar returns, a DOI, an arXiv ID such as `arXiv:2303.04137`, a paper link or an exact title.
+
+## Research commands
+
+### search
+
+```bash
+scholar-mcp search "long-term memory benchmarks for LLM agents" --year 2024-2026
+```
+
+| Option | Description |
+|---|---|
+| `--limit N` | Maximum results (default 10) |
+| `--year RANGE` | A year or range, such as `2024-2026` |
+| `--venue V` | Venue filter |
+| `--fields LIST` | Comma-separated fields of study |
+| `--types LIST` | Comma-separated publication types |
+| `--min-citations N` | Minimum citation count |
+| `--open-access` | Only papers with free PDF access |
+| `--sort ORDER` | `relevance`, `citations` or `date` |
+| `--intent FOCUS` | `balanced`, `foundational`, `recent`, `survey`, `method` or `dataset` |
+| `--debug` | Per-source status and ranking provenance |
+
+### info
+
+```bash
+scholar-mcp info arXiv:2303.04137 --citations --limit 10
+```
+
+Prints the paper's detail. `--citations` adds papers that cite it, `--references` adds papers it cites, and `--limit N` bounds each list (default 20).
+
+### related
+
+```bash
+scholar-mcp related arXiv:2303.04137 --relation kin
+```
+
+`--relation` is `similar` (default), `peers` or `kin`, and `--limit N` sets the number of papers (default 10).
+
+### authors
+
+```bash
+scholar-mcp authors "Fei-Fei Li" --limit 3
+```
+
+### read
+
+```bash
+scholar-mcp read arXiv:2504.19413 --pages 1-4
+scholar-mcp read arXiv:2504.19413 --visual "Figure 1" --image figure1.png
+```
+
+| Option | Description |
+|---|---|
+| `--pages RANGE` | Page range, `1-10` by default |
+| `--visual SELECTOR` | A selector such as `"Figure 3"`, `"Table 2"` or `"page 5"` |
+| `--image PATH` | Save the selected visual as a PNG file |
+
+Without `--json`, the paper's metadata prints first and the page text follows after a `---` line.
+
+### download
+
+```bash
+scholar-mcp download 10.1038/s41586-021-03819-2 --dir papers --collection folding
+```
+
+`--dir` chooses the folder (default, the library's papers folder) and `--collection` the collection to record it in (default `downloads`, and `""` skips collection indexing).
+
+### graph
+
+```bash
+scholar-mcp graph arXiv:2303.04137,arXiv:2209.03003 --hops 1 --max-papers 40
+```
+
+| Option | Description |
+|---|---|
+| `--hops N` | Citation depth, 1 to 3 (default 1) |
+| `--max-papers N` | Maximum nodes, 5 to 100 (default 30) |
+| `--direction D` | `both`, `citations` or `references` |
+| `--min-citations N` | Citation floor for expanded nodes |
+| `--topic PHRASE` | A topic phrase that keeps the graph on track |
+
+## library
+
+Work with the library and its connectors. Subcommands that act on papers take `--collection NAME` (default `default`), and `scholar-mcp library --json ...` prints compact JSON.
+
+| Subcommand | Description |
+|---|---|
+| `doctor` | Inspect the SQLite library and connector configuration |
+| `migrate` | Initialize SQLite and import legacy JSONL collections |
+| `list [--limit N]` | List papers in a collection |
+| `search QUERY [--limit N]` | Search the full-text index |
+| `export obsidian [--path DIR] [--link-citations]` | Write the collection into an Obsidian vault |
+| `sync zotero [--zotero-collection-key KEY] [--apply]` | Plan, or with `--apply` perform, a Zotero sync |
+| `publish notion [--apply]` | Plan, or with `--apply` perform, a Notion publish |
+
+```bash
+scholar-mcp library export obsidian --collection memory --path ~/Vault
+scholar-mcp library sync zotero --collection memory --apply
+```
+
+## install and uninstall
+
+```bash
+scholar-mcp install                     # list detected clients
+scholar-mcp install --all --dry-run     # preview every change
+scholar-mcp install claude-code codex --profile research
+scholar-mcp uninstall cursor
+```
+
+`install` registers Scholar in the clients you name, or in every detected client with `--all`. Without either, it lists what it detects. It shows the plan and backs up files before writing, a failed write leaves nothing broken, and a second run changes nothing. It records every entry it writes, so a `scholar` entry you made yourself is never replaced without `--force`, and `uninstall` removes only what `install` added.
+
+| Option | Description |
+|---|---|
+| `--all` | Every detected client |
+| `--project` | Write the project file in the current directory instead of the user configuration |
+| `--profile core\|research` | Six core tools (default), or eight with the citation graph and paper library |
+| `--mode auto\|tool\|uvx` | `tool` registers this installation's executable, `uvx` a pinned uvx command; `auto` picks `tool` for a persistent install |
+| `--dry-run` | Show the planned change as a diff without writing |
+| `--force` | Replace or remove an entry the installer did not create |
+| `--json` | Print JSON |
+
+Because clients run the installed command itself, one upgrade updates all of them.
+
+| Client | User configuration | With `--project` |
+|---|---|---|
+| `claude-code` | `claude mcp add-json`, user scope | `.mcp.json` |
+| `claude-desktop` | `claude_desktop_config.json` | |
+| `codex` | `~/.codex/config.toml` | `.codex/config.toml` |
+| `cursor` | `~/.cursor/mcp.json` | `.cursor/mcp.json` |
+| `vscode` | user `mcp.json` | `.vscode/mcp.json` |
+| `gemini` | `~/.gemini/settings.json` | `.gemini/settings.json` |
+| `opencode` | `~/.config/opencode/opencode.json` | `opencode.json` |
+| `windsurf` | `~/.codeium/windsurf/mcp_config.json` | |
+| `kiro` | `~/.kiro/settings/mcp.json` | `.kiro/settings/mcp.json` |
+| `zed` | `~/.config/zed/settings.json` | `.zed/settings.json` |
+| `qwen-code` | `~/.qwen/settings.json` | `.qwen/settings.json` |
+| `kimi-code` | `~/.kimi-code/mcp.json` | `.kimi-code/mcp.json` |
+| `qoder-cli` | `~/.qoder/settings.json` | `.mcp.json` |
+| `codebuddy` | `~/.codebuddy/.mcp.json` | `.mcp.json` |
+| `iflow` | `~/.iflow/settings.json` | `.iflow/settings.json` |
+| `minimax` | `~/.minimax/mcp.json` | |
+| `deepseek` | `~/.dsh/cordis.patch.yml` or `$DSH_HOME/cordis.patch.yml` | Cordis insert patch, shared across profiles |
+| `trae-cli` | `~/.trae/traecli.toml` or `$TRAE_HOME/traecli.toml` | TRAE CLI 2.0 |
+| `mimocode` | `~/.config/mimocode/mimocode.json` | Respects MiMo profile/config overrides and existing JSONC precedence |
+| `cline` | `~/.cline/data/settings/cline_mcp_settings.json` | |
+| `kilo` | `~/.config/kilo/kilo.json` | `kilo.json` |
+| `amp` | `~/.config/amp/settings.json` | `.amp/settings.json` |
+| `copilot-cli` | `~/.copilot/mcp-config.json` | |
+| `factory` | `~/.factory/mcp.json` | `.factory/mcp.json` |
+| `junie` | `~/.junie/mcp/mcp.json` | `.junie/mcp/mcp.json` |
+| `augment` | `~/.augment/settings.json` | |
+| `warp` | `~/.warp/.mcp.json` | `.warp/.mcp.json` |
+| `lmstudio` | `~/.lmstudio/mcp.json` | |
+| `devin` | `~/.config/devin/mcp_config.json` (Windows: `%APPDATA%\devin\mcp_config.json`) | |
+
+Backups go to `<data>/backups/<client>/`, the five most recent per client. A configuration file that is not plain JSON, such as one with comments, is left untouched and reported.
+
+## doctor
+
+```bash
+scholar-mcp doctor
+scholar-mcp doctor --network
+```
+
+Shows the version, install method and command path, Python version, data directory and profile, how many search sources are available and which lack keys, the ranking model and each detected client with its registration. It also sums up recent calls, with the time each tool took and how often each source failed or found nothing, and names what changed for the worse: a source that started failing, went quiet, lost its abstracts or slowed down, a ranking model that fell back, or a tool that raised an error.
+
+`--network` also probes live every link that real use has not shown working in the last day. Links billed per request, Exa and a cloud ranking model, are never probed and are judged from real searches only, so the check costs nothing. Each search source runs a fixed query, each citation and reference source looks up a known paper, and the ranking model and the PDF chain (an arXiv download, the PMC dataset, Unpaywall and the repositories) are tried once. The command exits with status 1 when a probe fails, so it can run on a schedule, and the repository runs it every day. `--skip google_scholar` leaves named sources out, for example on servers that Google answers with a challenge.
+
+## keys
+
+```bash
+scholar-mcp keys set OPENALEX_API_KEY   # asks for the value, then saves it
+scholar-mcp keys                        # lists saved names, never values
+scholar-mcp keys unset OPENALEX_API_KEY
+```
+
+Keys live in `<data>/keys.env`, readable only by you, and every client that starts Scholar reads them after a restart. The same variable in a client's `env` block or the shell takes precedence. The keys you can set are in [Configuration](/scholar-mcp/configuration/).
+
+## update
+
+```bash
+scholar-mcp update --check   # compare with the latest release
+scholar-mcp update           # upgrade
+```
+
+Upgrades the way you installed, with `uv tool upgrade`, `pipx upgrade` or pip. Restart your clients afterwards to load the new version. For configurations that pin a version with uvx, run `uvx scholar-mcp@latest install CLIENT` to refresh them.
+
+## sources
+
+```bash
+scholar-mcp sources
+scholar-mcp sources --check
+scholar-mcp sources --check --source arxiv --query "retrieval augmented generation"
+```
+
+Lists what each source can do. `--check` sends a small live search to each configured source, and `--source` and `--query` narrow it. See [Sources](/scholar-mcp/sources/#check-sources-on-your-machine).
+
+## serve
+
+```bash
+scholar-mcp serve                                   # stdio, same as no arguments
+scholar-mcp serve --http --host 127.0.0.1 --port 8000
+```
+
+`--http` serves Streamable HTTP at `/mcp`, or at `--path`. Bind only to localhost unless the deployment is protected.
+
+<Aside type="tip">
+For clients that can only launch the bare command, `SCHOLAR_MCP_TRANSPORT=http` does the same as `serve --http`.
+</Aside>

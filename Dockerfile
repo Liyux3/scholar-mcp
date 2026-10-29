@@ -11,10 +11,11 @@ RUN groupadd --system scholar \
     && useradd --system --gid scholar --create-home scholar
 
 WORKDIR /opt/scholar-mcp
-COPY pyproject.toml README.md LICENSE ./
+COPY pyproject.toml README.md LICENSE NOTICE ./
 COPY scholar_mcp ./scholar_mcp
 ARG SCHOLAR_EXTRAS=rerank
-RUN pip install --no-cache-dir ".[${SCHOLAR_EXTRAS}]"
+RUN pip install --no-cache-dir ".[${SCHOLAR_EXTRAS}]" \
+    && python -I -c "import importlib.util; from pathlib import Path; import scholar_mcp.model_assets as assets; assets.prepare_cpu_model(Path(assets.__file__).with_name('_models')) if importlib.util.find_spec('flashrank') else None"
 
 USER scholar
 ENTRYPOINT ["scholar-mcp"]

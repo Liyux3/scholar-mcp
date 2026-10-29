@@ -1,0 +1,1034 @@
+/*
+ * Scholar MCP docs theme.
+ * Starlight keeps its own styles in cascade layers, so these unlayered rules
+ * win without specificity tricks. Tokens first, then layout, then components.
+ */
+
+/* Tokens: dark is Starlight's root default, light overrides it. */
+:root {
+	/* Sampled from Claude's desktop app: near-black page, darker chrome, warm raised surfaces. */
+	--sc-bg: #151515;
+	--sc-chrome: #101010;
+	--sc-surface: #21211f;
+	--sc-surface-2: #1b1b1a;
+	--sc-hover: #252524;
+	--sc-active: #343434;
+	--sc-border: #2c2c2a;
+	--sc-border-strong: #3a3a37;
+	--sc-ink: #ececea;
+	--sc-text: #d6d4cd;
+	--sc-muted: #a19e96;
+	--sc-faint: #7b7972;
+	--sc-accent: #95b9da;
+	--sc-accent-strong: #b9d2e8;
+	--sc-accent-soft: rgba(149, 185, 218, 0.09);
+	--sc-accent-line: rgba(149, 185, 218, 0.3);
+	--sc-teal: #a3c0c5;
+	--sc-violet: #bbb0cf;
+	--sc-figure-bg: #1b1b1a;
+	--sc-code-bg: #21211f;
+	--sc-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+
+	--sl-color-white: var(--sc-ink);
+	--sl-color-gray-1: #dddbd3;
+	--sl-color-gray-2: var(--sc-text);
+	--sl-color-gray-3: var(--sc-muted);
+	--sl-color-gray-4: #65635c;
+	--sl-color-gray-5: var(--sc-border);
+	--sl-color-gray-6: var(--sc-surface-2);
+	--sl-color-gray-7: var(--sc-hover);
+	--sl-color-black: var(--sc-bg);
+	--sl-color-accent-low: #2a333b;
+	--sl-color-accent: #74a0c6;
+	--sl-color-accent-high: var(--sc-accent-strong);
+	--sl-color-text: var(--sc-text);
+	--sl-color-text-accent: var(--sc-accent);
+	--sl-color-text-invert: var(--sc-bg);
+	--sl-color-bg: var(--sc-bg);
+	--sl-color-bg-nav: var(--sc-chrome);
+	--sl-color-bg-sidebar: var(--sc-chrome);
+	--sl-color-bg-inline-code: var(--sc-surface-2);
+	--sl-color-hairline-light: var(--sc-border);
+	--sl-color-hairline: var(--sc-border);
+	--sl-color-hairline-shade: var(--sc-border);
+	--sl-color-backdrop-overlay: rgba(14, 13, 12, 0.62);
+
+	--sl-font: 'Inter Variable', 'Inter';
+	--sl-font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+	--sl-text-body: 0.96875rem;
+	--sl-line-height: 1.72;
+	--sl-line-height-headings: 1.25;
+	--sl-text-h1: 2.125rem;
+	--sl-text-h2: 1.4375rem;
+	--sl-text-h3: 1.1875rem;
+	--sl-text-h4: 1.0625rem;
+	--sl-text-h5: 1rem;
+
+	--sl-nav-height: 4rem;
+	--sl-sidebar-width: 17.5rem;
+	--sl-content-width: 44rem;
+	--sl-sidebar-pad-x: 1.25rem;
+
+	--sc-radius: 10px;
+	--sc-radius-lg: 12px;
+}
+
+:root[data-theme='light'] {
+	--sc-bg: #fafaf8;
+	--sc-chrome: var(--sc-bg);
+	--sc-surface: #ffffff;
+	--sc-surface-2: #f3f3f0;
+	--sc-hover: #f1f1ee;
+	--sc-active: #ebebe7;
+	--sc-border: #e5e5e1;
+	--sc-border-strong: #d3d4cf;
+	--sc-ink: #24282d;
+	--sc-text: #3e4248;
+	--sc-muted: #676b71;
+	--sc-faint: #8b8f94;
+	--sc-accent: #37658a;
+	--sc-accent-strong: #284d6b;
+	--sc-accent-soft: #edf2f7;
+	--sc-accent-line: #cbdae7;
+	--sc-teal: #456f7b;
+	--sc-violet: #70618a;
+	--sc-figure-bg: #f8f8f6;
+	--sc-code-bg: #ffffff;
+	--sc-shadow: 0 1px 2px rgba(36, 40, 45, 0.04);
+
+	--sl-color-gray-1: #2f3338;
+	--sl-color-gray-4: #9a9ea3;
+	--sl-color-accent-low: var(--sc-accent-soft);
+	--sl-color-accent: var(--sc-accent);
+	--sl-color-accent-high: var(--sc-accent-strong);
+	--sl-color-backdrop-overlay: rgba(36, 40, 45, 0.28);
+}
+
+/* Base */
+html {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
+body {
+	font-feature-settings: 'cv11', 'ss01';
+	letter-spacing: -0.003em;
+}
+
+::selection {
+	background: var(--sc-accent-line);
+}
+
+/* Chinese: Inter keeps the Latin glyphs, a CJK sans takes the rest. Curly quotes are
+ * shared code points, so they are routed to the CJK face, where Inter's narrow forms
+ * would crowd the Han characters. Han text also wants looser leading, no negative
+ * tracking, and small labels a size larger. */
+@font-face {
+	font-family: 'SC CJK Quotes';
+	src: local('PingFang SC Regular'), local('PingFangSC-Regular'), local('Microsoft YaHei'), local('Noto Sans CJK SC'),
+		local('NotoSansCJKsc-Regular'), local('Source Han Sans SC'), local('SourceHanSansSC-Regular');
+	unicode-range: U+2018-2019, U+201C-201D;
+	font-weight: 100 900;
+}
+
+:root:lang(zh) {
+	--sl-font: 'SC CJK Quotes', 'Inter Variable', 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI',
+		'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC';
+	--sl-line-height: 1.8;
+}
+
+:lang(zh) :is(h1, h2, h3, h4, h5, .site-title, .card .title, .sc-lead) {
+	letter-spacing: 0;
+}
+
+:lang(zh) .sc-lead {
+	line-height: 1.75;
+}
+
+:lang(zh) :is(.card .body, .starlight-aside, .sc-accordion-body) {
+	line-height: 1.75;
+}
+
+:lang(zh) .sl-markdown-content table:not(:where(.not-content *)) {
+	line-height: 1.65;
+}
+
+:lang(zh) :is(.sc-eyebrow, .sidebar-content .group-label .large, starlight-toc h2) {
+	font-size: 0.8125rem;
+	letter-spacing: 0.04em;
+}
+
+:lang(zh) :is(.sl-markdown-content a, .sidebar-content a[aria-current='page'], starlight-toc a[aria-current='true']) {
+	font-weight: 500;
+}
+
+/* Header */
+.header {
+	gap: 1.5rem;
+}
+
+.page > .header {
+	border-bottom: 1px solid var(--sc-border);
+}
+
+.site-title {
+	gap: 0.6rem;
+	font-size: 1.0625rem;
+	font-weight: 640;
+	letter-spacing: -0.015em;
+	color: var(--sc-ink);
+}
+
+.site-title img {
+	height: 1.85rem;
+	width: auto;
+}
+
+@media (min-width: 50rem) {
+	site-search button[data-open-modal] {
+		max-width: 22rem;
+		height: 2.375rem;
+		border: 1px solid var(--sc-border);
+		border-radius: var(--sc-radius);
+		background: var(--sc-surface);
+		color: var(--sc-muted);
+		font-size: 0.875rem;
+		padding-inline: 0.75rem 0.5rem;
+		box-shadow: var(--sc-shadow);
+		transition: border-color 0.15s ease;
+	}
+
+	site-search button[data-open-modal]:hover {
+		border-color: var(--sc-border-strong);
+		color: var(--sc-text);
+	}
+
+	site-search button[data-open-modal] kbd {
+		background: transparent;
+		border: 0;
+		color: var(--sc-faint);
+		font-family: var(--__sl-font);
+		font-size: 0.75rem;
+		gap: 0.125rem;
+	}
+}
+
+site-search button[data-open-modal] {
+	color: var(--sc-muted);
+}
+
+button.sl-menu-button {
+	background: var(--sc-surface);
+	color: var(--sc-ink);
+	border: 1px solid var(--sc-border);
+	border-radius: 8px;
+	box-shadow: none;
+}
+
+button.sl-menu-button:has(~ :popover-open) {
+	background: var(--sc-active);
+}
+
+.social-icons::after {
+	border-inline-end-color: var(--sc-border);
+	height: 1.25rem;
+}
+
+.social-icons a {
+	color: var(--sc-muted);
+}
+
+.social-icons a:hover {
+	color: var(--sc-ink);
+}
+
+.sc-theme-toggle {
+	display: grid;
+	place-items: center;
+	width: 2rem;
+	height: 2rem;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--sc-muted);
+	cursor: pointer;
+	font-size: 1.05rem;
+}
+
+.sc-theme-toggle:hover {
+	background: var(--sc-hover);
+	color: var(--sc-ink);
+}
+
+[data-theme='light'] .sc-theme-sun,
+[data-theme='dark'] .sc-theme-moon {
+	display: none;
+}
+
+starlight-lang-select label {
+	color: var(--sc-muted);
+}
+
+starlight-lang-select label:hover {
+	color: var(--sc-ink);
+}
+
+starlight-lang-select select {
+	font-size: 0.875rem;
+}
+
+/* Sidebar */
+.sidebar-pane {
+	border-inline-end: 0;
+}
+
+.sidebar-content {
+	padding-top: 1.5rem;
+}
+
+.sidebar-content .top-level > li + li {
+	margin-top: 1.5rem;
+}
+
+.sidebar-content summary {
+	padding: 0 0.625rem 0.375rem;
+	cursor: default;
+	pointer-events: none;
+}
+
+.sidebar-content summary .caret {
+	display: none;
+}
+
+.sidebar-content .group-label .large {
+	font-size: 0.6875rem;
+	font-weight: 620;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--sc-faint);
+}
+
+.sidebar-content ul ul li {
+	margin-inline-start: 0;
+	border-inline-start: 0;
+	padding-inline-start: 0;
+}
+
+.sidebar-content ul ul li + li {
+	margin-top: 1px;
+}
+
+.sidebar-content a {
+	border-radius: 8px;
+	padding: 0.375rem 0.625rem;
+	font-size: 0.875rem;
+	line-height: 1.45;
+	color: var(--sc-muted);
+	transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.sidebar-content a:hover,
+.sidebar-content a:focus-visible {
+	background: var(--sc-hover);
+	color: var(--sc-ink);
+}
+
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover,
+.sidebar-content a[aria-current='page']:focus {
+	background: var(--sc-active);
+	color: var(--sc-ink);
+	font-weight: 560;
+}
+
+/* Content column */
+.main-pane .content-panel {
+	border-top: 0;
+}
+
+.main-pane .content-panel + .content-panel {
+	padding-top: 0.25rem;
+}
+
+.content-panel {
+	padding-inline: 2.5rem;
+}
+
+@media (min-width: 72rem) {
+	.content-panel:first-child {
+		padding-top: 2.75rem;
+	}
+}
+
+.sc-eyebrow {
+	margin: 0 0 0.5rem;
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--sc-accent);
+}
+
+h1#_top {
+	margin-top: 0;
+	font-size: var(--sl-text-h1);
+	font-weight: 650;
+	letter-spacing: -0.025em;
+	color: var(--sc-ink);
+}
+
+.sc-lead {
+	margin: 0.75rem 0 0;
+	font-size: 1.0625rem;
+	line-height: 1.6;
+	color: var(--sc-muted);
+	max-width: 40rem;
+}
+
+.sl-markdown-content {
+	color: var(--sc-text);
+}
+
+.sl-markdown-content :is(h2, h3, h4) {
+	color: var(--sc-ink);
+	letter-spacing: -0.018em;
+}
+
+.sl-markdown-content h2 {
+	font-weight: 640;
+}
+
+.sl-markdown-content h3,
+.sl-markdown-content h4 {
+	font-weight: 620;
+}
+
+/* Headings sit inside Starlight's anchor-link wrapper, so spacing targets the wrapper. */
+.sl-markdown-content :not(h1, h2, h3, h4, h5, h6, .sl-heading-wrapper) + .sl-heading-wrapper.level-h2 {
+	margin-top: 2.75rem;
+}
+
+.sl-markdown-content :not(h1, h2, h3, h4, h5, h6, .sl-heading-wrapper) + .sl-heading-wrapper:is(.level-h3, .level-h4) {
+	margin-top: 2rem;
+}
+
+.sl-markdown-content .sl-heading-wrapper + :not(.sl-heading-wrapper) {
+	margin-top: 0.75rem;
+}
+
+.sl-markdown-content strong {
+	color: var(--sc-ink);
+	font-weight: 600;
+}
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+	color: var(--sc-ink);
+	font-weight: 520;
+	text-decoration: underline;
+	text-decoration-color: var(--sc-accent-line);
+	text-decoration-thickness: 1.5px;
+	text-underline-offset: 3px;
+	transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+
+.sl-markdown-content a:hover:not(:where(.not-content *)) {
+	color: var(--sc-accent);
+	text-decoration-color: var(--sc-accent);
+}
+
+.sl-markdown-content :not(pre) > code:not(:where(.not-content *)) {
+	background: var(--sc-surface-2);
+	border: 1px solid var(--sc-border);
+	border-radius: 6px;
+	padding: 0.1rem 0.35rem;
+	font-size: 0.84em;
+	color: var(--sc-ink);
+	overflow-wrap: break-word;
+}
+
+.sl-markdown-content a code {
+	color: inherit;
+}
+
+.sl-markdown-content :is(ul, ol):not(.sl-steps):not(:where(.not-content *)) {
+	padding-inline-start: 1.25rem;
+}
+
+.sl-markdown-content li::marker {
+	color: var(--sc-faint);
+}
+
+.sl-markdown-content hr:not(:where(.not-content *)) {
+	border-bottom-color: var(--sc-border);
+	margin-block: 2.5rem;
+}
+
+/* Tables: a bordered card with a quiet header row. */
+.sl-markdown-content table:not(:where(.not-content *)) {
+	display: block;
+	width: 100%;
+	overflow-x: auto;
+	border: 1px solid var(--sc-border);
+	border-radius: var(--sc-radius-lg);
+	border-collapse: separate;
+	border-spacing: 0;
+	background: var(--sc-surface);
+	font-size: 0.875rem;
+	line-height: 1.5;
+}
+
+@media (min-width: 50rem) {
+	.sl-markdown-content table:not(:where(.not-content *)) {
+		display: table;
+	}
+}
+
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+	padding: 0.625rem 1rem;
+	border-bottom: 1px solid var(--sc-border);
+}
+
+.sl-markdown-content :is(th:first-child, td:first-child):not(:where(.not-content *)) {
+	padding-inline-start: 1rem;
+}
+
+.sl-markdown-content :is(th:last-child, td:last-child):not(:where(.not-content *)) {
+	padding-inline-end: 1rem;
+}
+
+.sl-markdown-content tr:last-child td:not(:where(.not-content *)) {
+	border-bottom: 0;
+}
+
+.sl-markdown-content th:not(:where(.not-content *)) {
+	background: var(--sc-surface-2);
+	color: var(--sc-ink);
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+
+.sl-markdown-content td code {
+	white-space: nowrap;
+	border-color: transparent;
+	font-size: 0.8em;
+}
+
+/* Code blocks */
+.sl-markdown-content .expressive-code {
+	margin-block: 1.25rem;
+}
+
+.expressive-code .frame {
+	box-shadow: var(--sc-shadow);
+}
+
+.sl-markdown-content .expressive-code .copy button {
+	opacity: 0.6;
+}
+
+/* Asides: thin bordered tinted cards. */
+.starlight-aside {
+	border: 1px solid var(--sl-color-asides-border);
+	border-radius: var(--sc-radius-lg);
+	padding: 0.875rem 1.125rem;
+	color: var(--sc-text);
+	font-size: 0.9375rem;
+	line-height: 1.65;
+}
+
+.starlight-aside__title {
+	font-size: 0.9375rem;
+	font-weight: 600;
+	gap: 0.5rem;
+}
+
+.starlight-aside__icon {
+	font-size: 1.1em;
+}
+
+.starlight-aside__title + .starlight-aside__content {
+	margin-top: 0.3rem;
+}
+
+.starlight-aside--note {
+	--sl-color-asides-text-accent: var(--sc-accent);
+	--sl-color-asides-border: var(--sc-accent-line);
+	background: var(--sc-accent-soft);
+}
+
+.starlight-aside--tip {
+	--sl-color-asides-text-accent: #3f6873;
+	--sl-color-asides-border: #c9dcdf;
+	background: #eef5f5;
+}
+
+.starlight-aside--caution {
+	--sl-color-asides-text-accent: #855a19;
+	--sl-color-asides-border: #ecdcbf;
+	background: #fbf6ec;
+}
+
+.starlight-aside--danger {
+	--sl-color-asides-text-accent: #8f3b3b;
+	--sl-color-asides-border: #ecd0cd;
+	background: #fbf1f0;
+}
+
+:root:not([data-theme='light']) .starlight-aside--tip {
+	--sl-color-asides-text-accent: var(--sc-teal);
+	--sl-color-asides-border: rgba(159, 188, 195, 0.25);
+	background: rgba(159, 188, 195, 0.07);
+}
+
+:root:not([data-theme='light']) .starlight-aside--caution {
+	--sl-color-asides-text-accent: #dcb878;
+	--sl-color-asides-border: rgba(220, 184, 120, 0.25);
+	background: rgba(220, 184, 120, 0.07);
+}
+
+:root:not([data-theme='light']) .starlight-aside--danger {
+	--sl-color-asides-text-accent: #e49a93;
+	--sl-color-asides-border: rgba(228, 154, 147, 0.25);
+	background: rgba(228, 154, 147, 0.07);
+}
+
+.starlight-aside code {
+	background: transparent !important;
+}
+
+/* Steps: numbered rail like Mintlify. */
+.sl-steps {
+	--bullet-size: 1.75rem;
+	margin-top: 1.5rem;
+}
+
+.sl-steps > li {
+	padding-inline-start: 2.75rem;
+	padding-bottom: 0.5rem;
+}
+
+.sl-steps > li::before {
+	background: var(--sc-surface-2);
+	box-shadow: inset 0 0 0 1px var(--sc-border-strong);
+	color: var(--sc-ink);
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+
+.sl-steps > li::after {
+	background: var(--sc-border);
+}
+
+.sl-steps > li > .sl-heading-wrapper:first-child {
+	display: flex;
+	align-items: center;
+	min-height: var(--bullet-size);
+	margin-bottom: 0.25rem;
+	font-size: 1.0625rem;
+	line-height: var(--bullet-size);
+}
+
+.sl-steps > li > .sl-heading-wrapper:first-child > :is(h3, h4) {
+	font-size: 1.0625rem;
+	line-height: var(--bullet-size);
+	letter-spacing: -0.012em;
+}
+
+/* Tabs: underline style. */
+starlight-tabs .tablist-wrapper {
+	overflow: visible;
+}
+
+starlight-tabs [role='tablist'] {
+	flex-wrap: wrap;
+	border-bottom: 1px solid var(--sc-border);
+	column-gap: 1.375rem;
+	row-gap: 0;
+}
+
+starlight-tabs .tab > [role='tab'] {
+	padding: 0.5rem 0 0.625rem;
+	box-shadow: none;
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+	font-size: 0.875rem;
+	font-weight: 520;
+	color: var(--sc-muted);
+	white-space: nowrap;
+}
+
+starlight-tabs .tab > [role='tab']:hover {
+	color: var(--sc-ink);
+}
+
+starlight-tabs .tab [role='tab'][aria-selected='true'] {
+	color: var(--sc-ink);
+	border-bottom-color: var(--sc-ink);
+	font-weight: 600;
+}
+
+starlight-tabs .tablist-wrapper ~ [role='tabpanel'] {
+	margin-top: 1.25rem;
+}
+
+/* Cards */
+.card-grid {
+	gap: 0.875rem;
+	margin-block: 1.5rem;
+}
+
+.card {
+	border: 1px solid var(--sc-border);
+	border-radius: var(--sc-radius-lg);
+	background: var(--sc-surface);
+	padding: 1.25rem 1.25rem 1.125rem;
+	gap: 0.5rem;
+	box-shadow: var(--sc-shadow);
+}
+
+.card .title {
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.875rem;
+	font-size: 0.9875rem;
+	font-weight: 620;
+	line-height: 1.35;
+	color: var(--sc-ink);
+}
+
+.card .icon {
+	color: var(--sc-accent);
+	background: var(--sc-accent-soft);
+	border: 1px solid var(--sc-accent-line);
+	border-radius: 8px;
+	padding: 0.35rem;
+	width: 2rem;
+	height: 2rem;
+	box-sizing: border-box;
+}
+
+.card .body {
+	font-size: 0.90625rem;
+	line-height: 1.6;
+	color: var(--sc-muted);
+}
+
+.card .body > :first-child {
+	margin-top: 0;
+}
+
+.sl-link-card {
+	border: 1px solid var(--sc-border);
+	border-radius: var(--sc-radius-lg);
+	background: var(--sc-surface);
+	padding: 1rem 1.125rem;
+	box-shadow: var(--sc-shadow);
+	transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.sl-link-card:hover {
+	background: var(--sc-surface);
+	border-color: var(--sc-border-strong);
+}
+
+.sl-markdown-content .sl-link-card a {
+	text-decoration: none;
+}
+
+.sl-link-card .title {
+	font-size: 0.9375rem;
+	font-weight: 600;
+	color: var(--sc-ink);
+}
+
+.sl-link-card .description {
+	font-size: 0.875rem;
+	color: var(--sc-muted);
+}
+
+.sl-link-card .icon {
+	color: var(--sc-faint);
+	align-self: center;
+}
+
+.sl-link-card:hover .icon {
+	color: var(--sc-accent);
+}
+
+.sc-cards-2 {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+	gap: 0.875rem;
+}
+
+.sc-cards-2 > .sl-link-card {
+	margin-top: 0 !important;
+}
+
+/* Accordion (FAQ) */
+.sl-markdown-content details.sc-accordion {
+	border: 1px solid var(--sc-border);
+	border-radius: var(--sc-radius-lg);
+	background: var(--sc-surface);
+	padding: 0;
+	box-shadow: var(--sc-shadow);
+	transition: border-color 0.15s ease;
+}
+
+.sl-markdown-content details.sc-accordion + details.sc-accordion {
+	margin-top: 0.625rem;
+}
+
+.sl-markdown-content details.sc-accordion:hover,
+.sl-markdown-content details.sc-accordion[open] {
+	border-color: var(--sc-border-strong);
+}
+
+.sl-markdown-content .sc-accordion > summary {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 0;
+	padding: 0.875rem 1.125rem 0.875rem 0.875rem;
+	font-size: 0.9375rem;
+	font-weight: 600;
+	color: var(--sc-ink);
+	cursor: pointer;
+}
+
+.sl-markdown-content details.sc-accordion[open] > summary {
+	margin-bottom: 0;
+}
+
+.sl-markdown-content .sc-accordion > summary::before {
+	flex-shrink: 0;
+	margin: 0;
+	color: var(--sc-faint);
+	background-color: var(--sc-faint);
+}
+
+.sl-markdown-content .sc-accordion > .sc-accordion-body {
+	margin-top: 0;
+	padding: 0 1.125rem 1rem 2.625rem;
+	font-size: 0.9375rem;
+	line-height: 1.65;
+}
+
+.sc-accordion-body > :first-child {
+	margin-top: 0 !important;
+}
+
+/* Figures */
+.sc-figure {
+	margin-block: 1.75rem;
+}
+
+.sc-figure-frame {
+	border: 1px solid var(--sc-border);
+	border-radius: var(--sc-radius-lg);
+	background: #f8f8f6;
+	overflow: hidden;
+}
+
+.sc-figure-themed {
+	background: var(--sc-figure-bg);
+}
+
+.sc-figure-frame img {
+	display: block;
+	width: 100%;
+	height: auto;
+	margin-inline: auto;
+}
+
+[data-theme='light'] .sc-figure-frame img.light\:sl-hidden,
+[data-theme='dark'] .sc-figure-frame img.dark\:sl-hidden {
+	display: none;
+}
+
+.sc-figure figcaption {
+	margin-top: 0.625rem;
+	font-size: 0.8125rem;
+	color: var(--sc-faint);
+	text-align: center;
+}
+
+/* Right table of contents */
+.right-sidebar {
+	border-inline-start: 0;
+}
+
+.right-sidebar-panel {
+	padding-top: 2.75rem;
+}
+
+starlight-toc h2 {
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--sc-faint);
+	margin-bottom: 0.625rem;
+}
+
+/* The rail lists the page's own sections, as Claude's docs do; the title
+   entry Starlight adds on top only shifts every heading one level in. */
+starlight-toc li:has(> a[href='#_top']) > a {
+	display: none;
+}
+
+starlight-toc li:has(> a[href='#_top']) > ul a {
+	--depth: 0;
+}
+
+starlight-toc a {
+	font-size: 0.8125rem;
+	line-height: 1.45;
+	color: var(--sc-muted);
+	padding-block: 0.3rem;
+	border-inline-start: 1px solid var(--sc-border);
+	padding-inline-start: calc(0.875rem + var(--depth, 0) * 0.75rem);
+}
+
+starlight-toc ul ul a {
+	--depth: 1;
+}
+
+starlight-toc a:hover {
+	color: var(--sc-ink);
+}
+
+starlight-toc a[aria-current='true'],
+starlight-toc a[aria-current='true']:hover,
+starlight-toc a[aria-current='true']:focus {
+	color: var(--sc-ink);
+	font-weight: 560;
+	border-inline-start-color: var(--sc-accent);
+}
+
+mobile-starlight-toc nav {
+	background: var(--sc-bg);
+	border-bottom-color: var(--sc-border);
+}
+
+/* Footer: prev/next and meta */
+.pagination-links a {
+	border: 1px solid var(--sc-border);
+	border-radius: var(--sc-radius-lg);
+	background: var(--sc-surface);
+	box-shadow: var(--sc-shadow);
+	color: var(--sc-muted);
+	font-size: 0.8125rem;
+}
+
+.pagination-links a:hover {
+	border-color: var(--sc-border-strong);
+}
+
+.pagination-links .link-title {
+	color: var(--sc-ink);
+	font-size: 0.9375rem;
+	font-weight: 600;
+}
+
+.meta a,
+.meta p {
+	font-size: 0.8125rem;
+	color: var(--sc-faint);
+}
+
+footer.sl-flex {
+	border-top: 1px solid var(--sc-border);
+	padding-top: 1.25rem;
+	margin-top: 3.5rem;
+	gap: 1.25rem;
+}
+
+footer.sl-flex .meta {
+	margin-top: 0;
+}
+
+/* Search dialog */
+site-search dialog {
+	border: 1px solid var(--sc-border);
+	border-radius: var(--sc-radius-lg);
+	background: var(--sc-bg);
+	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+}
+
+#starlight__search {
+	--pagefind-ui-primary: var(--sc-accent);
+	--pagefind-ui-text: var(--sc-text);
+	--pagefind-ui-background: var(--sc-surface);
+	--pagefind-ui-border: var(--sc-border);
+	--pagefind-ui-tag: var(--sc-surface-2);
+	--pagefind-ui-border-radius: 10px;
+	--pagefind-ui-border-width: 1px;
+	--pagefind-ui-font: var(--__sl-font);
+}
+
+#starlight__search .pagefind-ui__search-input:focus {
+	outline: 2px solid var(--sc-accent-line);
+	outline-offset: 0;
+}
+
+#starlight__search .pagefind-ui__result-title {
+	font-size: 0.9375rem;
+}
+
+#starlight__search .pagefind-ui__result-excerpt {
+	font-size: 0.8125rem;
+	color: var(--sc-muted);
+}
+
+/* Index page demo */
+.sc-demo {
+	margin-block: 2rem 0.5rem;
+}
+
+.sc-demo img,
+.sc-demo video {
+	display: block;
+	width: 100%;
+	height: auto;
+	border: 1px solid var(--sc-border);
+	border-radius: var(--sc-radius-lg);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(36, 40, 45, 0.06);
+}
+
+.sc-demo figcaption {
+	margin-top: 0.75rem;
+	font-size: 0.8125rem;
+	color: var(--sc-faint);
+	text-align: center;
+}
+
+.sc-grid-3 .card-grid {
+	margin-top: 1.25rem;
+}
+
+@media (min-width: 50rem) {
+	.sc-grid-3 .card-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+/* Light-only images sit a little lower in dark mode instead of glaring. */
+:root:not([data-theme='light']) :is(.sc-demo img, .sc-figure-frame:not(.sc-figure-themed)) {
+	filter: brightness(0.86) contrast(1.02);
+}
+
+/* Imported changelog: the page title already names it. */
+.sc-changelog > h1:first-child {
+	display: none;
+}
+
+.sc-changelog > h2:first-of-type {
+	margin-top: 0.5rem !important;
+}
+
+/* Like Claude's docs: narrow layouts drop the on-this-page bar; wide layouts keep the right rail. */
+mobile-starlight-toc {
+	display: none;
+}

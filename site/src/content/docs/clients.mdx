@@ -1,0 +1,375 @@
+---
+title: Install in your client
+description: Register Scholar MCP with Claude Code, Claude Desktop, Codex, Cursor, VS Code, Gemini CLI, OpenCode, Windsurf, Kiro, Zed, Pi or any stdio MCP client.
+---
+
+import { Aside, LinkButton, TabItem, Tabs } from '@astrojs/starlight/components';
+
+Every client starts Scholar the same way. The fastest route is the `scholar-mcp` command, which finds the clients on your computer and writes their configuration:
+
+```bash
+uv tool install --python 3.12 \
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
+  "scholar-mcp[rerank]"
+scholar-mcp install --all --dry-run   # preview every detected client
+scholar-mcp install --all             # or name them: claude-code codex cursor
+```
+
+Files are backed up before a change, a failed write leaves nothing broken, and running it twice changes nothing. A `scholar` entry you wrote by hand stays untouched unless you pass `--force`. [Command line](/scholar-mcp/cli/#install-and-uninstall) lists every option and the file each client uses.
+
+## Manual configuration
+
+The snippets below start the server through `uvx`, so nothing needs installing first. On first launch uvx prepares Python 3.12 and the local ranking model. The `--find-links` index has ready-made packages for Intel macOS and Windows on ARM, and other platforms install from PyPI as usual. Each snippet enables the research profile with `SCHOLAR_MCP_EXTENSIONS=research`. Remove that line to keep only the six core tools.
+
+<Tabs syncKey="client">
+<TabItem label="Claude Code">
+
+Add the server from your terminal. `--scope user` makes it available in every project:
+
+```bash
+claude mcp add scholar --scope user -e SCHOLAR_MCP_EXTENSIONS=research \
+  -- uvx --python 3.12 \
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
+  --from 'scholar-mcp[rerank]' scholar-mcp
+```
+
+Or install the plugin, which adds the same server with the research profile and the Deep Research skill:
+
+```bash
+claude plugin marketplace add Liyux3/scholar-mcp
+claude plugin install scholar-mcp@scholar-mcp
+```
+
+</TabItem>
+<TabItem label="Claude Desktop">
+
+On macOS the simplest route is the desktop bundle. Download `scholar-mcp-darwin-arm64-<version>.mcpb` (Apple silicon) or `scholar-mcp-darwin-x86_64-<version>.mcpb` (Intel) from the [latest release](https://github.com/Liyux3/scholar-mcp/releases/latest) and open it with Claude Desktop. It includes Python, the local ranking model and the research tools, and asks for optional keys while installing.
+
+On any platform you can also edit `claude_desktop_config.json` (Settings, Developer, Edit Config):
+
+```json title="claude_desktop_config.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+Restart Claude Desktop after saving.
+
+</TabItem>
+<TabItem label="Codex">
+
+Add a server table to `~/.codex/config.toml`:
+
+```toml title="~/.codex/config.toml"
+[mcp_servers.scholar]
+command = "uvx"
+args = [
+  "--python", "3.12",
+  "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+  "--from", "scholar-mcp[rerank]", "scholar-mcp",
+]
+startup_timeout_sec = 60
+tool_timeout_sec = 600
+
+[mcp_servers.scholar.env]
+SCHOLAR_MCP_EXTENSIONS = "research"
+```
+
+The long timeouts leave room for the first launch, which prepares the environment, and for a full search that waits on many sources and citation expansion. For one project only, use `.codex/config.toml` in that project.
+
+Or install the plugin with the research profile and the Deep Research skill:
+
+```bash
+codex plugin marketplace add Liyux3/scholar-mcp
+codex plugin add scholar-mcp@scholar-mcp
+```
+
+</TabItem>
+<TabItem label="Cursor">
+
+<LinkButton href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZmluZC1saW5rcyIsImh0dHBzOi8vZ2l0aHViLmNvbS9MaXl1eDMvc2Nob2xhci1tY3AvcmVsZWFzZXMvZG93bmxvYWQvdjAuOS4wL3doZWVsLWluZGV4Lmh0bWwiLCItLWZyb20iLCJzY2hvbGFyLW1jcFtyZXJhbmtdPT0wLjkuMCIsInNjaG9sYXItbWNwIl0sImVudiI6eyJTQ0hPTEFSX01DUF9FWFRFTlNJT05TIjoicmVzZWFyY2gifX19" variant="secondary" icon="external">Add to Cursor</LinkButton>
+
+Or add the server to `~/.cursor/mcp.json`, or to `.cursor/mcp.json` in a project:
+
+```json title="~/.cursor/mcp.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="VS Code">
+
+<LinkButton href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">Install in VS Code</LinkButton>
+
+Or add it to `.vscode/mcp.json` in a workspace, or to your user `mcp.json` with the **MCP: Open User Configuration** command. VS Code uses a `servers` key:
+
+```json title=".vscode/mcp.json"
+{
+  "servers": {
+    "scholar": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Gemini CLI">
+
+Add the server to `~/.gemini/settings.json`, or to `.gemini/settings.json` in a project:
+
+```json title="~/.gemini/settings.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="OpenCode">
+
+OpenCode lists local servers under an `mcp` key, with the command as one array. Use `~/.config/opencode/opencode.json` for every project or `opencode.json` in one:
+
+```json title="opencode.json"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "scholar": {
+      "type": "local",
+      "command": [
+        "uvx", "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "environment": { "SCHOLAR_MCP_EXTENSIONS": "research" },
+      "enabled": true
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Windsurf">
+
+For current Devin Desktop, run `scholar-mcp install devin`. Its configuration lives at
+`~/.config/devin/mcp_config.json` on macOS and Linux, or `%APPDATA%\devin\mcp_config.json`
+on Windows. The entry below is for older Windsurf installations.
+
+Add the server to `~/.codeium/windsurf/mcp_config.json`, then refresh the server list in Cascade:
+
+```json title="~/.codeium/windsurf/mcp_config.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Kiro">
+
+<LinkButton href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">Add to Kiro</LinkButton>
+
+Or add the server to `~/.kiro/settings/mcp.json`, or to `.kiro/settings/mcp.json` in a workspace:
+
+```json title="~/.kiro/settings/mcp.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Zed">
+
+Zed calls MCP servers context servers. Add one to your settings file (**zed: open settings file**), or to `.zed/settings.json` in a project:
+
+```json title="settings.json"
+{
+  "context_servers": {
+    "scholar": {
+      "source": "custom",
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+</TabItem>
+<TabItem label="Pi">
+
+Pi reaches MCP servers through [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter). Install it, restart Pi, then add Scholar to `.mcp.json` in a project or `~/.config/mcp/mcp.json` for every project:
+
+```bash
+pi install npm:pi-mcp-adapter
+```
+
+```json title=".mcp.json"
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+The repository's plugin directory also follows the Agent Plugins standard, which Pi and compatible harnesses can load directly.
+
+</TabItem>
+<TabItem label="Other">
+
+Any client that launches stdio servers can use the same command and arguments:
+
+```json
+{
+  "mcpServers": {
+    "scholar": {
+      "command": "uvx",
+      "args": [
+        "--python", "3.12",
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+      ],
+      "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
+    }
+  }
+}
+```
+
+The multi-architecture container speaks stdio by default:
+
+```bash
+docker run -i --rm -e SCHOLAR_MCP_EXTENSIONS=research \
+  ghcr.io/liyux3/scholar-mcp:latest
+```
+
+When a client cannot start a program itself, such as an agent in a web page, Scholar can run as a network service. Run `scholar-mcp serve --http`, or set `SCHOLAR_MCP_TRANSPORT=http`. The Streamable HTTP endpoint defaults to `http://127.0.0.1:8000/mcp`. Cloud agents cannot reach localhost on your computer, so they need a reachable, protected deployment.
+
+</TabItem>
+</Tabs>
+
+<Aside>
+Once connected, the client should list `search_papers`, `paper_info`, `recommend_papers`, `search_authors`, `read_paper` and `download_paper`, plus `build_paper_graph` and `paper_library` with the research profile. `scholar://status` shows the available sources and the ranking model in use.
+</Aside>
+
+## More agents
+
+`scholar-mcp install` also writes the configuration for these agents, with the timeouts and fields each one needs:
+
+| Agent | Command |
+|---|---|
+| Qwen Code | `scholar-mcp install qwen-code` |
+| Kimi Code | `scholar-mcp install kimi-code` |
+| Qoder CLI | `scholar-mcp install qoder-cli` |
+| CodeBuddy Code | `scholar-mcp install codebuddy` |
+| iFlow CLI (legacy) | `scholar-mcp install iflow` |
+| MiniMax Code | `scholar-mcp install minimax` |
+| DeepSeek Harness | `scholar-mcp install deepseek` |
+| TRAE CLI 2.0 | `scholar-mcp install trae-cli` |
+| MiMo Code | `scholar-mcp install mimocode` |
+| ZCode | `scholar-mcp install zcode` |
+| Cline CLI, Kilo Code, Amp | `scholar-mcp install cline`, `kilo`, `amp` |
+| GitHub Copilot CLI, Factory Droid, Junie CLI, Augment CLI | `scholar-mcp install copilot-cli`, `factory`, `junie`, `augment` |
+| Warp, LM Studio | `scholar-mcp install warp`, `lmstudio` |
+
+Agents that keep their MCP list in their own settings screen, such as Trae, Tongyi Lingma, Baidu Comate, Cherry Studio, ChatWise and the Cline or Roo Code editor extensions (the Cline CLI is covered by `install`), take the JSON from the **Other** tab above. Paste it into their MCP settings.
+
+### DeepSeek Harness
+
+The installer adds the official `@deepseek-ai/dsh-mcp-client` plugin through a Cordis YAML insert in `~/.dsh/cordis.patch.yml`, or the directory selected by `DSH_HOME`. This home patch applies across profiles. Existing YAML, comments and `!!js` expressions stay intact; the managed Scholar entry can be updated or removed through the same installer.
+
+The plugin calls the same Scholar command as other clients, with a 600-second tool timeout. DeepSeek exposes names such as `mcp__scholar__search_papers`. For a custom profile, its own `cordis.patch.yml` accepts the same insert; a project-local overlay is loaded explicitly with `dsh <profile> --patch <file>`. See the [official MCP client reference](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/mcp/mcp-client).
+
+### ZCode and custom configuration directories
+
+`scholar-mcp install zcode` writes the stdio entry under `mcp.servers` in `~/.zcode/cli/config.json`. It preserves an explicit `features.mcp=false` and reports that setting for you to review. ZCode manages its model credentials separately.
+
+The installer follows each agent's configuration directory: `QWEN_HOME`, `KIMI_CODE_HOME`, `CODEBUDDY_CONFIG_DIR`, `QODER_CONFIG_DIR`, `MINIMAX_DATA_DIR` (or `MAVIS_DATA_DIR`) and `TRAE_HOME`. Pass the same directory setting when installing Scholar and starting the agent. Kimi Code 2.4 and MiniMax Code 0.7 load their MCP files directly.
+
+## Agent frameworks
+
+Your framework can start the same Scholar command through its native MCP client. [LangChain and LangGraph](https://github.com/langchain-ai/langchain-mcp-adapters) use `MultiServerMCPClient`; [AgentScope](https://github.com/agentscope-ai/agentscope/tree/main/src/agentscope/mcp) uses `MCPClient` with `StdioMCPConfig`. Load Scholar's tools once and pass them to your agent's existing tool registry.
+
+Keep a connection open while the agent makes several calls, then close it with the framework's session lifecycle. Scholar runs in its own process, so your framework and Scholar can use their own Python dependencies. Hosted frameworks use the reachable HTTP deployment described above.
+
+## Other channels
+
+| Channel | Entry |
+|---|---|
+| PyPI with uv tool | `uv tool install scholar-mcp`, then `scholar-mcp install` registers detected clients |
+| PyPI with uvx | `uvx scholar-mcp` in any client configuration |
+| Official MCP Registry | `io.github.Liyux3/scholar-mcp` |
+| Container | `ghcr.io/liyux3/scholar-mcp:<version>` |
+| Claude Desktop | MCPB bundles attached to [GitHub Releases](https://github.com/Liyux3/scholar-mcp/releases) |
+| Codex, Claude Code, Cursor | Repository plugin and marketplace manifests |
+
+The repository also includes portable launchers, `scripts/launch.sh` for macOS and Linux and `scripts/launch.cmd` or `scripts/launch.ps1` for Windows. They reuse uv when it is present and otherwise bootstrap it into an application directory without editing shell profiles.

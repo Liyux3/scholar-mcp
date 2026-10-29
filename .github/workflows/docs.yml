@@ -1,0 +1,69 @@
+name: Docs
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Publish release"]
+    types: [completed]
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      # The site renders these directly, so their edits must redeploy it too.
+      - "CHANGELOG.md"
+      - "docs/assets/**"
+      - ".github/workflows/docs.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the documented package is available
+        id: release
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, tomllib, urllib.error, urllib.request
+          version = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version']
+          try:
+              with urllib.request.urlopen(f'https://pypi.org/pypi/scholar-mcp/{version}/json', timeout=20) as response:
+                  package = json.load(response)
+              released = package['info']['version'] == version and bool(package['urls'])
+          except urllib.error.HTTPError as error:
+              if error.code != 404:
+                  raise
+              released = False
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'released={str(released).lower()}\n')
+          print(f'Documented package {version}: {"available" if released else "awaiting release"}')
+          PY
+      - uses: withastro/action@v6
+        with:
+          path: site
+          node-version: 22
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

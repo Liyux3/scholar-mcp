@@ -7,14 +7,15 @@ container or plugin install to fit your harness.
 
 | Channel | Entry |
 |---|---|
-| PyPI / uvx | `scholar-mcp` |
+| PyPI / uv tool | `uv tool install scholar-mcp`, then `scholar-mcp install` registers detected clients |
+| PyPI / uvx | `uvx scholar-mcp` in any client configuration |
 | Official MCP Registry | `io.github.Liyux3/scholar-mcp` |
 | Container | `ghcr.io/liyux3/scholar-mcp:<version>` |
 | Claude Desktop | MCPB bundles attached to GitHub Releases |
 | Codex, Claude Code, Cursor | Repository plugin and marketplace manifests |
-| Other MCP clients | Launch `uvx scholar-mcp` over stdio |
+| Other MCP clients | Use the README's stdio configuration, including the local reranker and research tools |
 
-See the [README](../README.md#quick-start) for client configuration and
+See the [README](../README.md#-get-started) for client configuration and
 [llms-install.md](../llms-install.md) for agent-readable installation instructions.
 A repository manifest provides an install path; it is not an assertion of
 acceptance into a vendor-curated marketplace.
@@ -23,8 +24,9 @@ acceptance into a vendor-curated marketplace.
 
 Scholar exposes local stdio and Streamable HTTP. The demo shows clients with
 documented MCP support, not a claim of marketplace approval or an end-to-end
-test on every client. Use the quick-start server command with your client's
-configuration format. Remote clients need a reachable, appropriately protected
+test on every client. `scholar-mcp install` writes the configuration for 32
+clients (listed in the CLI reference); the others take the quick-start server
+command in their own configuration format. Remote clients need a reachable, appropriately protected
 HTTP deployment; a cloud agent cannot use your laptop's localhost address.
 
 | Client | MCP integration |
@@ -33,8 +35,11 @@ HTTP deployment; a cloud agent cannot use your laptop's localhost address.
 | [Antigravity](https://antigravity.google/docs/mcp) | Custom MCP configuration; stdio or HTTP |
 | [Grok Bot](https://docs.x.ai/grok-bot/teams-and-enterprises) | Bot-computer/plugin access subject to Cursor MCP and team policy |
 | [Grok Build](https://docs.x.ai/build/features/mcp-servers) | Local command or HTTP through `grok mcp` |
-| [DeepSeek Harness](https://deepseek-harness.github.io/deepseek-harness/en/guide/mcp-memory) | Generic MCP client plugin/overlay; developer preview |
-| [Kimi Code](https://moonshotai.github.io/kimi-cli/en/reference/kimi-mcp.html) | MCP configuration through `kimi mcp` |
+| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/mcp/mcp-client) | `scholar-mcp install deepseek`; native Cordis MCP plugin, shared across profiles |
+| [TRAE CLI 2.0](https://docs.trae.cn/cli_config-file) | `scholar-mcp install trae-cli`; user-level TOML configuration |
+| [MiMo Code](https://mimo.xiaomi.com/mimocode/mcp-servers) | `scholar-mcp install mimocode`; local command array under `mcp` |
+| [ZCode](https://github.com/zai-org/ZCode) | `scholar-mcp install zcode`; nested `mcp.servers` configuration |
+| [Kimi Code](https://moonshotai.github.io/kimi-cli/en/reference/kimi-mcp.html) | `scholar-mcp install kimi-code`; native MCP configuration file |
 | [Gemini CLI](https://geminicli.com/docs/tools/mcp-server/) | MCP server configuration or `gemini mcp` |
 | [VS Code](https://code.visualstudio.com/docs/agent-customization/mcp-servers) | Agent-mode MCP servers |
 | [Cline](https://docs.cline.bot/mcp/mcp-overview) | Local or hosted MCP server configuration |
@@ -51,7 +56,9 @@ HTTP deployment; a cloud agent cannot use your laptop's localhost address.
 Names and marks in the demo identify clients, not model providers or commercial
 partnerships. See [asset credits](ASSET_CREDITS.md).
 Claude Code and Claude Desktop share one Claude tile in the demo; their
-installation routes remain distinct.
+installation routes remain distinct. The [iFlow repository](https://github.com/iflow-ai/iflow-cli)
+announces the April 17, 2026 service shutdown; its legacy installer remains for
+existing CLI profiles, while new onboarding prioritizes active clients.
 
 ## Package and runtime
 

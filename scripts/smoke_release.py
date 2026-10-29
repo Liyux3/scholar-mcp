@@ -138,7 +138,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dist-dir", type=Path, default=ROOT / "dist")
     args = parser.parse_args()
-    print(json.dumps(asyncio.run(smoke(find_wheel(args.dist_dir))), sort_keys=True))
+    print(json.dumps(asyncio.run(smoke(find_wheel(args.dist_dir.resolve()))), sort_keys=True))
 
 
 if __name__ == "__main__":

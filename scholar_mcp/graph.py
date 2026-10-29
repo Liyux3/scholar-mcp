@@ -7,7 +7,8 @@ Primarily uses OpenAlex for citation data (impact-ranked, generous rate limits).
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
-from . import relevance, sources
+from . import records as record_ops
+from . import sources
 
 
 def _expansion_priority(paper: dict) -> float:
@@ -20,30 +21,10 @@ def _expansion_priority(paper: dict) -> float:
     return cites + (cites / age) * 2
 
 
-def _get_openalex_id(paper: dict) -> str | None:
-    """Extract OpenAlex-compatible ID from a paper dict.
-    Prefers W-ID, falls back to DOI, then constructs DOI from ArXiv ID.
-    """
-    pid = paper.get("paper_id", "")
-    if pid.startswith("W"):
-        return pid
-    ext = paper.get("external_ids") or {}
-    oa_id = ext.get("OpenAlex", "")
-    if oa_id:
-        return oa_id
-    doi = ext.get("DOI", "")
-    if doi:
-        return doi
-    arxiv_id = ext.get("ArXiv", "")
-    if arxiv_id:
-        return f"10.48550/arXiv.{arxiv_id}"
-    return None
-
-
 def _paper_to_node(paper: dict, depth: int) -> dict:
     """Convert paper dict to graph node."""
     return {
-        "id": relevance.best_paper_id(paper) or _get_openalex_id(paper) or "",
+        "id": record_ops.best_paper_id(paper),
         "title": paper.get("title", ""),
         "year": paper.get("year"),
         "citation_count": paper.get("citation_count", 0),
@@ -51,20 +32,22 @@ def _paper_to_node(paper: dict, depth: int) -> dict:
         "authors": [a[:40] if isinstance(a, str) else a for a in (paper.get("authors") or [])[:5]],
         "source": paper.get("source", ""),
         "depth": depth,
+        "publication_types": record_ops.normalize_publication_types(paper.get("publication_types")),
+        **{key: paper[key] for key in ("relations", "publication_dates", "_reference", "record_type") if paper.get(key)},
     }
 
 
 def _get_any_id(paper: dict) -> str:
     """Pick the best ID for cross-source lookup."""
-    ext = paper.get("external_ids") or {}
+    ext = record_ops.external_ids(paper)
     for key in ("DOI", "OpenAlex", "ArXiv"):
         val = ext.get(key, "")
         if val:
             return val
-    return relevance.best_paper_id(paper)
+    return record_ops.best_paper_id(paper)
 
 
-def _fetch_related(paper: dict, relation: str, limit: int, delay: float = 0) -> list[dict]:
+def _fetch_related(paper: dict, relation: str, limit: int) -> list[dict]:
     """Fetch citations or references from all capable sources in parallel."""
     paper_id = _get_any_id(paper)
     if not paper_id:
@@ -81,15 +64,15 @@ def _fetch_related(paper: dict, relation: str, limit: int, delay: float = 0) -> 
 
     all_results = []
     for sr in source_results:
-        relevance.tag_source_ranks(sr.results, sr.source, facet=relation)
+        record_ops.tag_source_ranks(sr.results, sr.source, facet=relation)
         all_results.extend(sr.results)
 
-    deduplicated = relevance.deduplicate(all_results)
+    deduplicated = record_ops.deduplicate(all_results)
     from .metadata import hydrate
     hydrate(deduplicated)
     deduplicated.sort(
         key=lambda paper: (
-            relevance.physical_source_count(paper),
+            record_ops.physical_source_count(paper),
             paper.get("citation_count") or 0,
             _expansion_priority(paper),
         ),
@@ -118,7 +101,6 @@ def build_graph(
     min_citations: int = 0,
     citations_per_paper: int = 10,
     references_per_paper: int = 10,
-    delay: float = 0.3,
     topic_filter: str = "",
 ) -> dict:
     """Build citation graph from seed papers via BFS expansion.
@@ -131,7 +113,6 @@ def build_graph(
         min_citations: skip papers below this citation count
         citations_per_paper: max citations to fetch per paper
         references_per_paper: max references to fetch per paper
-        delay: retained for call compatibility; source clients own rate limiting
         topic_filter: space-separated keywords to filter expanded papers (only keep relevant ones)
 
     Returns:
@@ -141,19 +122,30 @@ def build_graph(
 
     nodes = {}
     edges = []
-    seen_titles = set()
-    title_to_id = {}
+    indexed_papers = {}
     frontier = []
 
+    def existing_id(paper):
+        keys = record_ops.paper_identity_keys(paper, include_title=False)
+        for node_id, existing in indexed_papers.items():
+            if keys & record_ops.paper_identity_keys(existing, include_title=False):
+                return node_id
+        for node_id, existing in indexed_papers.items():
+            if record_ops.compatible_title_match(existing, paper):
+                return node_id
+        return None
+
     for p in seed_papers:
-        nt = relevance._normalize_title(p.get("title", ""))
-        if not nt or nt in seen_titles:
+        nt = record_ops.normalize_title(p.get("title", ""))
+        if not nt or existing_id(p) is not None:
             continue
-        seen_titles.add(nt)
         node = _paper_to_node(p, depth=0)
         node_id = node["id"] or nt
+        if node_id in nodes:
+            node_id = f"{node_id}#{len(nodes)}"
+        node["id"] = node_id
         nodes[node_id] = node
-        title_to_id[nt] = node_id
+        indexed_papers[node_id] = p
         frontier.append((p, node_id))
 
     relations = []
@@ -171,7 +163,7 @@ def build_graph(
             for paper, parent_id in frontier:
                 for relation, relation_limit in relations:
                     jobs[(parent_id, relation)] = pool.submit(
-                        _fetch_related, paper, relation, relation_limit, delay
+                        _fetch_related, paper, relation, relation_limit
                     )
             fetched = {}
             for key, future in jobs.items():
@@ -188,18 +180,20 @@ def build_graph(
                         continue
                     if not _matches_topic(related, topic_keywords):
                         continue
-                    normalized_title = relevance._normalize_title(related.get("title", ""))
+                    normalized_title = record_ops.normalize_title(related.get("title", ""))
                     if not normalized_title:
                         continue
-                    related_id = title_to_id.get(normalized_title)
+                    related_id = existing_id(related)
                     if related_id is None:
                         if len(nodes) >= max_papers:
                             continue
                         node = _paper_to_node(related, depth=depth + 1)
                         related_id = node["id"] or normalized_title
+                        if related_id in nodes:
+                            related_id = f"{related_id}#{len(nodes)}"
+                        node["id"] = related_id
                         nodes[related_id] = node
-                        title_to_id[normalized_title] = related_id
-                        seen_titles.add(normalized_title)
+                        indexed_papers[related_id] = related
                         next_frontier.append((related, related_id))
                     if relation == "citations":
                         edges.append({"source": related_id, "target": parent_id, "type": "cites"})

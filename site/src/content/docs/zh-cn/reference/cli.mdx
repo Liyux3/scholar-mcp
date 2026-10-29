@@ -1,0 +1,245 @@
+---
+slug: zh-cn/cli
+title: 命令行
+description: scholar-mcp 命令可启动 MCP 服务器、在终端使用全部研究工具，并把 Scholar 注册到客户端。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`scholar-mcp` 一个命令有三种用法。不带参数时，它启动 MCP 服务器，客户端就是这样经 stdio 启动它的。带研究命令时，它在终端里直接查论文、读论文，和 MCP 工具是同一套函数。带设置命令时，它负责注册客户端、保存密钥、检查健康状况和升级。先用 uv 装一次。
+
+```bash
+uv tool install --python 3.12 \
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
+  "scholar-mcp[rerank]"
+```
+
+研究和设置命令默认输出易读的 YAML，加 `--json` 输出 JSON，便于接入 `jq` 或脚本，`library` 和 `sources` 则直接输出 JSON。每个命令都支持 `--help`。
+
+| 命令 | 用途 |
+|---|---|
+| [`search`](#search) | 在所有数据源里找论文，对应 `search_papers` |
+| [`info`](#info) | 论文详情、被引和参考文献，对应 `paper_info` |
+| [`related`](#related) | 相关工作，对应 `recommend_papers` |
+| [`authors`](#authors) | 作者资料，对应 `search_authors` |
+| [`read`](#read) | 论文的页面、图或表，对应 `read_paper` |
+| [`download`](#download) | 把 PDF 存进文献库，对应 `download_paper` |
+| [`graph`](#graph) | 围绕种子论文的引用图谱，对应 `build_paper_graph` |
+| [`library`](#library) | 本地文献库，以及 Obsidian、Zotero 和 Notion |
+| [`install`](#install-和-uninstall)、[`uninstall`](#install-和-uninstall) | 把 Scholar 注册到客户端，或移除 |
+| [`doctor`](#doctor) | 版本、安装方式、客户端和各项服务的状态 |
+| [`keys`](#keys) | 保存一次密钥，所有客户端通用 |
+| [`update`](#update) | 按原安装方式升级 |
+| [`sources`](#sources) | 数据源能做什么，以及实时检查 |
+| [`serve`](#serve) | 启动 MCP 服务器，stdio 或 HTTP |
+| `version` | 打印版本号 |
+
+论文标识符与 MCP 工具相同，可用 Scholar 给出的任何 `id`、DOI、`arXiv:2303.04137` 这样的 arXiv ID、论文链接或准确标题。
+
+## 研究命令
+
+### search
+
+```bash
+scholar-mcp search "long-term memory benchmarks for LLM agents" --year 2024-2026
+```
+
+| 选项 | 说明 |
+|---|---|
+| `--limit N` | 最多返回的结果数（默认 10） |
+| `--year RANGE` | 年份或年份范围，例如 `2024-2026` |
+| `--venue V` | 会议或期刊 |
+| `--fields LIST` | 逗号分隔的学科领域 |
+| `--types LIST` | 逗号分隔的出版类型 |
+| `--min-citations N` | 最低引用数 |
+| `--open-access` | 只要能免费拿到 PDF 的论文 |
+| `--sort ORDER` | `relevance`、`citations` 或 `date` |
+| `--intent FOCUS` | `balanced`、`foundational`、`recent`、`survey`、`method` 或 `dataset` |
+| `--debug` | 每个数据源的状态和排序细节 |
+
+### info
+
+```bash
+scholar-mcp info arXiv:2303.04137 --citations --limit 10
+```
+
+打印论文详情。`--citations` 加上引用它的论文，`--references` 加上它引用的论文，`--limit N` 限制每个列表的长度（默认 20）。
+
+### related
+
+```bash
+scholar-mcp related arXiv:2303.04137 --relation kin
+```
+
+`--relation` 可选 `similar`（默认）、`peers` 或 `kin`，`--limit N` 设定篇数（默认 10）。
+
+### authors
+
+```bash
+scholar-mcp authors "Fei-Fei Li" --limit 3
+```
+
+### read
+
+```bash
+scholar-mcp read arXiv:2504.19413 --pages 1-4
+scholar-mcp read arXiv:2504.19413 --visual "Figure 1" --image figure1.png
+```
+
+| 选项 | 说明 |
+|---|---|
+| `--pages RANGE` | 页码范围，默认 `1-10` |
+| `--visual SELECTOR` | 图表名字，例如 `"Figure 3"`、`"Table 2"` 或 `"page 5"` |
+| `--image PATH` | 把选中的图存成 PNG |
+
+不加 `--json` 时，先打印论文信息，一行 `---` 之后是正文。
+
+### download
+
+```bash
+scholar-mcp download 10.1038/s41586-021-03819-2 --dir papers --collection folding
+```
+
+`--dir` 指定目录（默认为文献库的 papers 文件夹），`--collection` 指定记入哪个集合（默认 `downloads`，`""` 表示不记录）。
+
+### graph
+
+```bash
+scholar-mcp graph arXiv:2303.04137,arXiv:2209.03003 --hops 1 --max-papers 40
+```
+
+| 选项 | 说明 |
+|---|---|
+| `--hops N` | 往外扩几层，1 到 3（默认 1） |
+| `--max-papers N` | 最多多少篇，5 到 100（默认 30） |
+| `--direction D` | `both`、`citations` 或 `references` |
+| `--min-citations N` | 扩进来的论文至少多少引用 |
+| `--topic PHRASE` | 一个主题短语，防止图跑题 |
+
+## library
+
+管理文献库及其连接器。涉及论文的子命令都接受 `--collection NAME`（默认 `default`），`scholar-mcp library --json ...` 输出紧凑的 JSON。
+
+| 子命令 | 说明 |
+|---|---|
+| `doctor` | 检查 SQLite 文献库和连接器配置 |
+| `migrate` | 建好 SQLite，导入旧的 JSONL 集合 |
+| `list [--limit N]` | 列出集合中的论文 |
+| `search QUERY [--limit N]` | 搜索全文索引 |
+| `export obsidian [--path DIR] [--link-citations]` | 把集合写进 Obsidian 仓库 |
+| `sync zotero [--zotero-collection-key KEY] [--apply]` | 列出 Zotero 同步计划，加 `--apply` 才执行 |
+| `publish notion [--apply]` | 列出 Notion 发布计划，加 `--apply` 才执行 |
+
+```bash
+scholar-mcp library export obsidian --collection memory --path ~/Vault
+scholar-mcp library sync zotero --collection memory --apply
+```
+
+## install 和 uninstall
+
+```bash
+scholar-mcp install                     # 列出检测到的客户端
+scholar-mcp install --all --dry-run     # 预览所有改动
+scholar-mcp install claude-code codex --profile research
+scholar-mcp uninstall cursor
+```
+
+`install` 把 Scholar 注册到指定的客户端，`--all` 注册到所有检测到的客户端，两者都不给时只列出检测结果。写入前先列出计划并备份，中途出错也不会留下损坏的文件，重复运行结果相同。它写过的条目都有记录，你自己建的 `scholar` 条目不加 `--force` 不会被替换，`uninstall` 也只删除 `install` 添加的内容。
+
+| 选项 | 说明 |
+|---|---|
+| `--all` | 所有检测到的客户端 |
+| `--project` | 写当前目录的项目配置，不写用户级配置 |
+| `--profile core\|research` | 六个核心工具（默认），或再加引用图谱和文献库，共八个 |
+| `--mode auto\|tool\|uvx` | `tool` 注册装好的命令，`uvx` 注册写死版本的 uvx 命令，`auto` 在已安装时选 `tool` |
+| `--dry-run` | 用 diff 显示会改什么，不真的写 |
+| `--force` | 替换或删掉不是安装命令建的条目 |
+| `--json` | 输出 JSON |
+
+注册的是装好的命令本身，所以升级一次，所有客户端都跟着升级。
+
+| 客户端 | 用户级配置 | 使用 `--project` 时 |
+|---|---|---|
+| `claude-code` | `claude mcp add-json`，user 作用域 | `.mcp.json` |
+| `claude-desktop` | `claude_desktop_config.json` | |
+| `codex` | `~/.codex/config.toml` | `.codex/config.toml` |
+| `cursor` | `~/.cursor/mcp.json` | `.cursor/mcp.json` |
+| `vscode` | 用户级 `mcp.json` | `.vscode/mcp.json` |
+| `gemini` | `~/.gemini/settings.json` | `.gemini/settings.json` |
+| `opencode` | `~/.config/opencode/opencode.json` | `opencode.json` |
+| `windsurf` | `~/.codeium/windsurf/mcp_config.json` | |
+| `kiro` | `~/.kiro/settings/mcp.json` | `.kiro/settings/mcp.json` |
+| `zed` | `~/.config/zed/settings.json` | `.zed/settings.json` |
+| `qwen-code` | `~/.qwen/settings.json` | `.qwen/settings.json` |
+| `kimi-code` | `~/.kimi-code/mcp.json` | `.kimi-code/mcp.json` |
+| `qoder-cli` | `~/.qoder/settings.json` | `.mcp.json` |
+| `codebuddy` | `~/.codebuddy/.mcp.json` | `.mcp.json` |
+| `iflow` | `~/.iflow/settings.json` | `.iflow/settings.json` |
+| `minimax` | `~/.minimax/mcp.json` | |
+| `deepseek` | `~/.dsh/cordis.patch.yml` 或 `$DSH_HOME/cordis.patch.yml` | 对各 profile 生效的 Cordis insert 补丁 |
+| `trae-cli` | `~/.trae/traecli.toml` 或 `$TRAE_HOME/traecli.toml` | TRAE CLI 2.0 |
+| `mimocode` | `~/.config/mimocode/mimocode.json` | 支持 MiMo 的 profile/config 路径配置及已有 JSONC 优先级 |
+| `cline` | `~/.cline/data/settings/cline_mcp_settings.json` | |
+| `kilo` | `~/.config/kilo/kilo.json` | `kilo.json` |
+| `amp` | `~/.config/amp/settings.json` | `.amp/settings.json` |
+| `copilot-cli` | `~/.copilot/mcp-config.json` | |
+| `factory` | `~/.factory/mcp.json` | `.factory/mcp.json` |
+| `junie` | `~/.junie/mcp/mcp.json` | `.junie/mcp/mcp.json` |
+| `augment` | `~/.augment/settings.json` | |
+| `warp` | `~/.warp/.mcp.json` | `.warp/.mcp.json` |
+| `lmstudio` | `~/.lmstudio/mcp.json` | |
+
+备份在 `<data>/backups/<client>/`，每个客户端留最近五份。不是纯 JSON 的配置文件（比如带注释的）不会被改，输出里会提示。
+
+## doctor
+
+```bash
+scholar-mcp doctor
+scholar-mcp doctor --network
+```
+
+列出版本、安装方式和命令位置、Python 版本、数据目录和工具集、能用几个搜索数据源以及哪些缺密钥、当前的排序模型，以及每个检测到的客户端注册了没有。它还会汇总近期调用，列出各工具的耗时和各数据源失败、无结果的比例，并指出哪里变差了，比如某个源开始报错、突然没有结果、摘要消失或变慢，排序模型退回本地，或者某个工具抛出异常。
+
+`--network` 还会实时探测最近一天真实使用里没有证明过能用的链路。按次计费的链路（Exa 和云端排序模型）从不主动探测，只看真实搜索的记录，所以检查本身不花钱。每个搜索源用固定问题搜一次，每个引用和参考文献源查一篇已知论文，排序模型和 PDF 链路（arXiv 下载、PMC 数据集、Unpaywall 和各个仓库）各试一次。任一探测失败时以状态 1 退出，方便定时运行，仓库每天都会跑一遍。`--skip google_scholar` 可以跳过指定的源，比如在会被 Google 要求验证的服务器上。
+
+## keys
+
+```bash
+scholar-mcp keys set OPENALEX_API_KEY   # 提示输入后保存
+scholar-mcp keys                        # 只列出已保存的名称
+scholar-mcp keys unset OPENALEX_API_KEY
+```
+
+密钥存在 `<data>/keys.env`，仅你本人可读，所有启动 Scholar 的客户端重启后都会读到。写在客户端 `env` 或 shell 中的同名变量优先。可设的密钥见[配置](/scholar-mcp/zh-cn/configuration/)。
+
+## update
+
+```bash
+scholar-mcp update --check   # 看有没有新版
+scholar-mcp update           # 升级
+```
+
+按原来的安装方式升级，uv 用 `uv tool upgrade`，pipx 用 `pipx upgrade`，其他用 pip。升级后重启客户端即可用上新版。用 uvx 写死版本号的配置，重新运行 `uvx scholar-mcp@latest install CLIENT` 刷新。
+
+## sources
+
+```bash
+scholar-mcp sources
+scholar-mcp sources --check
+scholar-mcp sources --check --source arxiv --query "retrieval augmented generation"
+```
+
+列出每个数据源的能力。`--check` 向每个已配置的数据源发一次小搜索，`--source` 和 `--query` 用于缩小范围。见[数据源](/scholar-mcp/zh-cn/sources/#在本机检查)。
+
+## serve
+
+```bash
+scholar-mcp serve                                   # stdio，和不带参数一样
+scholar-mcp serve --http --host 127.0.0.1 --port 8000
+```
+
+`--http` 提供 Streamable HTTP 服务，路径默认是 `/mcp`，用 `--path` 改。没有额外保护时，只绑定 localhost。
+
+<Aside type="tip">
+客户端只能启动不带参数的命令时，设置 `SCHOLAR_MCP_TRANSPORT=http`，效果和 `serve --http` 一样。
+</Aside>

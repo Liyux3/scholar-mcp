@@ -7,6 +7,18 @@ BUILD_ROOT="$ROOT/mcpb-build"
 mkdir -p "$BUILD_ROOT"
 BUILD_DIR="$(mktemp -d "$BUILD_ROOT/stage.XXXXXX")"
 
+cleanup_stage() {
+  "$PYTHON_BIN" - "$BUILD_DIR" "$BUILD_ROOT" <<'PY'
+from pathlib import Path
+import shutil, sys
+stage, root = (Path(value).resolve() for value in sys.argv[1:])
+if stage.parent != root or not stage.name.startswith("stage."):
+    raise SystemExit("Refusing to clean an unexpected staging directory")
+shutil.rmtree(stage, ignore_errors=True)
+PY
+}
+trap cleanup_stage EXIT
+
 "$PYTHON_BIN" - <<'PY'
 import sys
 if sys.version_info[:2] != (3, 12) or sys.platform != "darwin":
@@ -38,6 +50,7 @@ shutil.copytree(source, stage / "runtime", symlinks=False,
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"))
 shutil.rmtree(stage / "managed")
 PY
+RUNTIME_PYTHON="$BUILD_DIR/runtime/bin/python3.12"
 
 "$PYTHON_BIN" - "$ROOT/manifest.json" "$BUILD_DIR/manifest.json" "$VERSION" <<'PY'
 import json, sys
@@ -50,6 +63,7 @@ with open(target, "w", encoding="utf-8") as output:
 PY
 
 cp -R "$ROOT/scholar_mcp" "$BUILD_DIR/server/scholar_mcp"
+cp "$ROOT/LICENSE" "$ROOT/NOTICE" "$BUILD_DIR/"
 
 REQUIREMENTS="$BUILD_DIR/requirements.txt"
 uv export --project "$ROOT" --quiet --locked --no-hashes --no-dev --no-emit-project --extra rerank \
@@ -57,6 +71,17 @@ uv export --project "$ROOT" --quiet --locked --no-hashes --no-dev --no-emit-proj
 uv pip install --quiet --python "$PYTHON_BIN" --target "$BUILD_DIR/server/vendor" \
   --requirement "$REQUIREMENTS"
 rm "$REQUIREMENTS"
+
+# Keep a verified CPU reader in the bundle, separate from writable user data.
+SCHOLAR_DATA_DIR="$BUILD_DIR/.prepare-data" "$RUNTIME_PYTHON" - "$BUILD_DIR" "${SCHOLAR_MODEL_ARCHIVE:-}" <<'PY'
+from pathlib import Path
+import sys
+stage = Path(sys.argv[1])
+sys.path[:0] = [str(stage / 'server'), str(stage / 'server/vendor')]
+from scholar_mcp.model_assets import prepare_cpu_model
+prepare_cpu_model(stage / 'server/scholar_mcp/_models',
+                  archive=Path(sys.argv[2]) if sys.argv[2] else None)
+PY
 find "$BUILD_DIR" -type d -name __pycache__ -prune -exec rm -rf {} +
 find "$BUILD_DIR" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
 
@@ -70,13 +95,4 @@ FINAL="$BUILD_ROOT/scholar-mcp-darwin-$(uname -m)-$VERSION.mcpb"
 if [[ "$ARTIFACT" != "$FINAL" ]]; then
   mv "$ARTIFACT" "$FINAL"
 fi
-# Only discard the isolated staging tree created by this invocation.
-"$PYTHON_BIN" - "$BUILD_DIR" "$BUILD_ROOT" <<'PY'
-from pathlib import Path
-import shutil, sys
-stage, root = (Path(value).resolve() for value in sys.argv[1:])
-if stage.parent != root or not stage.name.startswith("stage."):
-    raise SystemExit("Refusing to clean an unexpected staging directory")
-shutil.rmtree(stage)
-PY
 echo "$FINAL"

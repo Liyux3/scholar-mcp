@@ -18,6 +18,7 @@ def _paper(title="A Paper", doi="10.1/x", cites=0, abstract=""):
 class _SourceResult:
     def __init__(self, results):
         self.results = results
+        self.status = 'ok' if results else 'empty'
 
 
 class TestSeedId:
@@ -36,6 +37,29 @@ class TestSeedId:
 
     def test_returns_empty_when_nothing_identifies_the_paper(self):
         assert expansion._seed_id({"title": "No ids"}) == ""
+
+
+def test_expansion_deadline_retains_completed_nested_sources(monkeypatch):
+    from threading import Event
+    from scholar_mcp import sources
+    release = Event()
+    monkeypatch.setattr(expansion.config, 'SOURCE_BUDGET_S', 0.1)
+    def channel(seed, ctx):
+        def stalled():
+            release.wait(3)
+            return []
+        inner = sources.SourceFlow({
+            'ready': [lambda: [_paper('Completed useful evidence')]],
+            'stalled': [stalled]}, budget_s=1, hydrate=False)
+        return expansion._combine(inner.collect())
+    monkeypatch.setattr(expansion, 'CHANNELS', {'references': channel})
+    monkeypatch.setattr(expansion, 'GLOBAL_CHANNELS', {})
+    try:
+        result = expansion.expand([_paper()])
+        assert result['references'][0]['title'] == 'Completed useful evidence'
+        assert result.reports[0].status == 'partial'
+    finally:
+        release.set()
 
 
 class TestCitationsChannel:
@@ -80,47 +104,53 @@ class TestCitationsChannel:
 
 
 class TestTitleSearchChannel:
+    @staticmethod
+    def queries_for(monkeypatch, *titles):
+        captured = []
+
+        class Flow:
+            def take(self):
+                return []
+
+            def close(self):
+                pass
+
+        def fake(queries, **kwargs):
+            captured.extend(queries)
+            return Flow()
+
+        monkeypatch.setattr(expansion.sources, "search_flow", fake)
+        seeds = [_paper(title=title) for title in titles]
+        expansion.title_search_all(expansion.ExpansionContext(seeds=seeds))
+        return captured
+
     def test_routes_the_title_per_source(self, monkeypatch):
         """A title is natural language: semantic sources want it verbatim,
         keyword sources want it compressed. Handing one string to all of them
         gives most of them the wrong form.
         """
-        captured = {}
-
-        def fake(query, limit=20, raw_query="", short_query="", **kw):
-            captured.update(query=query, raw_query=raw_query, short_query=short_query)
-            return []
-
-        monkeypatch.setattr(expansion.sources, "parallel_search", fake)
         long_title = ("Denoising Diffusion Probabilistic Models for High Resolution "
                       "Image Synthesis with Classifier Free Guidance")
-        expansion.title_search(_paper(title=long_title), expansion.ExpansionContext())
-
-        # Semantic sources get the title untouched.
-        assert captured["raw_query"] == long_title
-        # Keyword sources get something shorter than the sentence.
-        assert 0 < len(captured["query"].split()) < len(long_title.split())
-        assert captured["short_query"]
+        [(query, raw, short)] = self.queries_for(monkeypatch, long_title)
+        assert raw == long_title
+        # Compression happens in the keyword lane, after semantic requests can start.
+        keyword = expansion.sources._pick_query(expansion.sources.Source('keyword'), query, raw, short)
+        semantic = expansion.sources._pick_query(expansion.sources.Source('semantic', query_style='raw'), query, raw, short)
+        assert 0 < len(keyword.split()) < len(long_title.split())
+        assert semantic == long_title
+        assert short
 
     def test_short_title_needs_no_compression(self, monkeypatch):
         """Compression only applies above a length threshold, so a short title
         reaches keyword sources as it stands.
         """
-        captured = {}
+        [(query, raw, _)] = self.queries_for(monkeypatch, "Attention Is All You Need")
+        assert query == raw == "Attention Is All You Need"
 
-        def fake(query, limit=20, raw_query="", short_query="", **kw):
-            captured.update(query=query, raw_query=raw_query)
-            return []
-
-        monkeypatch.setattr(expansion.sources, "parallel_search", fake)
-        expansion.title_search(_paper(title="Attention Is All You Need"),
-                               expansion.ExpansionContext())
-        assert captured["query"] == captured["raw_query"] == "Attention Is All You Need"
-
-    def test_titleless_seed_costs_no_request(self, monkeypatch):
-        monkeypatch.setattr(expansion.sources, "parallel_search",
+    def test_titleless_seeds_cost_no_request(self, monkeypatch):
+        monkeypatch.setattr(expansion.sources, "search_flow",
                             lambda *a, **kw: pytest.fail("should not be called"))
-        assert expansion.title_search({"title": ""}, expansion.ExpansionContext()) == []
+        assert expansion.title_search_all(expansion.ExpansionContext(seeds=[{"title": ""}])) == []
 
 
 class TestFrequentTermsChannel:

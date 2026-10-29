@@ -1,0 +1,24 @@
+---
+// Framed figure with optional dark variant that follows the site theme toggle,
+// not only the OS preference (a <picture> media query cannot see the toggle).
+import type { ImageMetadata } from 'astro';
+
+interface Props {
+	src: ImageMetadata;
+	dark?: ImageMetadata;
+	alt: string;
+	caption?: string;
+	width?: number;
+}
+
+const { src, dark, alt, caption, width } = Astro.props;
+const style = width ? `max-width: ${width}px` : undefined;
+---
+
+<figure class="sc-figure">
+	<div class="sc-figure-frame" class:list={{ 'sc-figure-themed': Boolean(dark) }}>
+		<img class:list={{ 'dark:sl-hidden': Boolean(dark) }} src={src.src} width={src.width} height={src.height} alt={alt} loading="lazy" decoding="async" style={style} />
+		{dark && <img class="light:sl-hidden" src={dark.src} width={dark.width} height={dark.height} alt={alt} loading="lazy" decoding="async" style={style} />}
+	</div>
+	{caption && <figcaption>{caption}</figcaption>}
+</figure>

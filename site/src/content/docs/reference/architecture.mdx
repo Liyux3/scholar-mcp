@@ -1,0 +1,90 @@
+---
+slug: architecture
+title: Architecture
+description: How a research question becomes ranked papers, readable text and a local library.
+---
+
+import Figure from '../../../components/Figure.astro';
+import pipeline from '../../../../../docs/assets/retrieval-pipeline.svg';
+import pipelineDark from '../../../../../docs/assets/retrieval-pipeline-dark.svg';
+import runtime from '../../../../../docs/assets/runtime-architecture.svg';
+import runtimeDark from '../../../../../docs/assets/runtime-architecture-dark.svg';
+
+Scholar connects an agent's research question to papers, citations, full text and a local library. MCP clients, the command line and Python all run the same Python server.
+
+<figure class="sc-demo" id="film">
+	<video controls preload="metadata" playsinline poster="/scholar-mcp/media/scholar-backend-poster.jpg">
+		<source src="/scholar-mcp/media/scholar-backend-film.mp4" type="video/mp4" />
+	</video>
+</figure>
+
+## Retrieval
+
+<Figure src={pipeline} dark={pipelineDark} alt="Scholar MCP retrieval pipeline" width={720} />
+
+A search has four steps.
+
+1. **Send the question.** Semantic sources match by meaning and receive the original sentence. Keyword sources match words, and every extra word makes a hit less likely, so they receive compact keywords, sized to what each source handles best in measurements.
+2. **Search at once.** Each source has its own queue. Several queries to one source go in order, at the pace it allows, while different sources run side by side. All sources return the same paper format, so records merge before ranking, and sources that finish early have their metadata completed while slower ones are still searching.
+3. **Rank, then expand.** A first ranking picks the most relevant papers as seeds, and Scholar follows their references, citations and related work. Sources that had not answered when seeds were chosen are not dropped, their papers join in the next step.
+4. **Rank everything again.** One ranking model scores all candidates in a single pass, without averaging scores from different passes or models. Filters and the result limit apply only after the whole pool is scored.
+
+The final order rests on the model's relevance scores and also weighs citations, how many sources found a paper, and recency, as ranking signals rather than judgements of quality. No candidate is cut to fit a ranking service, large pools are scored in batches and ranked together. `sort` replaces the order with citation count or date, and `intent` leans ranking and expansion toward foundational work, recent work, surveys, methods or datasets.
+
+## Recognising the same paper
+
+The same paper often arrives from several sources with different identifiers. Scholar normalizes DOIs, arXiv versions and aliases, pairs records by shared identifiers and then by identical, consistent titles, and merges them while remembering which sources found each one. Extra lookups happen only for records not yet recognised and for fields a filter needs.
+
+- DOIs in OpenAlex batches, with an exact Crossref match as fallback
+- PMIDs in Europe PMC batches
+- arXiv IDs from arXiv's own record
+- bare citation text through a checked bibliographic match
+
+arXiv DOI aliases and re-deposits by the same authors never give one paper several slots. Metadata lookups never count as another source agreeing.
+
+Record identity, authors, versions and merging live in one data module shared by ranking and storage. Adapters return the fields they support; the public output boundary supplies unknown values. The CLI and MCP also share one text serializer.
+
+## Sources and models
+
+All sources are registered in one table that states what each can do, from search and paper lookup to citations, references and PDFs. A new source adds no MCP tool. Crossref supplies deposited references, Europe PMC supplies citation links and recovers references from open full text, and INSPIRE-HEP has its own citation data. They feed one graph with Semantic Scholar and OpenAlex.
+
+Sources run in one fixed-size shared thread pool, and a failed request is recorded apart from a search that found nothing. Scores from a ranking model are checked before they are used. The cloud Qwen model, a compatible custom service and the local FlashRank fallback share the same requests, batching and score checks. An unreachable remote service is paused for five minutes while the local model ranks, see [Configuration](/scholar-mcp/configuration/#reranker).
+
+## Runtime
+
+<Figure src={runtime} dark={runtimeDark} alt="Scholar MCP runtime architecture" width={720} />
+
+A client on your machine connects over stdio, which means it starts Scholar itself and talks to it through standard input and output, with no network port. When a client cannot start a program, such as an agent in a web page or a server several people share, Scholar runs as a network service and clients connect over Streamable HTTP. A local SQLite library handles full-text search, PDF attachments, JSONL snapshots and the Obsidian, Zotero and Notion connectors. Full text comes from open copies first and, for licensed papers, through the library proxy.
+
+Tools return plain data, which is rendered once at the MCP boundary as YAML text (multi-line passages in literal blocks) plus structured content. The command line and Python receive the same dictionaries. Any identifier a tool returns, a paper link or an exact title works in every other tool, and reads and downloads first use the merged record from a recent result.
+
+## Reading and keeping papers
+
+`read_paper` reuses a retained PDF or removes a newly downloaded temporary copy after reading. By default pages 1 to 10 come back as Markdown marked by page, up to 100,000 characters per response, so a typical ten-page read arrives whole. A longer range stops at a page boundary and returns `next_pages`. The tool tells Claude Code how large its results are, so Claude Code keeps them whole. Codex cuts the middle out of long results, so reads in Codex stop near 36,000 characters and return `next_pages`. Page ranges reach later sections, figure, table and page names return images of that part, and recognised tables come back as structured text.
+
+`download_paper` keeps the PDF in the papers folder and records it in a library collection. Several locations are tried at once, and the PDF is checked in a temporary file before it moves into place. The returned path is absolute, so the file is found from any later session. Proven preprint and publication identities share one work; the accessible version of record is preferred. An upgrade keeps a separate version/hash file, preserving older PDFs and their annotations.
+
+The library keeps records in SQLite with full-text search. JSONL is used for migration and snapshots, and PDFs and Markdown vaults are separate files. Records keep the full author list and abstract, and connectors export or sync them only when asked.
+
+## Health
+
+Twenty-odd outside services can change, rate-limit or go down at any time, so Scholar watches every link itself. Every tool call leaves one line in a small local record, without the question itself, with how long it took, how each source answered, which ranking model ranked and where a PDF came from. `scholar-mcp doctor` reads it, compares each source with its own history and names one that started failing, went quiet, lost its abstracts or slowed down. `doctor --network` probes directly the free links real use has not exercised lately, and the repository runs it every day, see [CLI](/scholar-mcp/cli/#doctor).
+
+## Code map
+
+| Module | Responsibility |
+|---|---|
+| `server.py` | Tools, orchestration, identifier resolution and the MCP boundary |
+| `api.py`, `cli.py` | Python API and command line over the same tool functions |
+| `install.py` | Client registration with backups, safe writes and a record of what it wrote |
+| `sources/` | Source registry, per-source queues and query routing, one module per provider |
+| `relevance.py`, `expansion.py` | Query preparation, merging records, ranking and citation expansion |
+| `metadata.py` | Completing records with missing fields |
+| `traversal.py`, `graph.py` | Citation relationships and graph construction |
+| `pdf_utils.py`, `paper_reader.py` | Finding PDFs, structured reading and images |
+| `scholar_session.py` | Google verification worker and session state |
+| `credentials.py` | Scoped OS credentials for library connectors |
+| `knowledge_base.py`, `library_store.py` | Library records and search |
+| `vault.py`, `library_connectors.py` | Export and sync to outside libraries |
+| `usage_log.py`, `health.py` | The local call record, findings and live probes |
+| `config.py`, `cache.py` | Configuration, the key file and response caching |

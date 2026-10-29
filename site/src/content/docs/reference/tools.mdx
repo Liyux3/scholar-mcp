@@ -1,0 +1,154 @@
+---
+slug: tools
+title: MCP tools
+description: Every tool Scholar exposes over MCP, with parameters, defaults and what each call returns.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The tool set is small. Six core tools find, inspect and read papers, and the research profile adds a citation graph and the paper library. Each response carries the same data twice, as compact YAML text for the model and as structured content for clients that read it.
+
+| Profile | Tool | Responsibility |
+|---|---|---|
+| Core | [`search_papers`](#search_papers) | Multi-source retrieval, filters, reranking and citation discovery |
+| Core | [`paper_info`](#paper_info) | Paper detail, citations and references in one selective call |
+| Core | [`recommend_papers`](#recommend_papers) | Related work through semantic and citation connections |
+| Core | [`search_authors`](#search_authors) | Author profiles, affiliations, paper counts and h-index |
+| Core | [`read_paper`](#read_paper) | Paper text, tables and selected figures, pages 1-10 by default |
+| Core | [`download_paper`](#download_paper) | Keep a PDF and index it in a collection |
+| Research | [`build_paper_graph`](#build_paper_graph) | Bounded citation graph with PageRank, bridges and Mermaid |
+| Research | [`paper_library`](#paper_library) | Collections, full-text search, notes, tags and vault export |
+
+Every result has an `id`. Any identifier Scholar returns works in any tool, including DOIs, arXiv IDs such as `arXiv:2303.04137`, and Semantic Scholar, OpenAlex, OpenReview and Google Scholar IDs. Paper links and exact titles work too. Reads and downloads first use the merged record from a recent result and only then ask the sources again.
+
+## Profiles
+
+The core profile is the default. `SCHOLAR_MCP_EXTENSIONS=research` in the server environment adds `build_paper_graph` and `paper_library`, and `graph` or `paper_library` adds only one of them. The [installer](/scholar-mcp/cli/#install-and-uninstall) writes this with `--profile research`.
+
+Every tool asks Claude Code to load it at startup instead of behind tool search, so the model knows from the start which tools it has. All eight definitions together take about 2,800 tokens. To defer them, add `"alwaysLoad": false` to the server entry.
+
+## search_papers
+
+Find papers that answer a research question or match something you half remember. Scholar searches many sources at once, merges duplicates, follows citations from the most relevant papers and ranks everything again. Read-only.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `query` | string | required | The question, topic, distinctive phrase or title to find |
+| `limit` | integer | `10` | Maximum results, 1 to 100 |
+| `year` | string | | A year or range, such as `"2023"` or `"2020-2024"` |
+| `venue` | string | | Venue filter, such as `"NeurIPS"` or `"Nature"` |
+| `fields_of_study` | string | | Comma-separated fields, such as `"Computer Science,Mathematics"` |
+| `paper_types` | string | all | Comma-separated types: `JournalArticle`, `Conference`, `Review`, `Book`, `Dataset`, `CourtDecision`, `ClinicalTrialRegistration` |
+| `min_citations` | integer | `0` | Minimum citation count |
+| `open_access_only` | boolean | `false` | Only papers with free PDF access |
+| `sort` | string | `"relevance"` | Hard final order: `relevance`, `citations` or `date` |
+| `intent` | string | `"balanced"` | Soft ranking focus: `balanced`, `foundational`, `recent`, `survey`, `method` or `dataset` |
+| `debug` | boolean | `false` | Add per-source status, latency, provenance and ranking diagnostics |
+
+Returns `results`, each with `title`, up to five `authors`, `year`, `venue`, `citations`, a shortened `abstract` and `id`, plus `doi`, `url`, `tldr` and `open_access` when known. A short `warning` appears when a source did not answer and that affected the results. With `debug=true`, `_meta` shows source coverage, the ranking model that ran, each source's count and time, and each result's sources and score.
+
+Filters apply to the whole pool, including papers found through citations, before the result limit is taken.
+
+## paper_info
+
+Look at one paper, what it cites and what cites it. Read-only.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `paper_id` | string | required | DOI, `arXiv:ID`, Semantic Scholar ID or OpenAlex `W` ID |
+| `include` | string | `"detail"` | Comma-separated: `detail`, `citations`, `references` |
+| `limit` | integer | `20` | Maximum citations and references, 1 to 100, applied to each list |
+
+Returns `paper` with full detail (publication types and date, all identifiers, PDF link and fields when known), `citations` for papers that cite it and `references` for papers it cites, both ordered by citation count.
+
+## recommend_papers
+
+Find related work around a paper, including links across fields. Read-only.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `paper_id` | string | required | Seed paper identifier |
+| `relation` | string | `"similar"` | `similar` for semantic neighbours, `peers` for papers cited alongside it, `kin` for papers sharing its references |
+| `limit` | integer | `10` | Maximum results, 1 to 100 |
+
+Returns `relation`, the `seed` title, `papers` and `total`. For direct citation lists, use `paper_info`.
+
+## search_authors
+
+Find researchers with their affiliations and publication numbers. Affiliations tell apart people with the same name. Read-only.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `query` | string | required | Author name |
+| `limit` | integer | `5` | Maximum results, 1 to 1000 |
+
+Returns `authors`, each with a name, Semantic Scholar author ID and profile URL, affiliations, paper count, citation count and h-index.
+
+## read_paper
+
+Read a paper's text, look at its figures and tables, or jump to the appendix. Scholar reuses a retained copy when available; a new temporary download is removed after reading. Read-only.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `paper_id` | string | required | Paper identifier |
+| `pages` | string | `"1-10"` | One-indexed page range, at most 20 pages per call. Use `"11-20"` for appendices |
+| `visual` | string | | A selector returned by an earlier call, such as `"Figure 3"`, `"Table 2"` or `"page 5"` |
+
+`content` holds Markdown marked by page, with the `pages` read and `total_pages`. Tables come back structured when they are recognised reliably, every figure is listed by name, and tables can also be viewed as images. With `visual`, the response adds an image of that part of the page and its text. The default range usually reaches the conclusion of an AI conference paper.
+
+A typical ten-page read arrives whole. Each response holds at most 100,000 characters, cut at a page boundary. The tool tells Claude Code how large its results are, so it keeps the text whole. Codex cuts the middle out of results above about 48 KB, so reads in Codex stop at 36,000 characters, and `scholar-mcp install` raises its limit for this tool. When pages remain, `next_pages` gives the next range. `SCHOLAR_READ_CHAR_BUDGET` sets the limit for every client, Codex included, and `0` removes it. `copy` says which copy was read and its version (`published`, `accepted` or `preprint`), since a preprint can differ from the published paper.
+
+When a PDF is unavailable, Scholar can read the original structured article deposited in PMC. The response uses `format: jats`, with source/version metadata, original section IDs and figure assets. `pages` and `total_pages` are `null`. Follow `next_pages` for the remaining text or pass a returned `xml:ID` in `pages` to read a section directly. A figure selector returns its original image when the source provides one; `image_source` identifies its URL, digest and dimensions.
+
+## download_paper
+
+Save a paper's PDF locally. Scholar finds a downloadable copy, writes it to a temporary file and moves it into place only once it is a complete PDF, reusing a good local copy when one exists. Writes files.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `paper_id` | string | required | Paper identifier |
+| `save_dir` | string | download directory | Where to save the PDF; defaults to `SCHOLAR_DOWNLOAD_DIR`, or `<data>/papers` |
+| `collection` | string | `"downloads"` | Library collection to index the paper in; empty disables indexing |
+
+Returns the full file path, whether the paper is new to the library, and the collection it joined. With `SCHOLAR_OBSIDIAN_VAULT` set, the collection in Obsidian is refreshed too. The result names the copy version. An upgrade keeps a separate file, preserving older copies and their annotations.
+
+## build_paper_graph
+
+*Research profile.* Follow citations outward from a few seed papers to map a line of research. Read-only.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `paper_ids` | string | required | Comma-separated DOI, arXiv, OpenAlex, Semantic Scholar or exact-title seeds |
+| `max_hops` | integer | `1` | Citation and reference depth, 1 to 3 |
+| `max_papers` | integer | `30` | Maximum graph nodes, 5 to 100 |
+| `direction` | string | `"both"` | `citations`, `references` or `both` |
+| `min_citations` | integer | `0` | Citation floor for expanded nodes |
+| `topic_filter` | string | | A topic phrase that keeps the graph from drifting |
+
+Returns `nodes`, `edges`, PageRank scores, bridge papers and a Mermaid diagram, with the recognised `seeds` and any `unresolved` inputs.
+
+## paper_library
+
+*Research profile.* Save papers in collections with notes so research carries across sessions. Changes saved records, and `remove` deletes permanently.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `action` | string | `"list"` | `save` (or `add`), `get`, `list`, `search`, `update`, `remove`, `collections` or `export` |
+| `paper_ids` | string | | Comma-separated identifiers for `save`, `get`, `update` and `remove` |
+| `paper_titles` | string | | Exact-title fallback for `save` |
+| `collection` | string | `"default"` | Collection name |
+| `query` | string | | Full-text query for `search` |
+| `notes` | string | | Notes for `save` and `update` |
+| `tags` | string | | Comma-separated tags for `save` and `update` |
+| `limit` | integer | `20` | Maximum papers to return |
+| `link_citations` | boolean | `false` | For `export`, fetch reference lists and link notes along real citations |
+
+`export` writes a Markdown vault Obsidian can open. Before each read, your edits in the Markdown files or Notion research notes are read back. Attach PDFs with `download_paper`. See [Paper library](/scholar-mcp/paper-library/) for the full workflow.
+
+## scholar://status
+
+A resource, not a tool, so it takes no space in the model's tool list. It shows the server version, the core tools and enabled extensions, the available search and citation sources, whether a Semantic Scholar key is set, the ranking model in use (with the reason when the local model stepped in), and problems found in recent calls.
+
+<Aside>
+A successful search does not prove the cloud ranking model ran. Read `scholar://status` or search with `debug=true` to see the service, the model and the reason for any fallback.
+</Aside>

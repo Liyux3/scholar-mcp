@@ -1,0 +1,26 @@
+---
+// Page heading in the Mintlify pattern: sidebar group as a small eyebrow,
+// the title, then the frontmatter description as the lead paragraph.
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+
+type Entry = { type: 'link'; isCurrent: boolean } | { type: 'group'; label: string; entries: Entry[] };
+
+const route = Astro.locals.starlightRoute;
+
+function currentGroup(entries: Entry[], label?: string): string | undefined {
+	for (const entry of entries) {
+		if (entry.type === 'link' && entry.isCurrent) return label;
+		if (entry.type === 'group') {
+			const found = currentGroup(entry.entries, entry.label);
+			if (found) return found;
+		}
+	}
+}
+
+const eyebrow = currentGroup(route.sidebar as Entry[]);
+const description = route.entry.data.description;
+---
+
+{eyebrow && <p class="sc-eyebrow">{eyebrow}</p>}
+<Default />
+{description && <p class="sc-lead">{description}</p>}

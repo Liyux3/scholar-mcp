@@ -1,0 +1,115 @@
+---
+slug: zh-cn/paper-library
+title: 文献库
+description: 论文、笔记、标签和 PDF 存在本地，跨会话保留，还能同步到 Obsidian、Zotero 或 Notion。
+---
+
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
+import Figure from '../../../../components/Figure.astro';
+import graph from '../../../../../../docs/assets/paper-library-graph.svg';
+
+对话结束后，研究成果留在文献库里。它是本地的一个 SQLite 数据库，支持全文搜索。每条记录保存固定的标识符、完整的作者和摘要、你的笔记和标签、PDF 路径，以及在 Zotero 或 Notion 中对应条目的 ID。智能体通过研究工具集中的 `paper_library` 读写它，命令行中也能看到同样的记录。
+
+<Figure src={graph} alt="由本地文献库集合生成的引用图谱" caption="由一个真实本地集合生成的引用图谱。" />
+
+## 集合、笔记和标签
+
+论文按集合存放，默认集合为 `default`。`paper_library` 支持以下操作。
+
+| 操作 | 作用 |
+|---|---|
+| `save` 或 `add` | 按标识符保存一篇或多篇论文，可附 `notes` 和 `tags` |
+| `get` | 取回一篇已存论文及其笔记 |
+| `list` | 列出一个集合，含笔记、标签和 PDF 路径 |
+| `search` | 在已存的标题、摘要、作者和笔记中全文搜索 |
+| `update` | 替换一篇论文的笔记或标签 |
+| `remove` | 从集合中永久删除一篇论文 |
+| `collections` | 列出所有集合及其篇数 |
+| `export` | 把集合导出为 Obsidian 可打开的 Markdown 仓库 |
+
+同一篇论文再次保存时，新笔记会追加，不会重复，只有 `update` 才整段替换。`download_paper` 会把 PDF 挂到对应记录上，论文与文件始终在一起。
+
+只需说一句“把这三篇存到 retrieval 集合，打上 baseline 标签，写明每篇为何重要”，智能体就会用正确的标识符调用 `save`。
+
+## 文件位置
+
+```text
+~/.scholar-mcp/
+├── papers/                持久保存的 PDF
+├── kb/
+│   ├── library.sqlite3    主数据 + FTS5 + 同步状态
+│   └── *.jsonl            兼容性快照
+└── vault/                 Markdown 导出与 wikilink
+```
+
+`SCHOLAR_DATA_DIR` 可移动整个目录，`SCHOLAR_KB_DIR` 和 `SCHOLAR_DOWNLOAD_DIR` 分别移动文献库和 PDF。旧版 JSONL 集合会自动迁入 SQLite，原文件保留为快照。
+
+## 命令行
+
+终端中也能查看同样的记录，全部子命令见[命令行](/scholar-mcp/zh-cn/cli/#library)。
+
+```bash
+scholar-mcp library doctor
+scholar-mcp library list --collection retrieval
+scholar-mcp library search "contrastive pretraining" --collection retrieval
+```
+
+## 连接器
+
+每个连接器都会记录外部 ID、版本和内容指纹，未变化的论文不会重复发布。
+
+<Tabs syncKey="connector">
+<TabItem label="Obsidian">
+
+Obsidian 无需登录。每篇论文导出为一个 Markdown 笔记，另有一个集合索引，彼此以 wikilink 相连，直接写入仓库。
+
+```bash
+scholar-mcp library export obsidian --collection retrieval --path /path/to/vault
+```
+
+加 `--link-citations` 会取回参考文献，按真实的引用关系连接笔记。设置 `SCHOLAR_OBSIDIAN_VAULT` 后仓库保持同步，之后每次保存、更新和下载都会自动刷新。
+
+</TabItem>
+<TabItem label="Zotero">
+
+Zotero 会收到条目、分类和标签，每篇论文下另有一条 Scholar 研究笔记。设置 `ZOTERO_API_KEY` 和 `ZOTERO_LIBRARY_ID` 即可，群组文献库或本地 API 再加 `ZOTERO_LIBRARY_TYPE` 或 `ZOTERO_API_BASE`。
+
+```bash
+# 试运行，只打印计划
+scholar-mcp library sync zotero --collection retrieval
+
+# 实际写入
+scholar-mcp library sync zotero --collection retrieval --apply
+```
+
+`--zotero-collection-key` 可指定一个已有的 Zotero 分类。
+
+</TabItem>
+<TabItem label="Notion">
+
+Notion 会收到一个阅读清单，含易读的摘要和可编辑的研究笔记，目标数据库只有标题一列也可使用。设置 `NOTION_API_KEY` 和 `NOTION_DATA_SOURCE_ID` 即可。
+
+```bash
+# 试运行，只打印计划
+scholar-mcp library publish notion --collection retrieval
+
+# 实际写入
+scholar-mcp library publish notion --collection retrieval --apply
+```
+
+你自己的 `Notes` 属性不会被覆盖。
+
+</TabItem>
+</Tabs>
+
+<Aside type="note" title="默认试运行">
+Zotero 同步和 Notion 发布不加 `--apply` 时只打印计划。Obsidian 导出则直接写入本地文件。
+</Aside>
+
+## 你的修改会被读回
+
+在哪里读，就在哪里改。导出后，可在 Markdown 文件的 Research notes 一节或 Notes 下书写，或在 Notion 中修改 Scholar 创建的研究笔记。下次读取文献库时，无论 `get`、`list`、`search` 还是 `update`，都会先读回你的修改，智能体在此基础上继续。
+
+两边都改过时以你的为准，即使你清空了笔记。未改动的 Markdown 文件不会把文献库中更新的草稿改回去。冲突和读取错误会在回复中以 `note_conflicts` 和 `note_errors` 列出。
+
+连接器凭据可存入系统的加密凭据库。命令参数和环境变量优先，凭据本身不会写入文献库。

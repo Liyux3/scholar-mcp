@@ -1,0 +1,42 @@
+---
+slug: zh-cn/benchmarks
+title: 基准测试
+description: 同样的测试条件下，Scholar 在 LitSearch 上和 Exa 论文搜索、BM25 基线的对比。
+---
+
+import Figure from '../../../../components/Figure.astro';
+import quality from '../../../../../../docs/assets/litsearch-quality.svg';
+
+在一次条件对齐、结果已经冻结的 LitSearch 测试里，Scholar 前五条的命中率比 Exa 论文搜索高 10 个百分点，前二十条高 6 个百分点。
+
+<Figure src={quality} alt="Scholar、Exa 和 BM25 在 k = 5、10、20 时的 LitSearch 命中率" />
+
+| 系统 | Hit@5 | Hit@10 | Hit@20 | MRR |
+|---|---:|---:|---:|---:|
+| **Scholar** | **0.62** | **0.68** | **0.70** | **0.442** |
+| Exa `research paper` | 0.52 | 0.58 | 0.64 | 0.435 |
+| BM25 `title + abstract` | 0.46 | 0.46 | 0.56 | 0.335 |
+
+前五条里，有 9 个查询 Scholar 命中而 Exa 没有，反过来有 4 个。
+
+## 指标
+
+Hit@k 是前 k 条中至少含一篇标准答案的查询所占比例。Recall@k 不同，它衡量每个查询找回了全部相关论文的几成。MRR 是首个命中位置倒数的平均值，未命中记 0。冻结的汇总文件中，命中率仍沿用旧字段名 `R@k`。
+
+## 协议
+
+三个系统用同样的 50 条 LitSearch inline-ACL 查询、同样的标准答案、同样的标题匹配方法，都只看前 20 条。
+
+- **Exa** 用 `research paper` 类别。
+- **Scholar** 用默认的搜索流程和 Qwen 排序。
+- **BM25** 沿用 LitSearch 官方的标题加摘要做法，即小写分词、去除英文停用词、Porter 词干提取，在 6.4 万篇论文上运行 `BM25Okapi`。
+
+Scholar 和 Exa 的结果是 2026 年 5 月 12 日采的，BM25 是 2026 年 8 月 25 日复现的。
+
+## 数据
+
+冻结的汇总、BM25 原始结果和哈希清单都在仓库里。
+
+- [`litsearch-inline-acl-50.json`](https://github.com/Liyux3/scholar-mcp/blob/main/docs/benchmarks/litsearch-inline-acl-50.json)
+- [`bm25_title_abstract_inline_acl_50.jsonl`](https://github.com/Liyux3/scholar-mcp/blob/main/docs/benchmarks/bm25_title_abstract_inline_acl_50.jsonl)
+- [`bm25_title_abstract_inline_acl_50.summary.json`](https://github.com/Liyux3/scholar-mcp/blob/main/docs/benchmarks/bm25_title_abstract_inline_acl_50.summary.json)

@@ -1,0 +1,108 @@
+---
+title: Quickstart
+description: Install Scholar, connect your agent and run a first search in a few minutes. No account or API key needed.
+---
+
+import { Aside, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+
+Scholar is a local MCP server that runs on the same computer as your agent. This page uses Claude Code as the example. Other clients follow the same steps, and [Install in your client](/scholar-mcp/clients/) has their configuration.
+
+<Steps>
+
+1. ## Install uv
+
+   Scholar runs through [uv](https://docs.astral.sh/uv/), which prepares a separate Python 3.12 for it. If `uv --version` already works, skip this step.
+
+   <Tabs syncKey="os">
+   <TabItem label="macOS and Linux">
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+   </TabItem>
+   <TabItem label="Windows">
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+   </TabItem>
+   </Tabs>
+
+2. ## Connect your agent
+
+   <Tabs syncKey="install">
+   <TabItem label="Scholar CLI">
+   Install the `scholar-mcp` command, then let it write the client configuration.
+
+   ```bash
+   uv tool install --python 3.12 \
+     --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
+     "scholar-mcp[rerank]"
+   scholar-mcp install claude-code
+   ```
+
+   `install` backs up a file before changing it and can be run again safely. `--all` configures every client it detects, `--dry-run` only shows the change, and `--profile research` adds the citation graph and paper library. Later, one `scholar-mcp update` upgrades every client.
+   </TabItem>
+   <TabItem label="Manual">
+   To skip installing the command, register the server with uvx. On first launch uvx prepares Python 3.12 and the local ranking model.
+
+   ```bash
+   claude mcp add scholar -- uvx --python 3.12 \
+     --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
+     --from 'scholar-mcp[rerank]' scholar-mcp
+   ```
+
+   This registers the six core tools for the current project. `--scope user` makes it apply to every project, and `-e SCHOLAR_MCP_EXTENSIONS=research` before `--` adds the citation graph and paper library.
+   </TabItem>
+   <TabItem label="Ask your agent">
+   Works in any client, including ones not listed anywhere on this site. Paste this into your agent:
+
+   ```text
+   Install Scholar MCP into the client you are running in, following
+   https://raw.githubusercontent.com/Liyux3/scholar-mcp/main/llms-install.md
+   Then tell me to restart, and check that search_papers is available.
+   ```
+
+   The guide tells the agent which command to start and how common clients write it down, so the agent works out its own client's format.
+   </TabItem>
+   </Tabs>
+
+3. ## Check the connection
+
+   Start a new Claude Code session and run `/mcp`. `scholar` should show as connected. In a terminal, `scholar-mcp doctor` shows the version, the registered clients, and which sources and ranking model are available.
+
+4. ## Ask a research question
+
+   Ask the way you would ask a colleague. The agent chooses the tools itself.
+
+   ```text
+   Find recent work on evaluating long-term memory in LLM agents,
+   read the most cited one and compare its benchmarks.
+   ```
+
+   The agent searches with `search_papers`, opens the chosen paper with `read_paper` and answers from the text. Follow up with *who cites this?* or *save these three to the memory collection*.
+
+5. ## Add API keys when needed
+
+   Every key is optional. Keys widen coverage and raise limits. Save each one once with `scholar-mcp keys set NAME` and every client uses it, or put them in the `env` block of one client's configuration.
+
+   ```json title="Server environment"
+   "env": {
+     "S2_API_KEY": "your-semantic-scholar-key",
+     "OPENALEX_API_KEY": "your-openalex-key",
+     "DASHSCOPE_API_KEY": "your-dashscope-key"
+   }
+   ```
+
+   If you add only two, make them the free ones that lift the tightest limits: an OpenAlex key (without one OpenAlex allows about a hundred searches a day) and a registered OpenAIRE service, `OPENAIRE_CLIENT_ID` and `OPENAIRE_CLIENT_SECRET` (60 requests an hour without it, 7,200 with it). A Semantic Scholar key raises its limits and enables snippet search and recommendations. An OpenAlex key is used for its keyword search, semantic search and citation data. A DashScope key moves ranking to the cloud Qwen3 reranker. All variables are in [Configuration](/scholar-mcp/configuration/).
+
+</Steps>
+
+<Aside type="tip" title="Research profile">
+The core profile has six tools. Literature reviews usually also want `build_paper_graph` and `paper_library`. Add `--profile research` when installing, or set `SCHOLAR_MCP_EXTENSIONS=research`. The Claude Code and Codex plugins enable it by default and include the Deep Research skill.
+</Aside>
+
+## Next steps
+
+<div class="sc-cards-2">
+	<LinkCard title="Research workflows" description="Search, screen, read and save, quickly and well." href="/scholar-mcp/research-workflows/" />
+	<LinkCard title="Command line" description="Every tool in the terminal, plus install, doctor and update." href="/scholar-mcp/cli/" />
+</div>

@@ -17,6 +17,17 @@ def _paper(title="A Paper", year=2020, cites=10, abstract="An abstract."):
             "url": "https://example.com", "source": "openalex"}
 
 
+def test_agent_notes_and_human_notes_are_independent(tmp_path):
+    paper = {**_paper(), "notes": "Agent evidence with page references."}
+    path = vault.write_note(paper, base_dir=tmp_path)
+    assert "## Research notes\n\nAgent evidence" in path.read_text()
+    path.write_text(path.read_text() + "My own interpretation.\n")
+    vault.write_note({**paper, "notes": "Updated evidence."}, base_dir=tmp_path)
+    result = path.read_text()
+    assert "Updated evidence." in result and "My own interpretation." in result
+    assert "Agent evidence" not in result
+
+
 class TestNoteName:
     def test_strips_filesystem_unsafe_characters(self):
         assert "/" not in vault.note_name("Retrieval/Generation: A Survey")
@@ -221,7 +232,7 @@ class TestCitationRelations:
             {"title": "Citing Work", "doi": "10.1/a", "authors": []},
             {"title": "Cited Work", "doi": "10.1/b", "authors": []},
         ]
-        monkeypatch.setattr(vault.s2_client, "get_references",
+        monkeypatch.setattr(vault.s2, "get_references",
                             lambda pid, limit=100:
                             [{"title": "Cited Work"}] if pid == "10.1/a" else [])
 
@@ -234,7 +245,7 @@ class TestCitationRelations:
         with no note would produce a wikilink to nothing.
         """
         papers = [{"title": "Citing Work", "doi": "10.1/a", "authors": []}]
-        monkeypatch.setattr(vault.s2_client, "get_references",
+        monkeypatch.setattr(vault.s2, "get_references",
                             lambda pid, limit=100: [{"title": "Some Paper Elsewhere"}])
         assert vault.build_citation_relations(papers, max_workers=1) == {}
 
@@ -250,7 +261,7 @@ class TestCitationRelations:
                 raise RuntimeError("S2 down")
             return [{"title": "Cited Work"}] if pid == "10.1/a" else []
 
-        monkeypatch.setattr(vault.s2_client, "get_references", refs)
+        monkeypatch.setattr(vault.s2, "get_references", refs)
         relations = vault.build_citation_relations(papers, max_workers=1)
         assert "Broken" not in relations
         assert relations["Working"]["foundations"][0]["title"] == "Cited Work"
@@ -263,7 +274,7 @@ class TestCitationRelations:
             {"title": "Citing Work", "doi": "10.1/a", "authors": []},
             {"title": "Attention Is All You Need", "doi": "10.1/b", "authors": []},
         ]
-        monkeypatch.setattr(vault.s2_client, "get_references",
+        monkeypatch.setattr(vault.s2, "get_references",
                             lambda pid, limit=100:
                             [{"title": "Attention is all you need."}] if pid == "10.1/a" else [])
         relations = vault.build_citation_relations(papers, max_workers=1)
@@ -271,6 +282,6 @@ class TestCitationRelations:
 
     def test_export_leaves_citations_alone_unless_asked(self, monkeypatch, tmp_path):
         monkeypatch.setattr(vault, "DEFAULT_VAULT_DIR", str(tmp_path))
-        monkeypatch.setattr(vault.s2_client, "get_references",
+        monkeypatch.setattr(vault.s2, "get_references",
                             lambda *a, **kw: pytest.fail("should not call S2"))
         vault.export_collection([{"title": "A Paper", "authors": []}], collection="c")

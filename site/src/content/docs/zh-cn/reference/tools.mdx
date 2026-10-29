@@ -1,0 +1,154 @@
+---
+slug: zh-cn/tools
+title: MCP 工具
+description: Scholar 的所有 MCP 工具：参数、默认值和返回内容。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+工具不多：六个核心工具管找、看、读，研究工具集再加上引用图谱和文献库。每次返回有两份同样的数据：一份是给模型看的简洁 YAML 文本，一份是结构化内容，给能读它的客户端用。
+
+| 工具集 | 工具 | 职责 |
+|---|---|---|
+| 核心 | [`search_papers`](#search_papers) | 多源搜索、筛选、排序，并顺着引用多找一轮 |
+| 核心 | [`paper_info`](#paper_info) | 一篇论文的详情、被引和参考文献，按需一次拿 |
+| 核心 | [`recommend_papers`](#recommend_papers) | 按内容相似和引用关系找相关工作 |
+| 核心 | [`search_authors`](#search_authors) | 作者资料、所属机构、论文数和 h 指数 |
+| 核心 | [`read_paper`](#read_paper) | 读正文、表格和指定的图，默认第 1 到 10 页 |
+| 核心 | [`download_paper`](#download_paper) | 存下 PDF，并记进一个集合 |
+| 研究 | [`build_paper_graph`](#build_paper_graph) | 限定范围的引用图谱，含 PageRank、桥接论文和 Mermaid 图 |
+| 研究 | [`paper_library`](#paper_library) | 集合、全文搜索、笔记、标签和导出 |
+
+每条结果都有一个 `id`。Scholar 给出的任何标识符都能传给任何工具：DOI、`arXiv:2303.04137` 这样的 arXiv ID，以及 Semantic Scholar、OpenAlex、OpenReview 和 Google Scholar 的 ID。论文链接和准确标题也行。读和下载会先用最近结果里已经合并好的记录，找不到才重新去查。
+
+## 工具集
+
+默认只有核心工具集。在服务器环境里设置 `SCHOLAR_MCP_EXTENSIONS=research` 加上 `build_paper_graph` 和 `paper_library`，设成 `graph` 或 `paper_library` 只加其中一个。[安装命令](/scholar-mcp/zh-cn/cli/#install-和-uninstall)用 `--profile research` 写这一项。
+
+所有工具都会请 Claude Code 在启动时直接载入，而不是放在工具搜索后面，这样模型一开始就知道能用哪些工具。八个工具的定义合计约 2,800 tokens。若想延后载入，在服务器条目里加 `"alwaysLoad": false`。
+
+## search_papers
+
+找能回答一个研究问题、或对上一个模糊印象的论文。同时搜多个数据源，合并重复，从最相关的几篇顺着引用再找一轮，最后统一排序。只读。
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `query` | string | 必填 | 问题、主题、记得的原话或标题 |
+| `limit` | integer | `10` | 最多返回的结果数，1 到 100 |
+| `year` | string | | 年份或年份范围，例如 `"2023"` 或 `"2020-2024"` |
+| `venue` | string | | 会议或期刊，例如 `"NeurIPS"` 或 `"Nature"` |
+| `fields_of_study` | string | | 逗号分隔的学科领域，例如 `"Computer Science,Mathematics"` |
+| `paper_types` | string | 全部 | 逗号分隔的类型：`JournalArticle`、`Conference`、`Review`、`Book`、`Dataset`、`CourtDecision`、`ClinicalTrialRegistration` |
+| `min_citations` | integer | `0` | 最低引用数 |
+| `open_access_only` | boolean | `false` | 只要能免费拿到 PDF 的论文 |
+| `sort` | string | `"relevance"` | 最终排序，硬性替换：`relevance`、`citations` 或 `date` |
+| `intent` | string | `"balanced"` | 排序偏向，相关性仍然算数：`balanced`、`foundational`、`recent`、`survey`、`method` 或 `dataset` |
+| `debug` | boolean | `false` | 附上每个数据源的状态、耗时、来源和排序细节 |
+
+返回 `results`，每条有 `title`、最多五位 `authors`、`year`、`venue`、`citations`、缩短的 `abstract` 和 `id`，知道的话还有 `doi`、`url`、`tldr` 和 `open_access`。有数据源没响应、影响了结果时，会带一句 `warning`。加 `debug=true` 时，`_meta` 里有数据源覆盖、实际用的排序模型、每个数据源的条数和耗时，以及每条结果的来源和分数。
+
+筛选条件作用于整个候选池，包括顺着引用找到的论文，最后才截取条数。
+
+## paper_info
+
+看一篇论文的信息，以及它引用了谁、谁引用了它。只读。
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `paper_id` | string | 必填 | DOI、`arXiv:ID`、Semantic Scholar ID 或 OpenAlex 的 `W` ID |
+| `include` | string | `"detail"` | 逗号分隔：`detail`、`citations`、`references` |
+| `limit` | integer | `20` | 被引和参考文献的最大数量，1 到 100，分别作用于每个列表 |
+
+返回 `paper` 的完整详情（知道的话包括出版类型和日期、所有标识符、PDF 链接和学科），`citations` 是引用它的论文，`references` 是它引用的论文，都按引用数排序。
+
+## recommend_papers
+
+围绕一篇论文找相关工作，也能找到跨领域的联系。只读。
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `paper_id` | string | 必填 | 种子论文的标识符 |
+| `relation` | string | `"similar"` | `similar` 内容相近，`peers` 常和它一起被引用，`kin` 和它引用了同一批文献 |
+| `limit` | integer | `10` | 最多返回的结果数，1 到 100 |
+
+返回 `relation`、种子论文标题 `seed`、`papers` 和 `total`。要直接的引用列表，用 `paper_info`。
+
+## search_authors
+
+找研究者，看所属机构和发表数据。同名的人可以靠机构区分。只读。
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `query` | string | 必填 | 作者姓名 |
+| `limit` | integer | `5` | 最多返回的结果数，1 到 1000 |
+
+返回 `authors`，每条有姓名、Semantic Scholar 作者 ID 和主页、所属机构、论文数、引用数和 h 指数。
+
+## read_paper
+
+读论文正文，看图和表，或者跳到附录。Scholar 优先复用已保留的副本，新下载的临时文件在读完后清理。只读。
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `paper_id` | string | 必填 | 论文标识符 |
+| `pages` | string | `"1-10"` | 页码范围，从 1 开始，一次最多 20 页。读附录用 `"11-20"` |
+| `visual` | string | | 之前返回的图表名字，例如 `"Figure 3"`、`"Table 2"` 或 `"page 5"` |
+
+`content` 里是按页标好的 Markdown，另有已读的 `pages` 和总页数 `total_pages`。表格识别可靠时给结构化表格，同时列出每张图的名字，表格也能看图片版。用 `visual` 时，还会附上那一块页面的截图和文字。默认范围通常能读到一篇 AI 会议论文的结论。
+
+常见的十页会完整返回。每次最多 100,000 字，在页边界截断。这个工具会告诉 Claude Code 自己的结果有多大，所以它会完整保留。Codex 会把超过约 48 KB 的结果从中间截掉，所以在 Codex 里每次读到 36,000 字就停，`scholar-mcp install` 也会为这个工具调高它的上限。没读完时，`next_pages` 告诉你下一次读哪几页。`SCHOLAR_READ_CHAR_BUDGET` 对所有客户端统一设上限，包括 Codex，设成 `0` 不限。`copy` 说明读的是哪份副本、什么版本（`published` 正式版、`accepted` 接受稿或 `preprint` 预印本），因为预印本可能和正式发表的版本不同。
+
+PDF 无法取得时，Scholar 还可以读取 PMC 收录的原始结构化正文。结果标为 `format: jats`，保留来源、版本、原始章节 ID 和图表；`pages`、`total_pages` 均为 `null`。按返回的 `next_pages` 继续阅读，或把章节的 `xml:ID` 传入 `pages` 直接定位。来源提供原图时，图表选择器会返回原始图片，`image_source` 记录它的地址、摘要校验值和尺寸。
+
+## download_paper
+
+把论文的 PDF 存到本地。Scholar 找到可下载的副本后先写入临时文件，确认是完整的 PDF 才移到正式位置，本地已有完好副本时直接复用。会写入文件。
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `paper_id` | string | 必填 | 论文标识符 |
+| `save_dir` | string | 下载目录 | 存到哪，默认是 `SCHOLAR_DOWNLOAD_DIR`，或 `<data>/papers` |
+| `collection` | string | `"downloads"` | 记进文献库的哪个集合，留空就不记 |
+
+返回文件的完整路径、是不是新记进文献库的，以及进了哪个集合。设置了 `SCHOLAR_OBSIDIAN_VAULT` 时，Obsidian 里这个集合也会刷新。结果标明副本版本，升级时使用独立文件，保留旧副本和其中的批注。
+
+## build_paper_graph
+
+仅研究工具集提供。从一组种子论文出发顺着引用往外扩，画出一条研究脉络。只读。
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `paper_ids` | string | 必填 | 逗号分隔的种子：DOI、arXiv、OpenAlex、Semantic Scholar ID 或准确标题 |
+| `max_hops` | integer | `1` | 往外扩几层，1 到 3 |
+| `max_papers` | integer | `30` | 最多多少篇，5 到 100 |
+| `direction` | string | `"both"` | 往哪边扩：`citations`、`references` 或 `both` |
+| `min_citations` | integer | `0` | 扩进来的论文至少多少引用 |
+| `topic_filter` | string | | 一个主题短语，防止图跑题 |
+
+返回 `nodes`、`edges`、PageRank 分数、桥接论文和一张 Mermaid 图，以及认出的种子 `seeds` 和没认出的 `unresolved`。
+
+## paper_library
+
+仅研究工具集提供。保存论文、划分集合、记录笔记，让研究跨会话延续。会改动已存记录，`remove` 为永久删除。
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `action` | string | `"list"` | `save`（或 `add`）、`get`、`list`、`search`、`update`、`remove`、`collections` 或 `export` |
+| `paper_ids` | string | | 逗号分隔的标识符，用于 `save`、`get`、`update` 和 `remove` |
+| `paper_titles` | string | | `save` 时没有标识符，可以给准确标题 |
+| `collection` | string | `"default"` | 集合名称 |
+| `query` | string | | `search` 的全文查询 |
+| `notes` | string | | `save` 和 `update` 的笔记 |
+| `tags` | string | | `save` 和 `update` 的逗号分隔标签 |
+| `limit` | integer | `20` | 最多返回的论文数 |
+| `link_citations` | boolean | `false` | 导出时取回参考文献，按真实引用关系把笔记连起来 |
+
+`export` 写出一个 Obsidian 能打开的 Markdown 仓库。每次读之前，会先读回你在 Markdown 文件或 Notion 研究笔记里的修改。挂 PDF 用 `download_paper`。完整用法见[文献库](/scholar-mcp/zh-cn/paper-library/)。
+
+## scholar://status
+
+这是一个资源，不是工具，所以不占模型的工具列表。它告诉你服务器版本、核心工具和已打开的扩展、可用的搜索和引用数据源、有没有设 Semantic Scholar 密钥、实际用的排序模型（换成本地时附原因），以及从最近调用中发现的问题。
+
+<Aside>
+搜索成功不代表云端排序模型真的跑了。读 `scholar://status`，或者加 `debug=true` 搜一次，就能看到用的是谁、哪个模型，以及换成本地的原因。
+</Aside>

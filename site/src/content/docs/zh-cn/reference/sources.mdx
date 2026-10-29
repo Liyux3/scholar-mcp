@@ -1,0 +1,63 @@
+---
+slug: zh-cn/sources
+title: 数据源
+description: Scholar 搜索哪些学术数据源、如何向每个数据源提问，以及如何在本机检查。
+---
+
+一个问题会同时发给适合当前任务、当前可用的数据源，结果汇入同一个候选池。密钥可启用额外索引或提高提供方的限额。地区、专业和数据集来源按问题及筛选条件加入。慢的数据源保留自己的队列，已取得的结果仍可使用。
+
+| 分组 | 数据源 | 用途 |
+|---|---|---|
+| 综合索引 `index` | OpenAlex、Semantic Scholar、Crossref、Scopus（需密钥） | 覆盖最广，也用来认出同一篇论文，补全引用数和筛选所需的信息 |
+| 语义 `semantic` | OpenAlex 语义搜索、arxiv.gg、Exa（需密钥） | 原样接收整句问题，按意思匹配而不是按字面 |
+| 全文 `fulltext` | Semantic Scholar 片段搜索 | 在开放论文的正文里找匹配的段落 |
+| 预印本 `preprint` | arXiv、OpenReview | 最新工作和会议投稿 |
+| 学科 `discipline` | PubMed、Europe PMC、DBLP、INSPIRE-HEP、zbMATH Open、ERIC、CourtListener、ClinicalTrials.gov、OpenEdition | 医学生物、计算机、物理、数学、教育、美国判例、试验登记与人文研究 |
+| 开放仓库 `repository` | OpenAIRE、HAL、DOAJ、CORE（需密钥） | 机构仓库和开放期刊 |
+| 网页 `web` | Google Scholar | 普通 HTTP 搜索，可选会话恢复 |
+| 地区 `regional` | CiNii Research | 问题含日文假名时加入，覆盖 J-STAGE、KAKEN 和国会图书馆的记录 |
+| 数据集 `dataset` | Zenodo | 只在 `intent="dataset"` 时加入 |
+| 按密钥启用 | NASA ADS、Springer Nature、Web of Science Starter、Lens | 设好各自的密钥后加入每次搜索，见[配置](/scholar-mcp/zh-cn/configuration/) |
+
+关键词数据源收到的关键词，长度按各自实测效果截取，语义数据源收到原句。Semantic Scholar 和 OpenAlex 不用密钥也能搜，加了密钥限额更高。
+
+查找引用时，Semantic Scholar、OpenAlex、Crossref 登记的参考文献、Europe PMC 的引用关系和 INSPIRE-HEP 汇成同一张图。
+
+Zenodo 是最大的通用数据仓库，但其中的论文记录太杂，噪声多于价值，所以平时只用来找 PDF，找数据集时才参与搜索。
+
+## 在本机检查
+
+```bash
+scholar-mcp sources
+```
+
+列出每个数据源在当前配置下是否可用、提问方式、覆盖领域，以及是否支持搜索、单篇查询、被引、参考文献和查找 PDF。
+
+```bash
+scholar-mcp sources --check
+scholar-mcp sources --check --source arxiv --query "retrieval augmented generation"
+```
+
+`--check` 向每个已配置的数据源发一次小搜索，报告状态、条数和耗时，不显示凭据。`--source` 只检查一个。请求失败与搜索成功但无结果会分开列出。要一次探测所有链路，包括被引、参考文献、排序模型和 PDF，运行 [`scholar-mcp doctor --network`](/scholar-mcp/zh-cn/cli/#doctor) 即可。
+
+## 请求如何排队
+
+每个数据源各有一条队列。多个查询发往同一数据源时，它一次只处理一个，依次进行，并遵守该数据源允许的节奏（例如 arXiv 要求两次请求间隔 3 秒）。不同数据源之间并行，慢的只拖慢自己那一条队列。查被引、查参考文献和找 PDF 也走同样的队列，到时限就收工，不会被某个卡住的数据源拖住。每家数据源公布的限速集中写在一张表里，Scholar 发给它的每个请求都遵守，无论搜索、查引用还是补全信息，也无论本机上有几个智能体在用。计数方式和数据源一致，没有 key 时按地址算，有 key 时按 key 算，所以数据源给 key 更高额度时，加 key 就能提速。某个数据源的小时或每日额度用完时，这次搜索会跳过它而不是干等，`scholar-mcp doctor` 会指出来。实验室这类多台机器共用一个出口地址的场景，最好共用一台 Scholar 服务器（`scholar-mcp serve --http`）。
+
+第一轮排序会挑出最相关的几篇作为起点（种子），再沿引用扩展。挑种子前最多等待 30 秒，可用 `SCHOLAR_SOURCE_BUDGET_S` 调整。届时未返回的数据源先记为超时，但请求不会作废。若它在引用扩展期间返回，会在最终排序前并入候选池，报告中的状态也随之更新。检索、扩展和元数据共用 40 秒的获取窗口，给最终排序留出时间。请求中断时，已经取得的页面仍可复用。
+
+## Google Scholar 会话恢复
+
+Google Scholar 走普通 HTTP。它要求验证时，可选的 `google` 扩展会自动恢复会话。装好 Chrome、Edge 或 Chromium 和 ffmpeg，在服务器命令中改用 `scholar-mcp[google,rerank]` 即可。
+
+独立 worker 复用与路线、浏览器和运行模式绑定的私有配置。验证后的浏览器页面直接进入解析，普通 HTTP 保持自己的 Cookie。默认先无头运行，macOS 还可使用隐藏页面。部分 Chromium 版本需要一个临时、已最小化的引导窗口，隐藏页面建立后立即关闭。获取窗口限制整个恢复过程，验证失败不会累积成人为的重试冻结；宿主适配器可通过已配置的路线修复访问。
+
+`SCHOLAR_GOOGLE_RECOVERY=off` 关闭恢复，`headless` 只允许无窗口运行，`headed` 允许弹出验证窗口。`SCHOLAR_GOOGLE_BROWSER` 用于指定装在非标准位置的浏览器。服务器启动时不会下载浏览器。翻页中途中断时，已取得的页面仍可使用。
+
+ERIC 提供教育研究的作者、年份、发表来源和 DOI。CourtListener 保留法院、案号、日期和法律引注。ClinicalTrials.gov 区分试验登记、计划结局与已发表的结果论文，并提供方案及关联论文。OpenEdition 搜索期刊和图书，排除博客及活动通知；章节保留自己的身份，图书 ISBN 只作为容器信息。
+
+`paper_types="CourtDecision"` 选择判例，`"ClinicalTrialRegistration"` 选择试验登记。这两种明确范围只查询对应的原生来源，结果保留资料类型；引用关系以提供方实际开放的能力为准。
+
+## 添加数据源
+
+所有数据源登记在同一张表中，并写明各自的能力。新数据源可加入搜索、单篇查询、引用或查找 PDF，无需新增 MCP 工具。连接器应包含的内容见[贡献指南](https://github.com/Liyux3/scholar-mcp/blob/main/CONTRIBUTING.md)。

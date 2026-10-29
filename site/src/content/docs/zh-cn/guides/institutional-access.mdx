@@ -1,0 +1,43 @@
+---
+slug: zh-cn/institutional-access
+title: 机构访问
+description: 使用学校 EZproxy 前缀与从已登录浏览器导出的 Cookie 配置图书馆访问。
+---
+
+`download_paper` 和 `read_paper` 并行寻找开放副本，并优先使用到手的出版商正式版。对于学校订阅的论文，Scholar 也可以使用学校的 EZproxy 前缀，以及你从已登录浏览器导出的 Cookie。
+
+## 配置图书馆
+
+1. 从图书馆的代理链接或书签工具中复制登录前缀，通常以 `url=` 或 `qurl=` 结尾，例如 `https://proxy.library.example.edu/login?url=`。
+2. 在浏览器中登录图书馆，打开一篇学校已订阅的论文。
+3. 将代理域名的 Cookie 导出为 Netscape `cookies.txt` 格式，存放在私密位置。
+4. 在启动 Scholar 的环境中设置以下变量。使用 MCP 客户端时，把它们加入服务器配置的 `env` 字段。
+
+```bash
+export LIBRARY_PROXY_PREFIX="https://proxy.library.example.edu/login?url="
+export LIBRARY_PROXY_COOKIES="$HOME/private/library-cookies.txt"
+```
+
+Scholar 只加载属于该代理的 Cookie，并将 HTTP 重定向中的 Cookie 限定在代理域名范围内；工具结果中不会输出 Cookie 值。MCP 工具、Python API 和 CLI 研究命令共用这些设置。
+
+```bash
+scholar-mcp read '10.xxxx/a-paper-your-library-licenses'
+```
+
+旧配置 `LIBRARY_PROXY_BASE` 仍可代替完整前缀。`LIBRARY_PROXY_COOKIE` 接受原始 Cookie 请求头，备用文件为 `<data>/library_cookie.txt`。
+
+## 版本与下载结果
+
+当开放副本没有提供正式版时，图书馆通道会加入获取过程。图书馆通道失败时，已有的免费作者稿仍可返回。下载结果会说明实际拿到的副本和版本，文件保存前会先验证确实是 PDF。
+
+## 更新过期会话
+
+会话按图书馆的规则过期。代理返回登录页时，Scholar 会提示导出的会话需要更新。在浏览器中重新登录、导出新的 Cookie 文件，再重试该论文即可。
+
+出版商要求浏览器验证，或学校没有订阅该论文时，结果会注明原因，并提供可直接打开的图书馆链接。实际访问范围取决于学校订阅和你提供的会话。
+
+## 使用与浏览器一致的网络路径
+
+部分图书馆会把会话与你登录时的网络出口绑定。若终端走 HTTP 代理、浏览器直连，可将图书馆代理主机名及其子域名加入 `NO_PROXY`，使 Scholar 走相同路径。
+
+变量说明见[配置](/scholar-mcp/zh-cn/configuration/)，各客户端的配置位置见[客户端](/scholar-mcp/zh-cn/clients/)。

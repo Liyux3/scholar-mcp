@@ -19,10 +19,13 @@ computable from OpenAlex, which returns `referenced_works` inline.
 
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
 
-from . import openalex_client as oa
-from . import s2_client
-from .relevance import _normalize_title
+import httpx
+
+from . import records as record_ops
+from .sources import openalex as oa
+from .sources import s2
 
 OA_BASE = "https://api.openalex.org/works"
 
@@ -45,7 +48,7 @@ def _wid(paper_id: str, title: str = "") -> str | None:
     return oa._resolve_to_wid(paper_id, title=title)
 
 
-def _fetch_works(wids: list[str], fields: str = "id,title,cited_by_count,publication_year,doi") -> dict:
+def _fetch_works(wids: list[str], fields: str = oa.OA_SELECT_FIELDS) -> dict:
     """Batch-resolve OpenAlex ids to work records, keyed by full id.
 
     Ids that OpenAlex no longer serves are recovered through Semantic Scholar
@@ -92,7 +95,7 @@ def _recover_dead_works(wids: list[str]) -> dict:
 
     def lookup(wid: str) -> tuple[str, dict] | None:
         try:
-            paper = s2_client.get_paper(f"MAG:{wid[1:]}")
+            paper = s2.get_paper(f"MAG:{wid[1:]}")
         except Exception:
             return None
         if not paper or not paper.get("title"):
@@ -104,29 +107,24 @@ def _recover_dead_works(wids: list[str]) -> dict:
             "cited_by_count": paper.get("citation_count") or 0,
             "publication_year": paper.get("year"),
             "doi": f"https://doi.org/{doi}" if doi else None,
+            "_recovered_paper": paper,
         }
 
     # S2 serialises behind a 1.05s gate, so a serial loop over seven dead ids
     # costs eight seconds. The gate still spaces the requests; overlapping the
     # waiting is what saves the time.
     with ThreadPoolExecutor(max_workers=min(len(candidates), 8)) as pool:
-        return dict(entry for entry in pool.map(lookup, candidates) if entry)
+        return dict(entry for future in [pool.submit(copy_context().run, lookup, wid) for wid in candidates]
+                    if (entry := future.result()))
 
 
 def _as_paper(work: dict, relation: str, strength: int) -> dict:
-    doi = (work.get("doi") or "").replace("https://doi.org/", "")
-    return {
-        "paper_id": doi or work["id"].split("/")[-1],
-        "title": work.get("title") or "",
-        "year": work.get("publication_year"),
-        "citation_count": work.get("cited_by_count") or 0,
-        "external_ids": {**({"DOI": doi} if doi else {}),
-                         "OpenAlex": work["id"].split("/")[-1]},
-        "url": work.get("id") or "",
-        "source": "openalex",
-        "_relation": relation,
-        "_relation_strength": strength,
-    }
+    paper = dict(work['_recovered_paper']) if work.get('_recovered_paper') else oa.format_paper(work)
+    if work.get('_recovered_paper'):
+        paper.update(source='openalex', _metadata_source='semantic_scholar')
+    paper.update(_relation=relation, _relation_strength=strength,
+                 _relation_support={work['id']: strength})
+    return paper
 
 
 def _materialise(candidates: list[tuple[str, int]], relation: str, limit: int) -> list[dict]:
@@ -145,27 +143,13 @@ def _materialise(candidates: list[tuple[str, int]], relation: str, limit: int) -
     """
     works = _fetch_works([ref.split("/")[-1] for ref, _ in candidates])
 
-    merged: dict[str, dict] = {}
+    papers = []
     for ref, strength in candidates:
         work = works.get(ref)
         if not work or not work.get("title"):
             continue
-        paper = _as_paper(work, relation, strength)
-        key = _normalize_title(paper["title"])
-        if not key:
-            continue
-        existing = merged.get(key)
-        if existing is None:
-            merged[key] = paper
-            continue
-        # Same paper, two records. Keep the better-attested one and add the
-        # votes that were split off onto the duplicate.
-        existing["_relation_strength"] += strength
-        if (paper.get("citation_count") or 0) > (existing.get("citation_count") or 0):
-            paper["_relation_strength"] = existing["_relation_strength"]
-            merged[key] = paper
-
-    out = sorted(merged.values(), key=lambda p: -p["_relation_strength"])
+        papers.append(_as_paper(work, relation, strength))
+    out = sorted(record_ops.deduplicate(papers), key=lambda p: -p['_relation_strength'])
     return out[:limit]
 
 
@@ -183,18 +167,14 @@ def co_citation(paper_id: str, title: str = "", limit: int = 20,
     if not wid:
         return []
 
-    params = oa._params_base()
-    params["filter"] = f"cites:{wid}"
-    params["sort"] = "cited_by_count:desc"
-    params["per_page"] = min(sample, 100)
-    params["select"] = "id,referenced_works"
-    response = oa._request(OA_BASE, params)
-    if response.status_code != 200:
+    try:
+        citing = oa.citing_works(wid, max(50, min(sample, 100)))[:min(sample, 100)]
+    except httpx.HTTPStatusError:
         return []
 
     seed_full_id = f"https://openalex.org/{wid}"
     counts = Counter()
-    for work in response.json().get("results", []):
+    for work in citing:
         for ref in work.get("referenced_works") or []:
             if ref != seed_full_id:
                 counts[ref] += 1
@@ -242,8 +222,8 @@ def bibliographic_coupling(paper_id: str, title: str = "", limit: int = 20) -> l
 
     counts = Counter()
     with ThreadPoolExecutor(max_workers=8) as pool:
-        for ids in pool.map(citers_of, sampled):
-            counts.update(ids)
+        for future in [pool.submit(copy_context().run, citers_of, ref) for ref in sampled]:
+            counts.update(future.result())
 
     seed_full_id = f"https://openalex.org/{wid}"
     candidates = [(wid_, n) for wid_, n in counts.most_common(limit * 3)

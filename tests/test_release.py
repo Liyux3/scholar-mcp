@@ -127,6 +127,7 @@ def test_readme_contains_valid_one_click_install_urls():
         "type": "stdio",
         "command": "uvx",
         "args": INSTALL_ARGS,
+        "env": {"SCHOLAR_MCP_EXTENSIONS": "research"},
     }
 
     cursor_match = re.search(r"cursor://anysphere\.cursor-deeplink/mcp/install\?[^\"]+", readme)
@@ -134,7 +135,8 @@ def test_readme_contains_valid_one_click_install_urls():
     cursor = parse_qs(urlparse(cursor_match.group().replace("&amp;", "&")).query)
     assert cursor["name"] == ["scholar"]
     assert json.loads(base64.b64decode(cursor["config"][0])) == {
-        "scholar": {"command": "uvx", "args": INSTALL_ARGS}
+        "scholar": {"command": "uvx", "args": INSTALL_ARGS,
+                    "env": {"SCHOLAR_MCP_EXTENSIONS": "research"}}
     }
 
     kiro_match = re.search(r"https://kiro\.dev/launch/mcp/add\?[^\"]+", readme)
@@ -146,6 +148,7 @@ def test_readme_contains_valid_one_click_install_urls():
         "args": INSTALL_ARGS,
         "disabled": False,
         "autoApprove": [],
+        "env": {"SCHOLAR_MCP_EXTENSIONS": "research"},
     }
 
 

@@ -1,0 +1,49 @@
+---
+title: Introduction
+description: Let your agent search papers, read the full text, follow citations to related work, and keep the useful papers in a local library.
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Say in one sentence what you are looking for, and your agent gets a ranked list of papers. It can then open a paper to read the text and figures, follow citations backward and forward, and save the useful papers and notes for the next session.
+
+Scholar works in Claude, Codex, Cursor, VS Code, Gemini CLI, OpenCode and any other MCP client. The same features are available from the [command line](/scholar-mcp/cli/) and [Python](/scholar-mcp/python/).
+
+<figure class="sc-demo" id="watch">
+	<video controls preload="metadata" playsinline poster="/scholar-mcp/media/scholar-film-poster.jpg">
+		<source src="/scholar-mcp/media/scholar-film.mp4" type="video/mp4" />
+	</video>
+</figure>
+
+## What it does
+
+<div class="sc-grid-3">
+<CardGrid>
+	<Card title="Search" icon="magnifier">
+		Ask a question, a remembered sentence or a title. Scholarly sources search in parallel, with optional keys for additional indexes, and the results come back deduplicated in one ranking.
+	</Card>
+	<Card title="Read" icon="open-book">
+		The text arrives as Markdown page by page, tables keep their structure, and any figure can be viewed on its own.
+	</Card>
+	<Card title="Library" icon="list-format">
+		Papers, notes, tags and PDFs stay on your machine with full-text search, and can sync to Obsidian, Zotero or Notion.
+	</Card>
+</CardGrid>
+</div>
+
+## How it differs
+
+**Many sources, one ranking.** Sources read a question differently. Semantic search needs the whole sentence, while keyword search works best with few precise words, so each source gets the form it handles best and all results go into one candidate pool. Records of the same paper in DOI, arXiv, Semantic Scholar, OpenAlex, PubMed and OpenReview merge into one. Scholar then follows citations from the most relevant papers and ranks everything once more with one model. On LitSearch the top-five hit rate is 0.62, ten points above Exa's paper search ([benchmarks](/scholar-mcp/benchmarks/)).
+
+**The full text, not only abstracts.** `read_paper` finds a downloadable PDF in archives, open repositories and preprint servers, reads pages 1 to 10 by default and lists every figure and table by name. Read again with that name and the agent sees the figure with the text around it.
+
+**A library that lasts beyond the session.** Saved papers keep stable identifiers, notes, tags and PDF paths in a local SQLite store with full-text search. The same records can be exported to Obsidian, synced to Zotero or published to Notion, and notes you edit there are read back the next time the agent reads the library.
+
+## Next steps
+
+<div class="sc-cards-2">
+	<LinkCard title="Quickstart" description="Install Scholar, connect your agent and run a first search." href="/scholar-mcp/quickstart/" />
+	<LinkCard title="Install in your client" description="Configuration for Claude, Codex, Cursor, VS Code and more." href="/scholar-mcp/clients/" />
+	<LinkCard title="Research workflows" description="How agents make good use of the tools." href="/scholar-mcp/research-workflows/" />
+	<LinkCard title="MCP tools" description="Every tool and parameter." href="/scholar-mcp/tools/" />
+</div>

@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import relevance
+from . import records as record_ops
 
 SCHEMA_VERSION = 1
 _SAFE_COLLECTION = re.compile(r"[^a-zA-Z0-9_-]")
@@ -31,7 +31,7 @@ def _identity_keys(record: dict) -> set[str]:
     if candidate.get("doi"):
         external.setdefault("DOI", candidate["doi"])
     candidate["external_ids"] = external
-    keys = relevance.paper_identity_keys(candidate)
+    keys = record_ops.paper_identity_keys(candidate)
     title = _title_key(candidate.get("title", ""))
     if title:
         keys.add(f"library_title:{title}")
@@ -39,38 +39,24 @@ def _identity_keys(record: dict) -> set[str]:
 
 
 def _merge_record(existing: dict, incoming: dict) -> tuple[dict, bool]:
-    merged = dict(existing)
-    changed = False
-    for field in (
-        "year", "publication_date", "paper_id", "canonical_id", "doi",
-        "venue", "tldr", "url", "open_access_url", "pdf_path", "source",
-    ):
-        if not merged.get(field) and incoming.get(field):
-            merged[field] = incoming[field]
-            changed = True
-    if len(str(incoming.get("abstract") or "")) > len(str(merged.get("abstract") or "")):
-        merged["abstract"] = incoming["abstract"]
-        changed = True
+    # Bibliographic identities and publication versions use the same merge as
+    # retrieval. Notes, tags and sync state stay under their existing ownership.
+    merged = {key: value for key, value in record_ops.merge_records(existing, incoming).items()
+              if not key.startswith('_') or key == '_citation_count_known'}
+    if doi := (merged.get('external_ids') or {}).get('DOI'):
+        merged['doi'] = doi
+    if incoming.get('pdf_path'):
+        incoming_version = record_ops.normalize_version(incoming.get('pdf_version'))
+        current_version = record_ops.normalize_version(existing.get('pdf_version'))
+        if not existing.get('pdf_path') or record_ops.PUBLICATION_VERSIONS.index(incoming_version) <= record_ops.PUBLICATION_VERSIONS.index(current_version):
+            merged.update(pdf_path=incoming['pdf_path'], pdf_version=incoming_version)
+    changed = merged != existing
     old_notes = str(merged.get("notes") or "")
     new_notes = str(incoming.get("notes") or "")
     if new_notes.strip() and f"\n\n{new_notes}\n\n" not in f"\n\n{old_notes}\n\n":
         # Saving more evidence must not erase earlier annotations. Explicit
         # update_annotations remains the operation for replacing a note.
         merged["notes"] = f"{old_notes}\n\n{new_notes}" if old_notes else new_notes
-        changed = True
-    if len(incoming.get("authors") or []) > len(merged.get("authors") or []):
-        merged["authors"] = incoming["authors"]
-        changed = True
-    if (
-        incoming.get("_citation_count_known")
-        and not merged.get("_citation_count_known")
-    ) or (incoming.get("citation_count") or 0) > (merged.get("citation_count") or 0):
-        merged["citation_count"] = incoming["citation_count"]
-        merged["_citation_count_known"] = incoming.get("_citation_count_known", True)
-        changed = True
-    identifiers = {**(incoming.get("external_ids") or {}), **(merged.get("external_ids") or {})}
-    if identifiers != (merged.get("external_ids") or {}):
-        merged["external_ids"] = identifiers
         changed = True
     tags = list(dict.fromkeys((merged.get("tags") or []) + (incoming.get("tags") or [])))
     if tags != (merged.get("tags") or []):
@@ -140,6 +126,16 @@ class LibraryStore:
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY(target, record_id)
             );
+            CREATE TABLE IF NOT EXISTS pdf_copies (
+                identity_key TEXT NOT NULL,
+                path TEXT NOT NULL,
+                source TEXT NOT NULL,
+                version TEXT NOT NULL,
+                url_digest TEXT NOT NULL,
+                sha256 TEXT NOT NULL,
+                saved_at TEXT NOT NULL,
+                PRIMARY KEY(identity_key, path)
+            );
             CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
                 title, abstract, authors, notes,
                 tokenize='unicode61 remove_diacritics 2'
@@ -183,11 +179,13 @@ class LibraryStore:
             return []
         placeholders = ",".join("?" for _ in keys)
         rows = connection.execute(
-            f"SELECT DISTINCT record_id FROM identifiers "
+            f"SELECT identity_key, record_id FROM identifiers "
             f"WHERE collection=? AND identity_key IN ({placeholders})",
             (collection, *sorted(keys)),
         ).fetchall()
-        return sorted(int(row["record_id"]) for row in rows)
+        strong = {int(row['record_id']) for row in rows
+                  if not row['identity_key'].startswith(('title:', 'library_title:'))}
+        return sorted(strong or {int(row['record_id']) for row in rows})
 
     def _replace_fts(self, connection: sqlite3.Connection, record_id: int, record: dict) -> None:
         connection.execute("DELETE FROM records_fts WHERE rowid=?", (record_id,))
@@ -199,7 +197,7 @@ class LibraryStore:
                 record.get("title", ""),
                 record.get("abstract", ""),
                 " ".join(record.get("authors") or []),
-                record.get("notes", ""),
+                "\n".join([record.get("notes", ""), record.get("personal_notes", "")]),
             ),
         )
 
@@ -210,6 +208,18 @@ class LibraryStore:
         if not keys:
             return False, False, 0
         matches = self._matching_ids(connection, collection, keys)
+        if matches:
+            strong = record_ops.paper_identity_keys(record, include_title=False)
+            candidates = connection.execute(
+                f'SELECT id,data_json FROM records WHERE id IN ({",".join("?" for _ in matches)})', matches).fetchall()
+            matches = []
+            for row in candidates:
+                candidate = self._load_record(row)
+                if (strong & record_ops.paper_identity_keys(candidate, include_title=False)
+                        or record_ops.compatible_title_match(candidate, record)):
+                    matches.append(row['id'])
+            if len(matches) > 1:
+                matches = []  # Ambiguous weak identity cannot absorb multiple saved works.
         added = updated = False
         now = _now()
         if matches:
@@ -220,17 +230,7 @@ class LibraryStore:
             merged, updated = _merge_record(self._load_record(row), record)
             record = merged
             if updated:
-                connection.execute(
-                    "UPDATE records SET canonical_id=?, title_key=?, data_json=?, updated_at=? "
-                    "WHERE id=?",
-                    (
-                        record.get("canonical_id", ""),
-                        _title_key(record.get("title", "")),
-                        json.dumps(record, ensure_ascii=False, default=str),
-                        now,
-                        record_id,
-                    ),
-                )
+                self._write_record(connection, record_id, record)
         else:
             added = True
             cursor = connection.execute(
@@ -252,8 +252,17 @@ class LibraryStore:
             "VALUES (?, ?, ?)",
             [(collection, key, record_id) for key in sorted(_identity_keys(record))],
         )
-        self._replace_fts(connection, record_id, record)
+        if added:
+            self._replace_fts(connection, record_id, record)
         return added, updated, record_id
+
+    def _write_record(self, connection: sqlite3.Connection, record_id: int, record: dict) -> None:
+        """Commit record metadata and its matching full-text index together."""
+        connection.execute(
+            'UPDATE records SET canonical_id=?, title_key=?, data_json=?, updated_at=? WHERE id=?',
+            (record.get('canonical_id', ''), _title_key(record.get('title', '')),
+             json.dumps(record, ensure_ascii=False, default=str), record['updated_at'], record_id))
+        self._replace_fts(connection, record_id, record)
 
     def _snapshot(self, connection: sqlite3.Connection, collection: str) -> Path:
         safe = _SAFE_COLLECTION.sub("_", collection)
@@ -314,12 +323,34 @@ class LibraryStore:
         for row in rows:
             record = json.loads(row["data_json"])
             text = " ".join(
-                [record.get("title", ""), record.get("abstract", ""), record.get("notes", "")]
+                [record.get("title", ""), record.get("abstract", ""), record.get("notes", ""), record.get("personal_notes", "")]
             ).casefold()
             coverage = sum(1 for keyword in keywords if keyword.casefold() in text)
             ranked.append((coverage, float(row["score"]), record))
         ranked.sort(key=lambda item: (-item[0], item[1]))
         return [record for _, _, record in ranked[:limit]]
+
+    def find_pdf_copies(self, keys: set[str]) -> list[dict]:
+        if not keys:
+            return []
+        with self.connection() as connection:
+            rows = connection.execute(
+                'SELECT DISTINCT path,source,version,url_digest,sha256,saved_at FROM pdf_copies '
+                f'WHERE identity_key IN ({",".join("?" for _ in keys)}) ORDER BY saved_at DESC', tuple(keys)).fetchall()
+        copies = list({row['path']: dict(row) for row in reversed(rows)}.values())
+        for copy in copies:
+            copy['file_path'] = copy.pop('path')
+        return copies
+
+    def remember_pdf_copy(self, keys: set[str], copy: dict) -> None:
+        # A copy's facts are immutable. Equivalent work IDs share the same
+        # artifact without creating collection entries or rewriting notes.
+        saved_at = copy.get('saved_at') or _now()
+        with self.connection() as connection:
+            connection.executemany(
+                'INSERT OR IGNORE INTO pdf_copies VALUES (?,?,?,?,?,?,?)',
+                [(key, copy['file_path'], copy['source'], copy['version'], copy.get('url_digest', ''),
+                  copy.get('sha256', ''), saved_at) for key in keys])
 
     def get_record(self, collection: str, identifier: str) -> dict | None:
         target = identifier.strip().casefold()
@@ -331,11 +362,17 @@ class LibraryStore:
             bare_arxiv,
             f"doi:{bare_doi}",
             f"arxiv:{bare_arxiv}",
-            f"library_title:{_title_key(identifier)}",
         }
+        keys.update(record_ops.paper_identity_keys({'paper_id': identifier}, include_title=False))
         with self.connection() as connection:
             matches = self._matching_ids(connection, collection, keys)
             if not matches:
+                title = record_ops.normalize_title(identifier).replace(' ', '')
+                matches = [row['id'] for row in connection.execute(
+                    'SELECT id,title_key,data_json FROM records WHERE collection=? AND title_key=?',
+                    (collection, _title_key(identifier))).fetchall()
+                    if record_ops.normalize_title(self._load_record(row).get('title', '')).replace(' ', '') == title]
+            if len(matches) != 1:
                 return None
             row = connection.execute(
                 "SELECT data_json FROM records WHERE id=?", (matches[0],)
@@ -343,7 +380,8 @@ class LibraryStore:
         return json.loads(row["data_json"])
 
     def update_annotations(
-        self, collection: str, identifier: str, *, notes: str | None, tags: list[str] | None
+        self, collection: str, identifier: str, *, notes: str | None = None, tags: list[str] | None = None,
+        personal_notes: str | None = None,
     ) -> bool:
         record = self.get_record(collection, identifier)
         if record is None:
@@ -351,6 +389,9 @@ class LibraryStore:
         changed = False
         if notes is not None and record.get("notes", "") != notes:
             record["notes"] = notes
+            changed = True
+        if personal_notes is not None and record.get("personal_notes", "") != personal_notes:
+            record["personal_notes"] = personal_notes
             changed = True
         if tags is not None:
             normalized = list(dict.fromkeys(tag.strip() for tag in tags if tag.strip()))
@@ -365,11 +406,7 @@ class LibraryStore:
             if not matches:
                 return False
             record_id = matches[0]
-            connection.execute(
-                "UPDATE records SET data_json=?, updated_at=? WHERE id=?",
-                (json.dumps(record, ensure_ascii=False, default=str), record["updated_at"], record_id),
-            )
-            self._replace_fts(connection, record_id, record)
+            self._write_record(connection, record_id, record)
             self._snapshot(connection, collection)
         return True
 
@@ -378,15 +415,12 @@ class LibraryStore:
         if record is None or record.get("pdf_path") == pdf_path:
             return False
         record["pdf_path"] = pdf_path
+        record['pdf_version'] = 'unknown'
         record["updated_at"] = _now()
         with self.connection() as connection:
             matches = self._matching_ids(connection, collection, _identity_keys(record))
             record_id = matches[0]
-            connection.execute(
-                "UPDATE records SET data_json=?, updated_at=? WHERE id=?",
-                (json.dumps(record, ensure_ascii=False, default=str), record["updated_at"], record_id),
-            )
-            self._replace_fts(connection, record_id, record)
+            self._write_record(connection, record_id, record)
             self._snapshot(connection, collection)
         return True
 

@@ -9,58 +9,52 @@
 </p>
 
 <p align="center">
-  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.8.5%22%2C%22scholar-mcp%22%5D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
-  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZmluZC1saW5rcyIsImh0dHBzOi8vZ2l0aHViLmNvbS9MaXl1eDMvc2Nob2xhci1tY3AvcmVsZWFzZXMvZG93bmxvYWQvdjAuOC41L3doZWVsLWluZGV4Lmh0bWwiLCItLWZyb20iLCJzY2hvbGFyLW1jcFtyZXJhbmtdPT0wLjguNSIsInNjaG9sYXItbWNwIl19fQ=="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
-  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.8.5%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
+  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
+  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZmluZC1saW5rcyIsImh0dHBzOi8vZ2l0aHViLmNvbS9MaXl1eDMvc2Nob2xhci1tY3AvcmVsZWFzZXMvZG93bmxvYWQvdjAuOS4wL3doZWVsLWluZGV4Lmh0bWwiLCItLWZyb20iLCJzY2hvbGFyLW1jcFtyZXJhbmtdPT0wLjkuMCIsInNjaG9sYXItbWNwIl0sImVudiI6eyJTQ0hPTEFSX01DUF9FWFRFTlNJT05TIjoicmVzZWFyY2gifX19"><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
+  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
-</p>
-
-<p align="center">
-  Find the paper. Follow the evidence. Build the field.
-</p>
-
-<p align="center">
   <a href="https://pypi.org/project/scholar-mcp"><img src="https://img.shields.io/pypi/v/scholar-mcp.svg?style=flat-square" alt="PyPI"></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10+-53665B.svg?style=flat-square" alt="Python 3.10+"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-3D5946.svg?style=flat-square" alt="Apache 2.0"></a>
-  <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-compatible-8C714C.svg?style=flat-square" alt="MCP compatible"></a>
 </p>
 
-Scholar MCP finds papers from natural-language questions, follows citations and related work, and opens the primary text. Save selected papers and notes in a local library that carries your research across sessions.
+<p align="center">
+  Find the paper. Follow the evidence. Build the field.<br>
+  <a href="https://liyux3.github.io/scholar-mcp/">Documentation</a> · English · <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-## Quick demo
+Scholar MCP gives your AI agent a research library. It searches scholarly sources in parallel, with optional keys for additional indexes, follows citations and related work, reads the original paper down to its figures and tables, and keeps what matters in a local library with your notes. It works in Claude, Codex, Cursor, VS Code, Gemini CLI, OpenCode and any other MCP client, and from the command line or Python.
 
-![Scholar MCP quick demo](docs/assets/quick-demo.gif)
+<p align="center">
+  <a href="https://liyux3.github.io/scholar-mcp/#watch"><img src="docs/assets/scholar-film-poster.jpg" alt="Watch the one-minute film" width="820"></a>
+</p>
 
-One continuous agent flow: `search_papers` → `build_paper_graph` → `paper_info` + `read_paper` → `paper_library` → library connectors.
+## 📰 News
 
-## How it works
+- October 2026, 0.9.0. `scholar-mcp install` sets Scholar up in 27 agents, one key file serves all of them, every source searches in its own lane, and `scholar-mcp doctor --network` checks every link.
+- October 2026, 0.8.5. Google Scholar sessions recover on their own, and arXiv falls back to its own search when its API is down.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/retrieval-pipeline-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="docs/assets/retrieval-pipeline.svg">
-  <img alt="Scholar MCP retrieval pipeline" src="docs/assets/retrieval-pipeline.svg">
-</picture>
+## 🚀 Get started
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/runtime-architecture-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="docs/assets/runtime-architecture.svg">
-  <img alt="Scholar MCP runtime architecture" src="docs/assets/runtime-architecture.svg">
-</picture>
+1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you do not have it, then install Scholar:
 
-Agents call typed MCP tools over stdio or Streamable HTTP. Scholar returns concise text and structured data, while a persistent SQLite library drives FTS5 search, PDF attachments, JSONL snapshots, and Obsidian, Zotero, and Notion connectors.
+   ```bash
+   uv tool install --python 3.12 --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html "scholar-mcp[rerank]"
+   ```
 
-## Quick start
+2. Connect it to your agents. Scholar finds the clients on your machine and registers itself, with a backup of every file it touches:
 
-Claude Code:
+   ```bash
+   scholar-mcp install --all
+   ```
 
-```bash
-claude mcp add scholar -- uvx --python 3.12 \
-  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html \
-  --from 'scholar-mcp[rerank]==0.8.5' scholar-mcp
-```
+   In a client the installer does not know, ask your agent to install Scholar by following [llms-install.md](llms-install.md). Name clients to choose (`scholar-mcp install claude-code codex`), add `--dry-run` to preview the change, or `--profile research` for the citation graph and paper library tools. `scholar-mcp update` upgrades the command every connected client runs, and `uvx scholar-mcp@latest install CLIENT` refreshes a client pinned to a uvx version.
 
-Claude Desktop or any stdio MCP client:
+3. Restart the client and ask a research question, for example *find recent work on evaluating long-term memory in LLM agents, read the most cited one and compare its benchmarks*.
+
+<details>
+<summary>Other ways to install</summary>
+
+Any stdio MCP client can launch Scholar directly through uvx, with nothing installed in advance:
 
 ```json
 {
@@ -69,233 +63,206 @@ Claude Desktop or any stdio MCP client:
       "command": "uvx",
       "args": [
         "--python", "3.12",
-        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/download/v0.8.5/wheel-index.html",
-        "--from", "scholar-mcp[rerank]==0.8.5", "scholar-mcp"
+        "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
+        "--from", "scholar-mcp[rerank]", "scholar-mcp"
       ]
     }
   }
 }
 ```
 
-The direct server exposes the compact core profile. Install [uv](https://docs.astral.sh/uv/); it prepares Python 3.12 and the CPU reranker automatically. Optional source keys unlock deeper coverage and higher throughput. macOS desktop bundles include Python and dependencies; the [portable launchers](docs/DISTRIBUTION.md#package-and-runtime) also handle machines without uv.
+For Claude Code the same command is `claude mcp add scholar -- uvx --python 3.12 --find-links <index> --from 'scholar-mcp[rerank]' scholar-mcp`.
 
-The repository also ships a research plugin with citation graphs, a local paper library, and the Deep Research skill:
+The repository is also a plugin marketplace for Codex and Claude Code, bundling the research tools and the Deep Research skill:
 
 ```bash
-# Codex
-codex plugin marketplace add Liyux3/scholar-mcp
-codex plugin add scholar-mcp@scholar-mcp
-
-# Claude Code
-claude plugin marketplace add Liyux3/scholar-mcp
-claude plugin install scholar-mcp@scholar-mcp
+codex plugin marketplace add Liyux3/scholar-mcp && codex plugin add scholar-mcp@scholar-mcp
+claude plugin marketplace add Liyux3/scholar-mcp && claude plugin install scholar-mcp@scholar-mcp
 ```
 
-The same plugin directory follows the Agent Plugins standard for Cursor, Pi, and compatible harnesses. OpenCode can launch `uvx scholar-mcp` as a local MCP; Pi can use `pi-mcp-adapter`.
-
-Release artifacts also include the PyPI package, multi-architecture GHCR image, and macOS MCPB bundles. See the complete [distribution matrix](docs/DISTRIBUTION.md).
-
-## Tools
-
-| Profile | Tool | Responsibility |
-|---|---|---|
-| Core | `search_papers` | Multi-source retrieval, filters, reranking, and citation discovery |
-| Core | `paper_info` | Paper detail, citations, and references through one selective call |
-| Core | `recommend_papers` | Related work through semantic and citation connections |
-| Core | `search_authors` | Author profiles, affiliations, paper counts, and h-index |
-| Core | `read_paper` | Read paper text, tables, and selected figures; pages 1-10 by default |
-| Core | `download_paper` | Persist a PDF and index it in a collection |
-| Research | `build_paper_graph` | Bounded citation graph with PageRank, bridges, nodes, edges, and Mermaid |
-| Research | `paper_library` | Collections, FTS search, notes, tags, PDFs, and Markdown vault export |
-
-`scholar://status` reports source availability and the actual reranker used without occupying the tool surface. Tool responses retain concise YAML text and also expose structured MCP data.
-
-The bundled Deep Research skill turns search, paper inspection, graph traversal, and selected library writes into a living field map.
-
-## Retrieval
-
-| Channel | Sources | Query form and role |
-|---|---|---|
-| Semantic | OpenAlex semantic, arxiv.gg, optional Exa | Full natural-language question |
-| Full text | Semantic Scholar snippet search | Matching passages from open-access papers |
-| Broad metadata | OpenAlex, Semantic Scholar, Crossref, optional Scopus | Identity, coverage, citations, and filters |
-| Preprints and conferences | arXiv, OpenReview | Recent work and conference records |
-| Biomedical | PubMed, Europe PMC | Medicine, biology, and full-text repositories |
-| Domain and repository | DBLP, INSPIRE-HEP, DOAJ, CORE, OpenAIRE, HAL | CS, physics, open journals, and repositories |
-| Web fallback | Google Scholar | HTTP search with optional automatic session recovery |
-
-Keyword APIs receive measured source-specific query budgets. Semantic endpoints keep the original question. Every source contributes independently to one canonical evidence pool.
-
-Results are canonicalized across DOI, arXiv, Semantic Scholar, OpenAlex, PubMed, and OpenReview identities. Duplicate records contribute complementary metadata and independent source evidence instead of appearing several times.
-
-DashScope `qwen3-rerank` is the primary reranker when configured. Install the `rerank` extra for the FlashRank local fallback: `uvx --from 'scholar-mcp[rerank]' scholar-mcp`. Containers and MCPB bundles include this extra; the local model downloads on first use and stays in the application data directory. Search ranks the initial matches, follows connections from the strongest papers, then reranks the combined set. Metadata completion overlaps source retrieval, and large pools are scored in batches that respect the model service's document and token limits.
-
-<details>
-<summary>Bring your own reranker</summary>
-
-For an Alibaba workspace or another region, set `DASHSCOPE_HTTP_BASE_URL` to the API Host from the console (with `https://`), or its `/api/v1` base. Keep `DASHSCOPE_API_KEY` from that region. For example:
-
-```text
-DASHSCOPE_HTTP_BASE_URL=https://<workspace-id>.cn-beijing.maas.aliyuncs.com/api/v1
-SCHOLAR_RERANK_MODEL=qwen3-rerank
-```
-
-The default remains `qwen3-rerank`. `SCHOLAR_RERANK_MODEL` can also select `qwen3.7-text-rerank`, `gte-rerank-v2`, or the text input of `qwen3-vl-rerank`, subject to availability in your workspace. Scholar uses the appropriate Alibaba request/response format. Existing installations without a base URL keep the Beijing shared endpoint. Alibaba recommends [workspace-dedicated endpoints](https://help.aliyun.com/en/model-studio/regions/) and states that the shared domain no longer receives new features after September 30, 2026. API keys and model availability are region-specific.
-
-For another provider or a self-hosted model, set `SCHOLAR_RERANK_URL` to the **full rerank endpoint**, `SCHOLAR_RERANK_MODEL` to its model name, and `SCHOLAR_RERANK_API_KEY` if needed. This explicit endpoint takes priority over the Alibaba configuration and uses only its own credential. Compatible endpoints use the Cohere-style contract:
-
-```text
-Request:  query, documents, top_n, model
-Response: results: [{index, relevance_score}]
-```
-
-Alibaba's native `/api/v1/services/rerank/text-rerank/text-rerank` endpoint is also supported, with `input`/`parameters` requests and `output.results` responses. Both formats share the same batching, score validation and local fallback. No provider SDK is required.
-
-Scores must be finite and in `[0, 1]`, with each query-document score comparable across batches. Raw logits need model-specific normalization in the serving backend. Changing models can change the balance with citation and recency ranking. A custom endpoint replaces DashScope and falls back only to the local model. Set `SCHOLAR_RERANK_BATCH_SIZE` to its per-request document capacity (default 500). Larger candidate pools are scored in batches, not discarded at that limit. Use `scholar://status` or `debug=true` to inspect the actual provider/model and any fallback reason; a successful search alone does not confirm that the cloud reranker succeeded.
+Releases also ship macOS desktop bundles (MCPB) with Python included, a multi-architecture container at `ghcr.io/liyux3/scholar-mcp`, and the [MCP Registry](https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp) entry. See the [distribution matrix](docs/DISTRIBUTION.md) and [llms-install.md](llms-install.md) for agents installing it themselves.
 
 </details>
 
-Normal responses focus on papers, with a short warning if availability affected the search. `debug=true` adds `_meta` with source coverage, the actual reranker, per-source yield, latency, provenance, and detailed errors. The base parallel-search budget is 30 seconds, configurable through `SCHOLAR_SOURCE_BUDGET_S`. Google Scholar pagination can extend it up to 120 seconds to retain completed multi-page results.
+## 🧰 What your agent can do
+
+| | Tool | |
+|---|---|---|
+| Search | `search_papers` | One question fans out to every source; duplicates merge into one record, the pool is reranked, and citations of the best matches are followed before the final ranking |
+| Inspect | `paper_info` | Full metadata, citations and references of a paper in one call |
+| Explore | `recommend_papers` | Semantic neighbours, co-cited peers and papers sharing references |
+| People | `search_authors` | Author profiles, affiliations and metrics |
+| Read | `read_paper` | Page-aware Markdown, structured tables and a focused image of any figure, read temporarily |
+| Keep | `download_paper` | The PDF from open archives, repositories or your institution's library, filed in your library |
+| Map | `build_paper_graph` | A citation graph with PageRank and bridge papers (research profile) |
+| Remember | `paper_library` | Collections, notes, tags and full-text search, mirrored to Obsidian, Zotero or Notion (research profile) |
+
+Every identifier Scholar returns, a paper URL, or an exact title can be passed back to any tool. Responses carry readable YAML for the model and structured data for the client; `scholar://status` reports the sources and reranker in use.
+
+## 🧭 How it works
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/retrieval-pipeline-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/retrieval-pipeline.svg">
+  <img alt="Scholar MCP retrieval pipeline" src="docs/assets/retrieval-pipeline.svg">
+</picture>
+
+Semantic sources receive the whole question and keyword sources a compact query tuned per source. Each source answers in its own lane at the pace it allows, and a source that misses the first ranking still joins the final one. Records from OpenAlex, Semantic Scholar, arXiv, Crossref, OpenReview, PubMed, Europe PMC, DBLP, zbMATH, CORE, OpenAIRE, Google Scholar and others merge on shared DOIs, arXiv ids and titles, so each paper appears once with complementary metadata. A reranker (Qwen3 Rerank in the cloud, or a local model) orders the pool, the strongest matches pull in their citations and references, and the combined pool is ranked once more. The [architecture page](https://liyux3.github.io/scholar-mcp/architecture/) walks through each stage and the [backend film](https://liyux3.github.io/scholar-mcp/architecture/#film) follows one question through it in two and a half minutes.
 
 <details>
-<summary>Google Scholar session recovery</summary>
+<summary>Runtime architecture</summary>
 
-With Chrome, Edge, or Chromium and ffmpeg installed, select `scholar-mcp[google,rerank]==0.8.5` in the quick-start configuration to enable automatic verification recovery. A short-lived browser establishes the session, then ordinary HTTP handles searches and pagination. It uses a fresh browser profile, never your personal browser profile, and online audio recognition rather than a local model. Auto mode tries headless first; on macOS, a declined challenge can retry using the native browser engine with no startup window and a hidden page. It reuses the last successful quiet mode for that route. Recovery advances when the page is ready, without fixed multi-second delays.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/runtime-architecture-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/runtime-architecture.svg">
+  <img alt="Scholar MCP runtime architecture" src="docs/assets/runtime-architecture.svg">
+</picture>
 
-Sessions are stored privately under `<data>/sessions/` and tied to the configured proxy. A cold search can wait up to 150 seconds for the bounded recovery worker and the subsequent search. Warm sessions use the normal budget. Set `SCHOLAR_GOOGLE_RECOVERY=off` to disable recovery, `headless` to require strictly headless operation, or `headed` to explicitly allow a visible verification window. `SCHOLAR_GOOGLE_BROWSER` selects a browser executable outside standard install locations. No browser is downloaded at server startup. If pagination is interrupted, completed pages remain usable and the response reports partial coverage. Failed recovery backs off while retaining the last verified session.
+Agents call typed MCP tools over stdio or Streamable HTTP. Full text comes from open copies first and, for licensed papers, through your library's proxy. A persistent SQLite library with FTS5 search holds papers, notes and PDF attachments under `~/.scholar-mcp/`, with Markdown projections for Obsidian and connectors for Zotero and Notion.
 
 </details>
 
-## Measured retrieval quality
+## 📊 Measured retrieval quality
 
 ![LitSearch quality comparison](docs/assets/litsearch-quality.svg)
 
-In the frozen matched LitSearch run, Scholar achieved a **10-percentage-point higher top-five query hit rate** and **6 points higher at top twenty** than Exa research-paper search.
+On the same 50 LitSearch queries, Scholar placed a correct paper in its top five for 62% of queries, against 52% for Exa research-paper search and 46% for BM25.
+
+<details>
+<summary>Results and protocol</summary>
 
 | System | Hit@5 | Hit@10 | Hit@20 | MRR |
 |---|---:|---:|---:|---:|
-| **Scholar** | **0.62** | **0.68** | **0.70** | **0.442** |
+| Scholar | 0.62 | 0.68 | 0.70 | 0.442 |
 | Exa `research paper` | 0.52 | 0.58 | 0.64 | 0.435 |
 | BM25 `title + abstract` | 0.46 | 0.46 | 0.56 | 0.335 |
 
-Scholar recovered nine top-five hits that Exa missed; Exa recovered four that Scholar missed.
-
-<details>
-<summary>Benchmark protocol</summary>
-
-Hit@k measures the fraction of queries with at least one ground-truth paper in the top k results. Recall@k instead measures the fraction of all relevant papers recovered for each query. MRR averages the reciprocal rank of the first match, with zero for a miss. The frozen summary retains its legacy `R@k` field names for these query hit rates.
-
-The comparison uses the same first 50 LitSearch inline-ACL queries, ground-truth titles, title matcher, and top-20 cutoff. Exa ran with category `research paper`. Scholar used its standard retrieval pipeline with Qwen reranking. BM25 follows the official LitSearch title+abstract implementation: lowercase tokenization, English stopword removal, Porter stemming, and `BM25Okapi` over the 64K-paper corpus. The Scholar/Exa run was collected on 12 May 2026; BM25 was reproduced on 25 August 2026. The frozen summary is in [`docs/benchmarks/litsearch-inline-acl-50.json`](docs/benchmarks/litsearch-inline-acl-50.json), with [raw BM25 results](docs/benchmarks/bm25_title_abstract_inline_acl_50.jsonl) and their [hash manifest](docs/benchmarks/bm25_title_abstract_inline_acl_50.summary.json).
+Hit@k is the share of queries with at least one ground-truth paper in the top k; MRR averages the reciprocal rank of the first match. Scholar recovered nine top-five hits that Exa missed, and Exa four that Scholar missed. The comparison uses the first 50 LitSearch inline-ACL queries, the same title matcher and a top-20 cutoff; Scholar ran its standard pipeline with Qwen reranking, Exa used category `research paper`, and BM25 follows the official LitSearch title+abstract implementation over the 64K-paper corpus. The frozen summary is in [`docs/benchmarks/litsearch-inline-acl-50.json`](docs/benchmarks/litsearch-inline-acl-50.json), with [raw BM25 results](docs/benchmarks/bm25_title_abstract_inline_acl_50.jsonl) and their [hash manifest](docs/benchmarks/bm25_title_abstract_inline_acl_50.summary.json).
 
 </details>
 
-## Citation graph and paper library
+## 📚 Your paper library
 
 ![Real paper-library graph](docs/assets/paper-library-graph.svg)
 
-Rendered from a live local collection, the graph reveals foundations, bridges, and the papers that move a field forward. Stable identities and parallel citation traversal keep the map connected as it grows.
-
-The paper library uses one persistent SQLite authority with WAL transactions and FTS5 search. Existing JSONL collections migrate automatically and remain available as compatibility snapshots. Stable identifiers, notes, tags, PDF paths, connector IDs, and sync revisions stay attached to the same canonical record.
-
-Default data layout:
-
-```text
-~/.scholar-mcp/
-├── papers/    persistent PDFs
-├── kb/
-│   ├── library.sqlite3    authority + FTS5 + sync state
-│   └── *.jsonl            compatibility snapshots
-└── vault/                 Markdown projections and wikilinks
-```
-
-### Library connectors
+Saved papers, PDFs and notes live in one local SQLite library and stay searchable across sessions. Obsidian receives a live Markdown projection, Zotero a synchronized collection and Notion a reading list. Notes you edit in Obsidian or Notion flow back, so your agent builds on your changes.
 
 ```bash
-# No login: write directly into an Obsidian vault
-scholar-mcp library export obsidian --collection rag --path /path/to/vault
-
-# Dry-run by default; add --apply for external writes
-scholar-mcp library sync zotero --collection rag
-scholar-mcp library publish notion --collection rag
+scholar-mcp library export obsidian --collection memory --path ~/Vault
+scholar-mcp library sync zotero --collection memory --apply
 ```
 
-[Obsidian](https://help.obsidian.md/Files+and+folders/Manage+vaults) is a live Markdown projection. [Zotero](https://www.zotero.org/support/dev/web_api/v3/write_requests) manages bibliographic items, collections, tags, and notes. [Notion](https://developers.notion.com/reference/post-page) receives a one-way reading-list view. External connectors keep their IDs, versions, and content hashes in SQLite, so unchanged papers do not publish twice.
+## 💻 Command line and Python
 
-## Paper access
+The tools work without an agent too. Output is YAML for reading or JSON with `--json`.
 
-`read_paper` uses a temporary PDF and reads pages 1-10 by default, which usually reaches the conclusion of an AI conference paper. It returns page-aware Markdown, structured tables when their geometry is reliable, and caption selectors for figures and visual table fallbacks. Pass `visual="Figure 3"` or another returned selector to receive one focused page crop alongside its text. Pass `pages="11-20"` to continue into references or appendices. The PDF is removed after extraction. `download_paper` streams into a staging file, atomically publishes a validated PDF, reuses a valid local copy, and indexes its metadata in the selected collection.
+```bash
+scholar-mcp search "long-term memory benchmarks for LLM agents" --year 2024-2026
+scholar-mcp read arXiv:2504.19413 --pages 1-4
+scholar-mcp read arXiv:2504.19413 --visual "Figure 1" --image figure1.png
+scholar-mcp doctor --network
+```
 
-The shared resolution chain covers:
+```python
+from scholar_mcp import api
 
-1. Native open-access records and canonical archives such as arXiv and Europe PMC
-2. Registered repository resolvers: CORE, OpenAIRE, HAL, Zenodo, and DOAJ
-3. bioRxiv, medRxiv, SSRN, ChemRxiv, and other preprint servers
-4. Unpaywall and an optional institutional proxy
+hits = api.search("long-term memory benchmarks for LLM agents", year="2024-2026")
+paper = api.info(hits["results"][0]["id"], include="detail,citations")
+```
 
-`scholar-mcp sources` prints the registry-derived capability matrix. Add `--check` to test configured search providers, or `--check --source arxiv --query "retrieval augmented generation"` to inspect one. arXiv falls back to its own HTTPS search when its Atom API is unavailable. Zenodo participates in PDF resolution but stays out of default discovery because its broad publication records add more candidate noise than retrieval value.
+## 🔑 Configuration
 
-### Library proxy access
+Scholar works without any keys. Optional keys add coverage and throughput. `scholar-mcp keys set NAME` saves one in `~/.scholar-mcp/keys.env`, which every client reads; a client's `env` block or your shell also works and takes precedence.
 
-For paywalled papers, `download_paper` can fetch through your university library's EZproxy login. It runs after Unpaywall and before the optional Sci-Hub step, and only for a single paper you asked for. Scholar never asks for or stores a password. It reuses the session cookies you export from your own browser after logging in.
+| Variable | Effect |
+|---|---|
+| `S2_API_KEY` | Higher Semantic Scholar limits, full-text snippets and recommendations |
+| `OPENALEX_API_KEY`, `OPENALEX_EMAIL` | OpenAlex semantic search and the polite pool; the email also enables Unpaywall |
+| `DASHSCOPE_API_KEY` | Cloud reranking with Qwen3 Rerank; without it a local model ranks |
+| `SCHOLAR_MCP_EXTENSIONS=research` | Adds the citation graph and paper library tools |
+| `SCHOLAR_DATA_DIR` | Library, PDFs and state; default `~/.scholar-mcp` |
 
-1. Set `LIBRARY_PROXY_PREFIX` to your library's proxy login prefix, the part that comes before the paper address, for example `https://proxy.library.example.edu/login?url=`. Copy it from any proxied link or the library's bookmarklet; no institution is assumed.
-2. In Edge or Chrome, log in to the library proxy and open any proxied page.
-3. Export cookies for the proxy domain in Netscape cookies.txt format with a cookies.txt extension (for example Get cookies.txt LOCALLY; Edge can install Chrome Web Store extensions). Save the file somewhere private and set `LIBRARY_PROXY_COOKIES` to its path.
-4. Restart the MCP client so it picks up the new environment.
-
-Library sessions are short lived and are controlled by the library, so the export stops working after some hours or when the library ends the session. When the proxy returns its login page, the download message says the session expired; log in again and export a fresh file. The file is a live session credential, so keep it out of git and shared folders. Only cookies belonging to the proxy domain are read; any others in the file are ignored. When a download fails, the message includes a proxied link you can open in your browser while logged in.
-
-If your terminal uses an HTTP proxy, keep the library requests on the same network route as your logged-in browser. For direct library access, add its proxy hostname and subdomains to `NO_PROXY`.
-
-## Configuration
-
-All credentials are optional and remain in the MCP process environment.
+<details>
+<summary>All settings</summary>
 
 | Variable | Purpose |
 |---|---|
-| `SCHOLAR_DATA_DIR` | Shared data root; default `~/.scholar-mcp` |
-| `SCHOLAR_KB_DIR` | SQLite library and JSONL snapshot directory |
-| `SCHOLAR_OBSIDIAN_VAULT` | Obsidian projection root; no authentication required |
-| `S2_API_KEY` / `S2_API_KEYS` | Semantic Scholar search, snippets, graph, and rate limits |
-| `OPENALEX_API_KEY` / `OPENALEX_API_KEYS` | OpenAlex search, semantic search, and graph calls |
-| `OPENALEX_EMAIL` | OpenAlex polite pool and Unpaywall |
-| `DASHSCOPE_API_KEY` | Qwen reranker |
-| `DASHSCOPE_HTTP_BASE_URL` | Alibaba workspace API Host or `/api/v1` base; defaults to the Beijing shared endpoint |
-| `SCHOLAR_RERANK_MODEL` | Alibaba model (default `qwen3-rerank`), or the model served by a custom endpoint |
-| `SCHOLAR_RERANK_URL`, `SCHOLAR_RERANK_API_KEY` | Full custom rerank endpoint and its separate credential; overrides Alibaba routing |
-| `SCHOLAR_RERANK_TIMEOUT` | Remote reranker request timeout, including Alibaba; default 120 seconds |
-| `SCHOLAR_RERANK_BATCH_SIZE` | Custom reranker's per-request document capacity; default 500 |
-| `SCHOLAR_GOOGLE_PROXY` | Dedicated Google Scholar proxy; other sources keep their existing route |
-| `SCOPUS_API_KEY` | Optional Scopus metadata source |
-| `CORE_API_KEY` | Optional CORE repository source |
-| `EXA_API_KEY` | Optional Exa research-paper source |
-| `SCHOLAR_SOURCE_BUDGET_S` | Per-round source fan-out budget; default 30 seconds |
-| `SCHOLAR_DOWNLOAD_DIR` | Persistent PDF directory; default `<data>/papers` |
-| `LIBRARY_PROXY_PREFIX`, `LIBRARY_PROXY_COOKIES` | Optional library proxy login prefix and a cookies.txt exported from your logged-in browser; no institution is assumed. See Library proxy access |
-| `LIBRARY_PROXY_BASE`, `LIBRARY_PROXY_COOKIE` | Older form of the same setting: proxy URL and a raw Cookie header. Cookie file fallback: `<data>/library_cookie.txt` |
-| `SCHOLAR_MCP_EXTENSIONS` | Use `research` for graph and paper-library tools |
-| `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` | Zotero Web API or authorized local API connector |
-| `ZOTERO_LIBRARY_TYPE`, `ZOTERO_API_BASE` | Optional Zotero library type and endpoint override |
-| `NOTION_API_KEY`, `NOTION_DATA_SOURCE_ID` | Notion one-way publisher |
+| `SCHOLAR_KB_DIR`, `SCHOLAR_DOWNLOAD_DIR` | SQLite library and persistent PDF directories |
+| `SCHOLAR_OBSIDIAN_VAULT` | Obsidian projection root |
+| `S2_API_KEYS`, `OPENALEX_API_KEYS` | Comma-separated key pools |
+| `NCBI_API_KEY` | Higher PubMed E-utilities throughput for a configured NCBI account |
+| `SCHOLAR_GOOGLE_PROXY` | A dedicated Google Scholar proxy, or `direct` to bypass inherited proxies for this source |
+| `SCHOLAR_ACCESS_COMMAND` | Optional host access backend, a JSON command array; see [architecture](docs/ARCHITECTURE.md#host-access) |
+| `SCOPUS_API_KEY`, `CORE_API_KEY`, `EXA_API_KEY` | Optional Scopus, CORE and Exa sources |
+| `OPENAIRE_CLIENT_ID`, `OPENAIRE_CLIENT_SECRET` | A free registered OpenAIRE service: 7,200 requests an hour instead of 60 |
+| `ADS_API_TOKEN`, `SPRINGER_API_KEY`, `WOS_API_KEY`, `LENS_API_TOKEN` | Opt-in NASA ADS, Springer Nature, Web of Science Starter and Lens sources, each joining once its key is set |
+| `DASHSCOPE_HTTP_BASE_URL` | Alibaba workspace API host or `/api/v1` base; default is the Beijing shared endpoint |
+| `SCHOLAR_RERANK_MODEL` | Alibaba model (default `qwen3-rerank`) or the model of a custom endpoint |
+| `SCHOLAR_RERANK_URL`, `SCHOLAR_RERANK_API_KEY` | Full custom rerank endpoint (Cohere-style `query, documents, top_n` request) and its credential |
+| `SCHOLAR_RERANK_TIMEOUT`, `SCHOLAR_RERANK_BATCH_SIZE` | Remote rerank timeout (120 s) and per-request document capacity (500) |
+| `SCHOLAR_SOURCE_BUDGET_S` | Time budget of one parallel search round; default 30 s |
+| `SCHOLAR_READ_CHAR_BUDGET` | Characters of paper text per `read_paper` response, cut at a page boundary; default 100,000, 0 disables |
+| `SCHOLAR_USAGE_LOG` | Local call record in `<data>/usage/` (about 4 MB at most) that `doctor` summarizes: `on` (default, no query text), `full` (with arguments) or `off` |
+| `SCHOLAR_GOOGLE_PROXY`, `SCHOLAR_GOOGLE_RECOVERY` | Google Scholar route and browser recovery mode (`off`, `headless`, `headed`) |
+| `LIBRARY_PROXY_PREFIX`, `LIBRARY_PROXY_COOKIES` | Institutional EZproxy prefix and a cookies.txt from your signed-in browser |
+| `ZOTERO_API_KEY`, `ZOTERO_LIBRARY_ID` | Zotero connector |
+| `NOTION_API_KEY`, `NOTION_DATA_SOURCE_ID` | Notion connector |
+| `SCHOLAR_MCP_TRANSPORT=http` | Streamable HTTP at `/mcp` instead of stdio (`scholar-mcp serve --http`) |
+| `SCHOLAR_IDLE_EXIT` | HTTP idle exit in minutes, default `20`; `0` keeps the process running. A supervisor such as launchd KeepAlive restarts it to release loaded model memory. Active tool workers and streamed replies finish before the idle window starts. |
 
-Errors returned to the model redact request URLs and credentials.
-OpenReview public submissions are searched without an account or password.
+Scores from a custom reranker must be finite, in `[0, 1]` and comparable across batches; Scholar falls back to the local model when the endpoint fails and pauses retries for five minutes after a connection failure. Errors returned to the model redact URLs and credentials.
 
-## Development
+</details>
+
+<details>
+<summary>Paywalled papers and your institution's library</summary>
+
+`download_paper` and `read_paper` look for free copies in parallel and prefer the publisher's version when one arrives. To use a paper your institution licenses, set its EZproxy prefix and a Netscape cookies.txt exported from your signed-in browser in the server's environment.
+
+```bash
+export LIBRARY_PROXY_PREFIX="https://proxy.library.example.edu/login?url="
+export LIBRARY_PROXY_COOKIES="$HOME/private/library-cookies.txt"
+```
+
+Scholar reads only cookies scoped to that proxy. When the session expires, sign in through your browser and export a fresh file. See [Institutional access](https://liyux3.github.io/scholar-mcp/institutional-access/) for client configuration and network routing.
+
+</details>
+
+<details>
+<summary>Google Scholar</summary>
+
+With Chrome, Edge or Chromium and ffmpeg installed, `scholar-mcp[google,rerank]` adds automatic verification recovery: a short-lived headless browser with a fresh profile establishes a session, then ordinary HTTP handles searches and pagination. Sessions are stored privately under `<data>/sessions/`. Set `SCHOLAR_GOOGLE_RECOVERY=off` to disable it.
+
+</details>
+
+## 🔧 Development
 
 ```bash
 git clone https://github.com/Liyux3/scholar-mcp.git
 cd scholar-mcp
 uv sync --extra dev
-uv run pytest
+uv run pytest            # unit tests; live API tests run with -m integration
 ```
 
-Unit tests run by default. Run live API tests separately with `uv run pytest -m integration`.
+A new source is one module in `scholar_mcp/sources/` plus one registry entry, and needs no new tool. `scholar-mcp doctor --network` probes every source, the ranking model and the PDF chain, and runs daily in CI. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the parts fit and [CONTRIBUTING.md](CONTRIBUTING.md) for changes, and report security issues through [SECURITY.md](SECURITY.md).
 
-Connector and feature contributions follow [CONTRIBUTING.md](CONTRIBUTING.md). Report security issues through the private process in [SECURITY.md](SECURITY.md); citation metadata is available in [CITATION.cff](CITATION.cff).
+## 📝 Citation
 
-Local and Docker clients use stdio by default. Set `SCHOLAR_MCP_TRANSPORT=http` for Streamable HTTP; the default endpoint is `/mcp`.
+If Scholar MCP supports your research, please cite it.
 
-## License
+```bibtex
+@software{li_scholar_mcp_2026,
+  author  = {Li, Yuxian},
+  title   = {Scholar MCP},
+  year    = {2026},
+  version = {0.9.0},
+  url     = {https://github.com/Liyux3/scholar-mcp},
+  license = {Apache-2.0}
+}
+```
 
-Apache License 2.0
+## 📄 License
+
+Apache License 2.0. Reuse is welcome; keep the [NOTICE](NOTICE) file and credit Scholar MCP in what you build, whether a person or an AI agent did the copying.
+
+Bundled CPU reader weights are provided unchanged by [prithivida/FlashRank](https://huggingface.co/prithivida/flashrank) under CC-BY-SA-4.0, with their own attribution notice.

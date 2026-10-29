@@ -28,7 +28,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
-from . import config, s2_client
+from . import config
+from .sources import s2
 
 DEFAULT_VAULT_DIR = config.VAULT_DIR
 
@@ -99,7 +100,7 @@ def _frontmatter(paper: dict) -> list[str]:
         "arxiv": external.get("ArXiv", ""),
         "url": paper.get("url", ""),
         "pdf": paper.get("pdf_path", ""),
-        "authors": ", ".join(paper.get("authors") or [])[:300],
+        "authors": ", ".join(paper.get("authors") or []),
         "source": paper.get("source", ""),
         "added": date.today().isoformat(),
     }
@@ -155,11 +156,40 @@ def render_note(paper: dict, relations: dict[str, list[dict]] | None = None,
 
     # Everything below stays untouched on re-export so hand-written notes and
     # Obsidian's own backlinks survive a refresh.
-    lines += ["## Notes", "", notes.strip() if notes else "", ""]
+    if paper.get("notes"):
+        lines += ["## Research notes", "", paper["notes"].strip("\r\n"), ""]
+    lines += ["## Notes", "", notes.strip("\r\n") if notes else "", ""]
     return "\n".join(lines)
 
 
 NOTES_MARKER = "## Notes"
+
+
+def read_note_sections(path: Path) -> dict[str, str]:
+    """Read the two editable sections, ignoring heading examples in code fences."""
+    text = path.read_text(encoding="utf-8")
+    headings, offset, fence = {}, 0, None
+    for line in text.splitlines(keepends=True):
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
+        if marker:
+            token = marker[1]
+            if fence is None:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
+                fence = None
+        elif fence is None and line.strip() in {"## Research notes", NOTES_MARKER}:
+            headings[line.strip()] = (offset, offset + len(line))
+        offset += len(line)
+    result = {}
+    if "## Research notes" in headings:
+        start = headings["## Research notes"][1]
+        end = headings.get(NOTES_MARKER, (len(text),))[0]
+        if end < start:
+            raise ValueError("The editable note headings were reordered")
+        result["notes"] = text[start:end].strip("\r\n")
+    if NOTES_MARKER in headings:
+        result["personal_notes"] = text[headings[NOTES_MARKER][1]:].strip("\r\n")
+    return result
 
 
 def write_note(paper: dict, collection: str = "default",
@@ -170,10 +200,9 @@ def write_note(paper: dict, collection: str = "default",
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{note_name(paper.get('title', ''))}.md"
 
-    existing_notes = ""
+    existing_notes = paper.get("personal_notes", "")
     if path.exists():
-        _, _, tail = path.read_text(encoding="utf-8").partition(NOTES_MARKER)
-        existing_notes = tail.strip()
+        existing_notes = read_note_sections(path).get("personal_notes", existing_notes)
 
     path.write_text(render_note(paper, relations, existing_notes), encoding="utf-8")
     return path
@@ -304,7 +333,7 @@ def build_citation_relations(papers: list[dict], max_workers: int = 8) -> dict:
         if not pid:
             return paper.get("title", ""), None
         try:
-            return paper.get("title", ""), s2_client.get_references(pid, limit=100)
+            return paper.get("title", ""), s2.get_references(pid, limit=100)
         except Exception:
             return paper.get("title", ""), None
 

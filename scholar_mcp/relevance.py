@@ -1,15 +1,21 @@
-"""Query preprocessing, reranking, deduplication, and field filtering."""
+"""Query preprocessing, semantic reranking and result ordering."""
 
+import hashlib
 import math
 import os
 import re
 import sys
+import threading
 import time
+from contextvars import ContextVar
 from datetime import datetime
-from html import unescape
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import config
+from . import records as record_ops
+from .cache import DEFAULT_TTL, _disk, cached
+from .model_assets import CPU_MODEL, cached_cpu_model_directory, cpu_model_directory
 
 STOPWORDS = frozenset({
     "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
@@ -28,14 +34,6 @@ STOPWORDS = frozenset({
     "show", "know", "take", "come", "see", "look", "find", "give",
     "tell", "think", "say", "try", "ask", "seem", "help", "keep",
     "really", "actually", "still", "even", "much", "well",
-})
-
-TOP_VENUES = frozenset({
-    "neurips", "nips", "icml", "iclr", "aaai", "ijcai", "cvpr", "iccv",
-    "eccv", "acl", "emnlp", "naacl", "sigir", "kdd", "www", "icse",
-    "fse", "osdi", "sosp", "sigcomm", "sigmod", "vldb", "nature",
-    "science", "cell", "pnas", "lancet", "bmj", "jama", "nejm",
-    "transactions", "journal of machine learning research", "jmlr",
 })
 
 
@@ -150,6 +148,8 @@ def keyword_query(query: str, max_words: int) -> str:
 
 
 _keybert_model = None
+_keybert_lock = threading.Lock()
+_keybert_retry_at = 0.0
 
 # Queries at or below this length already read like keyword queries; compressing
 # them further only discards signal.
@@ -170,6 +170,7 @@ def _word_count(text: str) -> int:
     return len(re.findall(r"[a-zA-Z0-9][\w\-]*", text))
 
 
+@cached(ttl=3600)
 def optimize_query(query: str) -> str:
     """Compress a long natural-language query into a keyword query.
 
@@ -198,17 +199,22 @@ def optimize_query_short(query: str, max_words: int = 8) -> str:
 
 
 def _load_keybert():
-    """Import and cache the KeyBERT model. Returns None if the optional
-    dependency is missing, so callers can fall back to keyword extraction.
+    """Load the optional keyword model once, using installed assets first.
+
+    Missing dependencies or unavailable assets use plain keyword extraction,
+    with another load attempt after the ordinary cache interval.
     """
-    global _keybert_model
-    if _keybert_model is None:
-        try:
-            from keybert import KeyBERT
-            from model2vec import StaticModel
-        except ImportError:
-            return None
-        _keybert_model = KeyBERT(StaticModel.from_pretrained("minishlab/potion-base-8M"))
+    global _keybert_model, _keybert_retry_at
+    if _keybert_model is None and time.monotonic() >= _keybert_retry_at:
+        with _keybert_lock:
+            if _keybert_model is None and time.monotonic() >= _keybert_retry_at:
+                try:
+                    from keybert import KeyBERT
+                    from model2vec import StaticModel
+                    _keybert_model = KeyBERT(StaticModel.from_pretrained(
+                        'minishlab/potion-base-8M', force_download=False))
+                except Exception:
+                    _keybert_retry_at = time.monotonic() + DEFAULT_TTL
     return _keybert_model
 
 
@@ -268,405 +274,31 @@ def _restore_contrast(original: str, compressed: str) -> str:
     return " ".join([compressed] + ordered)
 
 
-
-def _normalize_title(title: str) -> str:
-    """Lowercase, strip punctuation, collapse whitespace for dedup matching."""
-    # Punctuation is a word boundary, not nothing: deleting the hyphen in
-    # "retrieval-augmented" creates "retrievalaugmented" and prevents the
-    # same title without a hyphen from deduplicating.
-    t = re.sub(r"[^\w\s]", " ", unescape(title or "").lower())
-    return re.sub(r"\s+", " ", t).strip()
-
-
-def normalize_publication_types(values) -> list[str]:
-    """Normalize provider labels without inferring a paper type from its title."""
-    if isinstance(values, str):
-        values = [values]
-    aliases = {
-        "journalarticle": "JournalArticle", "journalarticles": "JournalArticle",
-        "article": "Article", "review": "Review", "systematicreview": "Review",
-        "metaanalysis": "Review",
-        "conference": "Conference", "proceedingsarticle": "Conference",
-        "conferenceandworkshoppapers": "Conference", "proceedings": "Conference",
-        "book": "Book", "booksandtheses": "Book", "bookchapter": "BookChapter",
-        "dataset": "Dataset", "postedcontent": "Preprint", "preprint": "Preprint",
-    }
-    return sorted({aliases.get(re.sub(r"[^a-z]", "", str(value).casefold()), str(value))
-                   for value in (values or []) if value})
-
-
-_EXTERNAL_ID_ALIASES = {
-    "PMID": "PubMed",
-    "ArXivId": "ArXiv",
-    "CorpusID": "CorpusId",
-    "S2CorpusId": "CorpusId",
-    "PMCID": "PubMedCentral",
-    "PMC": "PubMedCentral",
-}
-
-
-def _normalized_identifier(kind: str, value: object) -> str:
-    """Normalize one identifier for equality without changing display values."""
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    lowered = text.casefold()
-    if kind == "DOI":
-        for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
-            if lowered.startswith(prefix):
-                lowered = lowered[len(prefix):]
-                break
-        return lowered
-    if kind == "ArXiv":
-        lowered = re.sub(r"^(?:arxiv:|https?://arxiv\.org/(?:abs|pdf)/)", "", lowered)
-        lowered = lowered.removesuffix(".pdf")
-        return re.sub(r"v\d+$", "", lowered)
-    if kind == "OpenAlex":
-        return lowered.rsplit("/", 1)[-1]
-    return lowered
-
-
-def _external_ids(paper: dict) -> dict[str, str]:
-    normalized: dict[str, str] = {}
-    raw = paper.get("external_ids") or {}
-    if isinstance(raw, dict):
-        for original_kind, value in raw.items():
-            kind = _EXTERNAL_ID_ALIASES.get(str(original_kind), str(original_kind))
-            if value not in (None, "") and kind not in normalized:
-                normalized[kind] = str(value).strip()
-
-    paper_id = str(paper.get("paper_id") or "").strip()
-    lowered = paper_id.casefold()
-    if paper_id:
-        if re.match(r"^(?:https?://doi\.org/|doi:)?10\.\d{4,9}/", lowered):
-            normalized.setdefault("DOI", paper_id)
-        elif lowered.startswith(
-            ("arxiv:", "https://arxiv.org/abs/", "https://arxiv.org/pdf/")
-        ) or re.fullmatch(r"\d{4}\.\d{4,5}(?:v\d+)?", paper_id):
-            normalized.setdefault("ArXiv", paper_id)
-        elif lowered.startswith(("https://openalex.org/w", "w")) and re.search(r"w\d+$", lowered):
-            normalized.setdefault("OpenAlex", paper_id)
-        elif lowered.startswith("corpusid:"):
-            normalized.setdefault("CorpusId", paper_id.split(":", 1)[1])
-    arxiv_doi = re.fullmatch(r"10\.48550/arxiv\.(\d{4}\.\d{4,5}(?:v\d+)?)",
-                             _normalized_identifier("DOI", normalized.get("DOI", "")), re.I)
-    if arxiv_doi:
-        normalized.setdefault("ArXiv", arxiv_doi[1])
-    return normalized
-
-
-def paper_identity_keys(paper: dict, include_title: bool = True) -> set[str]:
-    """Return stable cross-source identity keys for a paper."""
-    keys = {
-        f"{kind.casefold()}:{normalized}"
-        for kind, value in _external_ids(paper).items()
-        if (normalized := _normalized_identifier(kind, value))
-    }
-    paper_id = str(paper.get("paper_id") or "").strip()
-    if paper_id and not keys:
-        keys.add(f"paper_id:{paper_id.casefold()}")
-    if include_title:
-        title = _normalize_title(paper.get("title", ""))
-        if len(title) > 10:
-            keys.add(f"title:{title}")
-    return keys
-
-
-def best_paper_id(paper: dict) -> str:
-    """Choose an identifier callers can feed back into Scholar MCP."""
-    ids = _external_ids(paper)
-    if ids.get("DOI"):
-        return _normalized_identifier("DOI", ids["DOI"])
-    if ids.get("ArXiv"):
-        return f"ARXIV:{_normalized_identifier('ArXiv', ids['ArXiv'])}"
-    if ids.get("OpenAlex"):
-        return _normalized_identifier("OpenAlex", ids["OpenAlex"]).upper()
-    if ids.get("CorpusId"):
-        return f"CorpusId:{ids['CorpusId']}"
-    if ids.get("PubMed"):
-        return f"PMID:{ids['PubMed']}"
-    if ids.get("OpenReview"):
-        return f"OpenReview:{ids['OpenReview']}"
-    return str(paper.get("paper_id") or "")
-
-
-def tag_source_ranks(papers: list[dict], source_name: str, facet: str = "") -> list[dict]:
-    """Tag each paper with its rank position from the given source.
-    Call this on each source's results before merging.
-
-    facet distinguishes several queries sent to one source. Keying ranks by
-    source alone would let the second query overwrite the first, and would
-    count one source answering twice as two independent sources agreeing,
-    which is the opposite of what source agreement is supposed to mean.
-    """
-    channel = f"{source_name}::{facet}" if facet else source_name
-    for rank, p in enumerate(papers):
-        if "_source_ranks" not in p:
-            p["_source_ranks"] = {}
-        p["_source_ranks"][channel] = rank
-        p.setdefault("_physical_sources", set()).add(source_name)
-        if "source" not in p or not p["source"]:
-            p["source"] = source_name
-        p["_source_count"] = len(p["_physical_sources"])
-    return papers
-
-
-def physical_source_count(paper: dict) -> int:
-    """How many distinct APIs returned this paper, ignoring per-query channels."""
-    physical = paper.get("_physical_sources")
-    if physical:
-        return len(physical)
-    ranks = paper.get("_source_ranks") or {}
-    return len({channel.split("::", 1)[0] for channel in ranks}) or 1
-
-
-def _normalize_authors(authors) -> list[str]:
-    """Extract names from source metadata without stringifying author objects."""
-    if isinstance(authors, (str, dict)):
-        authors = [authors]
-    if not isinstance(authors, (list, tuple)):
-        return []
-    names = []
-    for author in authors:
-        if isinstance(author, dict):
-            name = next((author[key] for key in
-                         ("name", "full_name", "fullName", "display_name", "text")
-                         if isinstance(author.get(key), str) and author[key].strip()), "")
-            if not name:
-                name = " ".join(author[key].strip() for key in ("given", "family")
-                                if isinstance(author.get(key), str) and author[key].strip())
-        else:
-            name = author
-        if isinstance(name, str) and name.strip():
-            names.append(name.strip())
-    return names
-
-
-def _merge_two(a: dict, b: dict) -> dict:
-    """Merge two paper dicts for the same paper from different sources.
-    Take the best of each field: longest abstract, most authors, highest cites.
-    Track source count and per-source ranks for RRF.
-    """
-    merged = dict(a)
-    if (a.get("title") and b.get("title")
-            and _normalize_title(a["title"]).replace(" ", "")
-            != _normalize_title(b["title"]).replace(" ", "")):
-        merged.update(_title_conflict=True, _needs_metadata=True)
-    a_ids = _external_ids(merged)
-    b_ids = _external_ids(b)
-    merged["external_ids"] = {**b_ids, **a_ids}
-
-    for field in ("year", "publication_date", "paper_id", "url", "pdf_path"):
-        if not merged.get(field) and b.get(field):
-            merged[field] = b[field]
-    try:
-        if b.get("year") and merged.get("year") and int(b["year"]) < int(merged["year"]):
-            merged["year"] = int(b["year"])
-            merged["publication_date"] = b.get("publication_date") or str(b["year"])
-            if b_ids.get("DOI"):
-                merged["external_ids"]["DOI"] = b_ids["DOI"]
-    except (TypeError, ValueError):
-        pass
-    def text_quality(value):
-        text = str(value or "")
-        return (not bool(re.search(r"…|\.{3}", text)), len(text))
-
-    venue = merged.get("venue") or ""
-    if b.get("venue") and (not venue or str(venue).casefold().startswith("arxiv")
-                            or text_quality(b["venue"])[0] > text_quality(venue)[0]):
-        merged["venue"] = b["venue"]
-    if not merged.get("title") and b.get("title"):
-        merged["title"] = b["title"]
-    b_abs = b.get("abstract") or ""
-    if b_abs and (not merged.get("abstract") or text_quality(b_abs) > text_quality(merged["abstract"])):
-        merged["abstract"] = b_abs
-    b_authors = _normalize_authors(b.get("authors"))
-    a_authors = _normalize_authors(merged.get("authors"))
-    merged["authors"] = a_authors
-    if (len(b_authors), text_quality(" ".join(b_authors))) > (len(a_authors), text_quality(" ".join(a_authors))):
-        merged["authors"] = b_authors
-    if (
-        b.get("_citation_count_known")
-        and not merged.get("_citation_count_known")
-    ) or (b.get("citation_count") or 0) > (merged.get("citation_count") or 0):
-        merged["citation_count"] = b["citation_count"]
-        merged["_citation_count_known"] = b.get("_citation_count_known", True)
-    b_topics = set(b.get("fields_of_study") or [])
-    a_topics = set(merged.get("fields_of_study") or [])
-    if b_topics - a_topics:
-        merged["fields_of_study"] = list(a_topics | b_topics)
-    types = sorted(set(normalize_publication_types(merged.get("publication_types")))
-                   | set(normalize_publication_types(b.get("publication_types"))))
-    if types:
-        merged["publication_types"] = types
-    checked = set(a.get("_metadata_checked_fields") or ()) | set(b.get("_metadata_checked_fields") or ())
-    if checked:
-        merged["_metadata_checked_fields"] = checked
-    if not merged.get("open_access_url") and b.get("open_access_url"):
-        merged["open_access_url"] = b["open_access_url"]
-    merged["is_open_access"] = bool(
-        merged.get("is_open_access") or b.get("is_open_access")
-        or merged.get("open_access_url")
-    )
-    if not merged.get("tldr") and b.get("tldr"):
-        merged["tldr"] = b["tldr"]
-    updates = []
-    seen_updates = set()
-    for update in (merged.get("updates") or []) + (b.get("updates") or []):
-        key = (str(update.get("DOI") or "").casefold(), str(update.get("type") or "").casefold())
-        if key not in seen_updates:
-            seen_updates.add(key)
-            updates.append(update)
-    if updates:
-        merged["updates"] = updates
-    a_sources = set((merged.get("source") or "").split("+")) - {""}
-    b_sources = set((b.get("source") or "").split("+")) - {""}
-    all_sources = a_sources | b_sources
-    merged["source"] = "+".join(sorted(all_sources))
-    a_ranks = merged.get("_source_ranks") or {}
-    b_ranks = b.get("_source_ranks") or {}
-    channels = set(a_ranks) | set(b_ranks)
-    merged["_source_ranks"] = {
-        channel: min(rank for rank in (a_ranks.get(channel), b_ranks.get(channel)) if rank is not None)
-        for channel in channels
-    }
-    merged["_physical_sources"] = (
-        (merged.get("_physical_sources") or set())
-        | (b.get("_physical_sources") or set())
-        | all_sources
-    )
-    merged["_source_count"] = len(merged["_physical_sources"])
-    merged["canonical_id"] = best_paper_id(merged)
-    return merged
-
-
-def deduplicate(papers: list[dict]) -> list[dict]:
-    """Deduplicate papers by DOI or normalized title, merging metadata from duplicates.
-    Tracks _source_count for consensus scoring.
-    """
-    # Normalize before identity matching as well as merging. Work on copies so
-    # cached source records retain their original metadata.
-    papers = [{**p, "authors": _normalize_authors(p.get("authors"))} for p in papers]
-    for p in papers:
-        if "_source_count" not in p:
-            p["_source_count"] = 1
-
-    groups: list[dict | None] = []
-    key_to_group: dict[str, int] = {}
-    title_to_groups: dict[str, set[int]] = {}
-
-    def identity_keys(paper: dict) -> set[str]:
-        keys = paper_identity_keys(paper)
-        title = _normalize_title(paper.get("title", ""))
-        if len(title.split()) >= 5:
-            keys.add("title:joined:" + title.replace(" ", ""))
-        return keys
-
-    def matching_authors(existing: dict, candidate: dict) -> bool:
-        def surnames(paper):
-            names = set()
-            for author in paper.get("authors") or []:
-                tokens = re.findall(r"[^\W\d_]+", str(author).casefold())
-                meaningful = [token for token in tokens if len(token) > 1]
-                if meaningful:
-                    names.add(meaningful[0] if "," in str(author) else meaningful[-1])
-            return names
-        a_names, b_names = surnames(existing), surnames(candidate)
-        common = a_names & b_names
-        return len(common) >= 2 and len(common) >= min(len(a_names), len(b_names)) / 2
-
-    def compatible_title_match(existing: dict, candidate: dict) -> bool:
-        # Catalogs vary between pre-trained/pretrained or data set/dataset.
-        # Joining word boundaries is only a lookup hint, not identity proof.
-        if (_normalize_title(existing.get("title", ""))
-                != _normalize_title(candidate.get("title", ""))
-                and not matching_authors(existing, candidate)):
-            return False
-        # Generic titles can describe different works in adjacent years.
-        # Distinct explicit DOIs must not collapse on a short title alone.
-        if len(_normalize_title(existing.get("title", "")).split()) < 5:
-            a_doi = _normalized_identifier("DOI", _external_ids(existing).get("DOI"))
-            b_doi = _normalized_identifier("DOI", _external_ids(candidate).get("DOI"))
-            if a_doi and b_doi and a_doi != b_doi:
-                return False
-        a_year, b_year = existing.get("year"), candidate.get("year")
-        try:
-            if not (a_year and b_year and abs(int(a_year) - int(b_year)) > 1):
-                return True
-        except (TypeError, ValueError):
-            return True
-        # Reprints/redeposits can be many years later. Exact, specific titles
-        # plus multiple matching author surnames can establish the same work.
-        # Generic annual report titles still stay separate across years.
-        if len(_normalize_title(existing.get("title", "")).split()) < 5:
-            return False
-        return matching_authors(existing, candidate)
-
-    for paper in papers:
-        keys = identity_keys(paper)
-        identifier_keys = {key for key in keys if not key.startswith("title:")}
-        matched = {key_to_group[key] for key in identifier_keys if key in key_to_group}
-        if not matched:
-            for key in keys - identifier_keys:
-                for group in title_to_groups.get(key, set()):
-                    existing = groups[group]
-                    if existing is not None and compatible_title_match(existing, paper):
-                        matched.add(group)
-
-        if not matched:
-            group_index = len(groups)
-            merged = dict(paper)
-            merged["external_ids"] = _external_ids(merged)
-            merged.setdefault("_physical_sources", set((merged.get("source") or "").split("+")) - {""})
-            merged["_source_count"] = physical_source_count(merged)
-            merged["canonical_id"] = best_paper_id(merged)
-            groups.append(merged)
-        else:
-            group_index = min(matched)
-            merged = groups[group_index] or {}
-            for other_index in sorted(matched - {group_index}):
-                other = groups[other_index]
-                if other is not None:
-                    merged = _merge_two(merged, other)
-                    groups[other_index] = None
-            merged = _merge_two(merged, paper)
-            groups[group_index] = merged
-            if len(matched) > 1:
-                for key, index in list(key_to_group.items()):
-                    if index in matched:
-                        key_to_group[key] = group_index
-
-        for key in identity_keys(merged):
-            if key.startswith("title:"):
-                title_to_groups.setdefault(key, set()).add(group_index)
-            else:
-                key_to_group[key] = group_index
-
-    return [paper for paper in groups if paper is not None]
-
-
-_flashrank_ranker = None
+_flashrank_rankers: dict = {}  # one loaded model per token limit
+_gpu_models: dict = {}  # (device, checkpoint): (tokenizer, model), or None for an uncached optional reader
+_gpu_device: str | None = None  # "cuda", "mps", or "" once known to be absent or broken
 _rank_params = None
+_close_error: str | None = None  # why the GPU close reader failed, once it has
 
 
 # Ranking weights for rank_final. A fitted rank_params.json overrides any
-# subset of these; unspecified keys keep the default.
-DEFAULT_RANK_PARAMS = {"gamma": 1.0, "alpha": 0.05, "beta": 0.02, "delta": 0.10}
+# subset of these; unspecified keys keep the default. The temperature rescales the
+# model's logit before fusion (1 leaves its score as it is).
+DEFAULT_RANK_PARAMS = {"gamma": 1.0, "alpha": 0.05, "beta": 0.02, "delta": 0.10, "temperature": 1.0}
 
 
-def _load_rank_params() -> dict:
-    """Load learned ranking parameters from JSON file, backfilled with defaults."""
+def _load_rank_params(model: str | None = None) -> dict:
+    """The ranking weights for scores from `model`: its own weights over the defaults,
+    with a fitted rank_params.json over both."""
     global _rank_params
-    if _rank_params is not None:
-        return _rank_params
-    import json
-    try:
-        with open(config.RANK_PARAMS_PATH) as f:
-            loaded = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        loaded = {}
-    _rank_params = {**DEFAULT_RANK_PARAMS, **loaded}
-    return _rank_params
+    if _rank_params is None:
+        import json
+        try:
+            with open(config.RANK_PARAMS_PATH) as f:
+                _rank_params = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            _rank_params = {}
+    return {**DEFAULT_RANK_PARAMS, **MODEL_RANK_PARAMS.get(model or "", {}), **_rank_params}
 
 
 INTENT_INSTRUCTS = {
@@ -686,12 +318,30 @@ _reranker_state = {
     "dashscope_configured": bool(config.DASHSCOPE_API_KEY),
     "fallback_reason": None,
     "latency_ms": None,
+    "device": None,  # where the local model ran: "cuda", "mps" or "cpu"
 }
 
 
-def reranker_status() -> dict:
-    """Return safe runtime state for status/debug output."""
-    return dict(_reranker_state)
+_active_reranker: ContextVar[dict | None] = ContextVar("scholar_reranker", default=None)
+
+
+def _note_reranker(**fields) -> None:
+    """Keep a process summary and an isolated record for the ranking in progress."""
+    active = _active_reranker.get()
+    if active is not None:
+        active.update(fields)
+    else:
+        _reranker_state.update(fields)
+
+
+def reranker_status(papers: list[dict] | None = None) -> dict:
+    """Return the result's own provenance, or the active/process status."""
+    if papers:
+        for paper in papers:
+            if isinstance(paper.get("_reranker_meta"), dict):
+                return dict(paper["_reranker_meta"])
+    active = _active_reranker.get()
+    return dict(active if active is not None else _reranker_state)
 
 
 def _warn_dashscope_down(reason: str) -> None:
@@ -773,11 +423,30 @@ def _dashscope_rerank_url(model: str) -> str:
     return base + path
 
 
+# An unreachable endpoint otherwise costs its full timeout on every rerank
+# pass of every search (two or more per search). After a transport failure,
+# rank locally for a while and probe the endpoint again afterwards.
+REMOTE_PAUSE_S = 300
+REMOTE_CONNECT_TIMEOUT_S = 10
+_remote_paused: dict[str, tuple[float, str]] = {}
+
+
 def _rerank_remote(query: str, papers: list[dict], top_n: int, intent: str,
                    *, url: str, model: str, api_key: str | None,
                    provider: str, timeout: float) -> list[dict] | None:
     """Shared transport and scoring, with two small wire-format adapters."""
     started = time.monotonic()
+    # Each harness has its own server. An account rejection remains the same
+    # after a restart, while another endpoint or credential is a distinct route.
+    route = "reranker.pause:" + hashlib.sha256((url + "\0" + model + "\0" + (api_key or "")).encode()).hexdigest()
+    if route not in _remote_paused and (saved := _disk(route)) is not None:
+        _remote_paused[route] = (started + max(0, saved[0] - time.time()), saved[1])
+    paused_until, paused_reason = _remote_paused.get(route, (0.0, ""))
+    if started < paused_until:
+        _note_reranker(provider=None, model=None, dashscope_configured=bool(config.DASHSCOPE_API_KEY),
+                               fallback_reason=f"{paused_reason}; retrying the endpoint in "
+                                               f"{int(paused_until - started)}s", latency_ms=0)
+        return None
     try:
         import httpx
         native = urlsplit(url).path.rstrip("/").endswith(_DASHSCOPE_NATIVE_RERANK_PATH)
@@ -804,7 +473,8 @@ def _rerank_remote(query: str, papers: list[dict], top_n: int, intent: str,
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         resp = httpx.post(
-            url, headers=headers, json=body, timeout=timeout,
+            url, headers=headers, json=body,
+            timeout=httpx.Timeout(timeout, connect=min(timeout, REMOTE_CONNECT_TIMEOUT_S)),
             trust_env=urlsplit(url).hostname not in {"localhost", "127.0.0.1", "::1"},
         )
         # A provider can enforce a smaller token/payload budget than its
@@ -830,7 +500,7 @@ def _rerank_remote(query: str, papers: list[dict], top_n: int, intent: str,
         data = resp.json()
         output = data.get("output", {}) if native else data
         reranked = _apply_rerank_results(output.get("results"), papers, top_n, provider, model)
-        _reranker_state.update(
+        _note_reranker(
             provider=provider,
             model=model or None,
             dashscope_configured=bool(config.DASHSCOPE_API_KEY),
@@ -840,7 +510,14 @@ def _rerank_remote(query: str, papers: list[dict], top_n: int, intent: str,
         return reranked
     except Exception as e:
         reason = _dashscope_reason(e)
-        _reranker_state.update(
+        import httpx
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        if (isinstance(e, httpx.TransportError) or status in {401, 402, 403, 404}
+                or reason.startswith("account in arrearage")):
+            _remote_paused[route] = (time.monotonic() + REMOTE_PAUSE_S, reason)
+            if status in {401, 402, 403, 404} or reason.startswith("account in arrearage"):
+                _disk(route, (time.time() + REMOTE_PAUSE_S, reason))
+        _note_reranker(
             provider=None,
             model=None,
             dashscope_configured=bool(config.DASHSCOPE_API_KEY),
@@ -854,7 +531,7 @@ def _rerank_remote(query: str, papers: list[dict], top_n: int, intent: str,
 def _rerank_dashscope(query: str, papers: list[dict], top_n: int, intent: str = "") -> list[dict] | None:
     """Existing default, using the same adapter as a self-hosted model."""
     if not config.DASHSCOPE_API_KEY:
-        _reranker_state.update(provider=None, model=None, dashscope_configured=False,
+        _note_reranker(provider=None, model=None, dashscope_configured=False,
                                fallback_reason="not configured", latency_ms=None)
         return None
     return _rerank_remote(
@@ -877,56 +554,337 @@ def _dashscope_reason(exc: Exception) -> str:
     return f"{type(exc).__name__}"
 
 
+def _gpu() -> str:
+    """The device torch can rank on ("cuda" or "mps"), or "" without torch or a GPU."""
+    global _gpu_device
+    if _gpu_device is None:
+        try:
+            import torch
+            _gpu_device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else ""
+        except ImportError:
+            _gpu_device = ""
+    return _gpu_device
+
+
+def _load_gpu_model(device: str, checkpoint: str):
+    """Prepare a checkpoint once, preferring ready local assets."""
+    if (device, checkpoint) in _gpu_models and _gpu_models[device, checkpoint] is None:
+        return None
+    if (device, checkpoint) not in _gpu_models:
+        from huggingface_hub import try_to_load_from_cache
+
+        cache = os.path.join(config.DATA_DIR, "models")
+        cached_config = try_to_load_from_cache(checkpoint, 'config.json', cache_dir=cache)
+        snapshot = str(Path(cached_config).parent) if isinstance(cached_config, str) else None
+        if snapshot is None and checkpoint == GPU_MODEL and cached_cpu_model_directory() is not None:
+            _gpu_models[device, checkpoint] = None
+            return None
+        import torch
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+        # Once installed, inference must also work on a disconnected machine.
+        # A real local path also avoids Hub telemetry/metadata requests that can
+        # occur for a repo ID even with local_files_only=True.
+        for local_only in (True, False):
+            if local_only and snapshot is None:
+                continue
+            location = snapshot if local_only else checkpoint
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(location, cache_dir=cache, local_files_only=local_only)
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    location, cache_dir=cache, dtype=torch.float16, local_files_only=local_only)
+                break
+            except OSError:
+                if local_only and checkpoint == GPU_MODEL and cached_cpu_model_directory() is not None:
+                    _gpu_models[device, checkpoint] = None
+                    return None
+                if not local_only:
+                    raise
+        _gpu_models[device, checkpoint] = (tokenizer, model.to(device).eval())
+    return _gpu_models[device, checkpoint]
+
+
+def _gpu_scores(query: str, papers: list[dict], max_length: int, checkpoint: str = "") -> list[dict] | None:
+    """A half-precision cross-encoder with FlashRank-compatible sigmoid scores."""
+    if not papers:
+        return []
+    import torch
+    device, checkpoint = _gpu(), checkpoint or GPU_MODEL
+    loaded = _load_gpu_model(device, checkpoint)
+    if loaded is None:
+        return None
+    tokenizer, model = loaded
+    texts = [((p.get("title") or "") + ". " + (p.get("abstract") or ""))[:2000] for p in papers]
+    scores: list[float] = []
+    with torch.inference_mode():
+        for start in range(0, len(texts), 50):
+            chunk = texts[start:start + 50]
+            batch = tokenizer([query] * len(chunk), chunk, truncation=True, max_length=max_length,
+                              padding=True, return_tensors="pt").to(device)
+            scores += torch.sigmoid(model(**batch).logits.float().reshape(-1)).tolist()
+    return [{"index": i, "relevance_score": score} for i, score in enumerate(scores)]
+
+
+def _cpu_threads() -> int:
+    """Keep ORT's native default unless affinity or a cgroup constrains the CPU."""
+    total = os.cpu_count() or 1
+    try:
+        available = len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        available = total
+    constrained = available < total
+    if not sys.platform.startswith('linux'):
+        return max(1, available) if constrained else 0
+    try:
+        quota, period = Path('/sys/fs/cgroup/cpu.max').read_text().split()
+        if quota != 'max':
+            available = min(available, math.ceil(int(quota) / int(period)))
+            constrained = True
+    except (OSError, ValueError, ZeroDivisionError):
+        for name in ('cpu', 'cpu,cpuacct'):
+            try:
+                base = Path('/sys/fs/cgroup') / name
+                quota = int((base / 'cpu.cfs_quota_us').read_text())
+                period = int((base / 'cpu.cfs_period_us').read_text())
+                if quota > 0:
+                    available = min(available, math.ceil(quota / period))
+                    constrained = True
+                break
+            except (OSError, ValueError, ZeroDivisionError):
+                continue
+    return max(1, available) if constrained else 0
+
+
+def _new_cpu_ranker(max_length: int):
+    """Keep FlashRank's tokenizer/scoring, constructing one configured ORT session.
+
+    FlashRank 0.2.10 has no session-options seam. Its pinned tokenizer helper is
+    reused here; the stock constructor would create an unwanted thread pool.
+    """
+    import logging
+    import onnxruntime as ort
+    from flashrank import Ranker
+    from flashrank.Config import model_file_map
+
+    class CpuRanker(Ranker):
+        def __init__(self):
+            self.model_dir = cpu_model_directory()
+            self.cache_dir = self.model_dir.parent
+            self.logger = logging.getLogger('scholar_mcp.local_reader')
+            self.llm_model = None
+            self._thread_count = _cpu_threads()
+            self.session = next((reader.session for reader in _flashrank_rankers.values()
+                                 if getattr(reader, 'model_dir', None) == self.model_dir
+                                 and getattr(reader, '_thread_count', None) == self._thread_count), None)
+            if self.session is None:
+                options = ort.SessionOptions()
+                options.enable_cpu_mem_arena = False
+                options.intra_op_num_threads = self._thread_count
+                self.session = ort.InferenceSession(str(self.model_dir / model_file_map[FLASHRANK_MODEL]),
+                                                    sess_options=options, providers=['CPUExecutionProvider'])
+            self.tokenizer = self._get_tokenizer(max_length)
+            _note_reranker(cpu_threads=self._thread_count or 'auto')
+    return CpuRanker()
+
+
+def _flashrank_scores(query: str, papers: list[dict], max_length: int) -> list[dict]:
+    """MiniLM scores as reranker items: on the GPU when torch reaches one, about ten
+    times faster on an Apple laptop, else ONNX on the CPU. Raises when neither runs."""
+    global _gpu_device
+    if _gpu():
+        try:
+            items = _gpu_scores(query, papers, max_length)
+            if items is not None:
+                _note_reranker(device=_gpu_device)
+                return items
+        except Exception as error:  # a broken GPU stack falls back for the rest of the process
+            _note_reranker(gpu_error=f"{type(error).__name__}: {error}"[:200])
+            _gpu_device = ""
+    _note_reranker(device="cpu")
+    from flashrank import RerankRequest
+    ranker = _flashrank_rankers.get(max_length)
+    if ranker is None:
+        ranker = _new_cpu_ranker(max_length)
+        _flashrank_rankers[max_length] = ranker
+    passages = [{"id": i, "text": ((p.get("title") or "") + ". " + (p.get("abstract") or ""))[:2000]}
+                for i, p in enumerate(papers)]
+    items, batch = [], max(1, FLASHRANK_BATCH_TOKENS // max_length)
+    for start in range(0, len(passages), batch):
+        items += ranker.rerank(RerankRequest(query=query, passages=passages[start:start + batch]))
+    return [{"index": item["id"], "relevance_score": float(item["score"])} for item in items]
+
+
 def _rerank_flashrank(query: str, papers: list[dict], top_n: int) -> list[dict]:
     """Rerank via FlashRank MiniLM (ONNX). Fallback when DashScope unavailable."""
     started = time.monotonic()
     try:
-        from flashrank import Ranker, RerankRequest
-        global _flashrank_ranker
-        if _flashrank_ranker is None:
-            # Keep the measured portable fallback. A different input format
-            # or token budget needs paired ranking evidence before promotion.
-            _flashrank_ranker = Ranker(model_name="ms-marco-MiniLM-L-12-v2",
-                                       max_length=FLASHRANK_MAX_TOKENS,
-                                       cache_dir=os.path.join(config.DATA_DIR, "models"),
-                                       log_level="WARNING")
-        passages = [{"id": i, "text": ((p.get("title") or "") + ". " + (p.get("abstract") or ""))[:1000]} for i, p in enumerate(papers)]
-        request = RerankRequest(query=query, passages=passages)
-        ranked = _flashrank_ranker.rerank(request)
-        reranked = _apply_rerank_results(
-            [{"index": item["id"], "relevance_score": float(item["score"])} for item in ranked],
-            papers, top_n, "flashrank", "ms-marco-MiniLM-L-12-v2",
-        )
+        reranked = _apply_rerank_results(_cached_local_scores(query, papers, FLASHRANK_MAX_TOKENS),
+                                         papers, top_n, "flashrank", FLASHRANK_MODEL)
     except Exception as error:
         for p in papers:
             p["_rerank_score"] = 0.5
             p["_reranker_provider"] = "unavailable"
             p["_reranker_model"] = None
             p.pop("_rerank_rank", None)
-        _reranker_state.update(
+        _note_reranker(
             provider="unavailable",
             model=None,
             fallback_reason=f"local reranker unavailable ({type(error).__name__})",
             latency_ms=round((time.monotonic() - started) * 1000),
         )
         return papers[:top_n]
-    _reranker_state.update(
+    _note_reranker(
         provider="flashrank",
-        model="ms-marco-MiniLM-L-12-v2",
+        model=FLASHRANK_MODEL,
         latency_ms=round((time.monotonic() - started) * 1000),
     )
     return reranked
 
 
+def _retire_close_reader(reason: str) -> None:
+    """Read with MiniLM for the rest of the process, and free GTE's GPU memory."""
+    global _close_error
+    if _close_error is None:
+        _close_error = reason[:200]
+        _note_reranker(close_error=_close_error)
+    for key in [key for key in _gpu_models if key[1] == CLOSE_MODEL]:
+        del _gpu_models[key]
+
+
+def _reader() -> tuple[str, int]:
+    """CUDA serves the larger reader; interactive MPS/CPU keeps the light reader."""
+    if _gpu() == 'cuda' and not _close_error:
+        return CLOSE_MODEL, CLOSE_TOP_GPU
+    return FLASHRANK_MODEL, FLASHRANK_CLOSE_TOP
+
+
+def _read_leaders_closely(query: str, ranked: list[dict]) -> list[dict]:
+    """Rescore the leaders of a ranked pool with the whole abstract in view.
+
+    The first pass reads 128 tokens, which with the question leaves the title
+    and about the first 60 words of an abstract. The leaders are read again at
+    FLASHRANK_CLOSE_TOKENS; everyone below keeps their place under the leaders.
+    """
+    model, top = _reader()
+    leaders, rest = ranked[:top], ranked[top:]
+    if not leaders:
+        return ranked
+    try:
+        closer = _apply_rerank_results(_cached_local_scores(query, leaders, FLASHRANK_CLOSE_TOKENS, model),
+                                       leaders, len(leaders), "flashrank", model)
+    except Exception:
+        closer = None
+    if closer is None:
+        if model == FLASHRANK_MODEL:  # the first pass stands
+            return ranked
+        # GTE is retired by now; MiniLM reads, outside the handler, so nothing
+        # of the failed attempt stays alive during the retry.
+        _retire_close_reader("close read failed")
+        return _read_leaders_closely(query, ranked)
+    _note_reranker(model=model)
+    floor = min(p["_rerank_score"] for p in closer)
+    for paper in rest:
+        paper["_rerank_score"] = min(paper["_rerank_score"], floor)
+    _note_reranker(model=model)
+    return closer + rest
+
+
+FLASHRANK_MODEL = CPU_MODEL
+GPU_MODEL = "cross-encoder/ms-marco-MiniLM-L12-v2"  # the checkpoint FlashRank's ONNX file is exported from
+# The close reader on a GPU: 149M parameters, Apache 2.0. After MiniLM's skim it
+# lifted nDCG@10 on 73 frozen real pools from 0.248 to 0.330 with collections held
+# out (MiniLM reading 300 itself reaches 0.27 at best); six of seven collections gained.
+CLOSE_MODEL = "Alibaba-NLP/gte-reranker-modernbert-base"
+CLOSE_TOP_GPU = 300
+# The weights belong to the scores they weigh (rank_final); the first reader found
+# in a pool decides, so GTE's weights apply where it read the leaders. Fitted on the
+# frozen real pools (RERANKING.md, Readers compared): GTE reads well enough that
+# citations need less weight and recency none. MiniLM keeps the default weights
+# (refitting them overfits) but needs a temperature: its probabilities crowd near 1
+# for every plausible candidate, so a named paper's lead over cited neighbours
+# vanished and citations decided. Temperature 8, chosen on v1, raised v2 from 0.416
+# to 0.563 (known-paper searches 0.614 to 0.937; topics unchanged on v2, 0.03 lower
+# on v1's review-reference topics).
+MODEL_RANK_PARAMS = {CLOSE_MODEL: {"alpha": 0.02, "beta": 0.02, "delta": 0.0},
+                     FLASHRANK_MODEL: {"temperature": 8.0}}
 DASHSCOPE_CAP = 500
 DASHSCOPE_TOKEN_BUDGET = 110_000  # Leave room below the documented 120K request cap.
 FLASHRANK_CAP = 150
 FLASHRANK_MAX_TOKENS = 128
+FLASHRANK_BATCH_TOKENS = 4096  # tokens per ONNX run on the CPU (32 passages at 128, 10 at 384); see _flashrank_scores
+# With a typical question, 384 tokens hold the title and the whole abstract for
+# 96% of LitSearch candidates (128 holds it for 2%). On 20 frozen pools of 100,
+# reading whole abstracts lifted Hit@20 from 0.45 to 0.60; reading only the
+# leaders that way costs about 2.4 s per pass instead of rereading the pool.
+FLASHRANK_CLOSE_TOKENS = 384
+FLASHRANK_CLOSE_TOP = 100
+
+# Both passes read many of the same documents. Reuse only an identical model
+# input at the same token length, before fusion or close-reading changes scores.
+# One lock also avoids loading duplicate GPU models for concurrent searches.
+_local_score_cache: dict[bytes, float] = {}
+_local_score_lock = threading.Lock()
+LOCAL_SCORE_CACHE_SIZE = 4096
+
+
+def _cached_local_scores(query: str, papers: list[dict], max_length: int,
+                         model: str = FLASHRANK_MODEL) -> list[dict]:
+    keys = [hashlib.sha256((f"{model}:{max_length}:{query}\0" +
+            ((p.get("title") or "") + ". " + (p.get("abstract") or ""))[:2000]).encode()).digest()
+            for p in papers]
+    with _local_score_lock:
+        missing = {}
+        for key, paper in zip(keys, papers):
+            if key not in _local_score_cache:
+                missing.setdefault(key, paper)
+        if missing:
+            # The reader is checked again under the lock: a search that chose GTE
+            # before another's failure must not load it a second time.
+            if model != FLASHRANK_MODEL and (_close_error or not _gpu()):
+                raise RuntimeError(_close_error or "no GPU for the close reader")
+            try:
+                items = (_flashrank_scores(query, list(missing.values()), max_length) if model == FLASHRANK_MODEL
+                         else _gpu_scores(query, list(missing.values()), max_length, model))
+                # Validate before caching, so a failed batch never becomes a saved score.
+                _apply_rerank_results(items, list(missing.values()), len(missing),
+                                      "flashrank", model)
+            except Exception as error:
+                if model != FLASHRANK_MODEL:
+                    _retire_close_reader(f"{type(error).__name__}: {error}")
+                raise
+            fresh = {key: paper["_rerank_score"] for key, paper in zip(missing, missing.values())}
+            _local_score_cache.update(fresh)
+        device = _gpu() or 'cpu'
+        if model == FLASHRANK_MODEL and (device, GPU_MODEL) in _gpu_models and _gpu_models[device, GPU_MODEL] is None:
+            device = 'cpu'
+        _note_reranker(device=device)
+        scores = [{"index": i, "relevance_score": _local_score_cache[key]} for i, key in enumerate(keys)]
+        while len(_local_score_cache) > LOCAL_SCORE_CACHE_SIZE:
+            del _local_score_cache[next(iter(_local_score_cache))]
+        return scores
 
 def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") -> list[dict]:
-    """Score every candidate in provider-sized batches, then select globally."""
+    """Rank candidates and bind provenance to the returned records."""
+    global _reranker_state
     if not papers:
         return papers
+    started = time.monotonic()
+    token = _active_reranker.set({"provider": None, "model": None, "fallback_reason": None,
+                                  "dashscope_configured": bool(config.DASHSCOPE_API_KEY)})
+    try:
+        ranked = _rank_candidates(query, papers, top_n, intent)
+        state = reranker_status()
+        state["latency_ms"] = round((time.monotonic() - started) * 1000)
+        _reranker_state = dict(state)
+        for paper in ranked:
+            paper["_reranker_meta"] = state
+        return ranked
+    finally:
+        _active_reranker.reset(token)
+
+
+def _rank_candidates(query: str, papers: list[dict], top_n: int, intent: str) -> list[dict]:
+    """Score every candidate in provider-sized batches, then select globally."""
     batch_size = config.RERANK_BATCH_SIZE if config.RERANK_URL else (
         100 if config.RERANK_MODEL == "qwen3-vl-rerank" else DASHSCOPE_CAP)
     token_budget = min(DASHSCOPE_TOKEN_BUDGET, 27_000) if config.RERANK_MODEL == "gte-rerank-v2" else DASHSCOPE_TOKEN_BUDGET
@@ -949,12 +907,23 @@ def rerank(query: str, papers: list[dict], top_n: int = 50, intent: str = "") ->
         batches.append(batch)
     if len(batches) > 1:
         from concurrent.futures import ThreadPoolExecutor
+        def score(batch):
+            token = _active_reranker.set({})
+            try:
+                result = _remote_batch(query, batch, len(batch), intent)
+                return result, reranker_status()
+            finally:
+                _active_reranker.reset(token)
+
         with ThreadPoolExecutor(max_workers=2) as pool:
-            outcomes = list(pool.map(lambda batch: _remote_batch(query, batch, len(batch), intent), batches))
-        if any(result is None for result in outcomes):
-            # All cloud work has joined before one consistent local fallback.
+            outcomes = list(pool.map(score, batches))
+        failed = next((state for result, state in outcomes if result is None), None)
+        if failed is not None:
+            # Preserve the failed batch's reason even if another batch finished later.
+            _note_reranker(**failed)
             return _local_batches(query, papers, top_n)
-        ranked = [paper for result in outcomes for paper in result]
+        _note_reranker(**outcomes[-1][1])
+        ranked = [paper for result, _ in outcomes for paper in result]
         ranked.sort(key=lambda p: -(p.get("_rerank_score") or 0))
         for rank, paper in enumerate(ranked, 1):
             paper["_rerank_rank"] = rank
@@ -976,8 +945,6 @@ def _remote_batch(query: str, papers: list[dict], top_n: int, intent: str) -> li
 
 
 def _local_batches(query: str, papers: list[dict], top_n: int) -> list[dict]:
-    if len(papers) <= FLASHRANK_CAP:
-        return _rerank_flashrank(query, papers, top_n)
     ranked = []
     for start in range(0, len(papers), FLASHRANK_CAP):
         batch = papers[start:start + FLASHRANK_CAP]
@@ -988,6 +955,7 @@ def _local_batches(query: str, papers: list[dict], top_n: int) -> list[dict]:
             paper.pop("_rerank_rank", None)
         return rank_final(ranked)[:top_n]
     ranked.sort(key=lambda p: -(p.get("_rerank_score") or 0))
+    ranked = _read_leaders_closely(query, ranked)
     for rank, paper in enumerate(ranked, 1):
         paper["_rerank_rank"] = rank
     return ranked[:top_n]
@@ -996,13 +964,17 @@ def _local_batches(query: str, papers: list[dict], top_n: int) -> list[dict]:
 def rank_final(papers: list[dict]) -> list[dict]:
     """Apply learnable composite ranking formula and sort.
 
-    final = rerank_score^γ × (1 + α × log(citations+1)) × (1 + β × source_count/N) × (1 + δ × recency)
-    γ,α,β,δ loaded from rank_params.json (learned via scipy.optimize on LitSearch GT).
+    final = rerank_score^γ × (1 + α × log(citations+1)) × (1 + β × source_count/N) × (1 + δ × recency),
+    with rerank_score = sigmoid(logit / temperature). The weights and temperature
+    are those of the model that read the leaders (MODEL_RANK_PARAMS), under any
+    fitted rank_params.json.
     """
-    params = _load_rank_params()
+    readers = {p.get("_reranker_model") for p in papers}
+    params = _load_rank_params(next((m for m in MODEL_RANK_PARAMS if m in readers), None))
     gamma, alpha, beta, delta = (
         params["gamma"], params["alpha"], params["beta"], params["delta"]
     )
+    temperature = params.get("temperature", 1.0)
 
     current_year = datetime.now().year
     # Count distinct APIs, not query channels: one source answering four
@@ -1014,8 +986,11 @@ def rank_final(papers: list[dict]) -> list[dict]:
 
     for p in papers:
         r = max(p.get("_rerank_score", 0.0), 1e-6)
+        if temperature != 1.0:
+            r = min(r, 1 - 1e-6)
+            r = 1 / (1 + math.exp(-math.log(r / (1 - r)) / temperature))
         cites = p.get("citation_count", 0) or 0
-        src_count = physical_source_count(p)
+        src_count = record_ops.physical_source_count(p)
         try:
             year = int(p.get("year") or current_year)
         except (TypeError, ValueError):

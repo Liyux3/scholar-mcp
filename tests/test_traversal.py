@@ -15,6 +15,10 @@ class _Response:
     def json(self):
         return self._payload
 
+    def raise_for_status(self):
+        import httpx
+        httpx.Response(self.status_code, request=httpx.Request('GET', traversal.OA_BASE)).raise_for_status()
+
 
 def _work(wid, title, cites=0):
     return {"id": f"https://openalex.org/{wid}", "title": title,
@@ -140,7 +144,7 @@ class TestDeadEdgeRecovery:
             return {"title": "Attention is All you Need", "citation_count": 186604,
                     "year": 2017, "external_ids": {"DOI": "10.5555/3295222"}}
 
-        monkeypatch.setattr(traversal.s2_client, "get_paper", fake_get_paper)
+        monkeypatch.setattr(traversal.s2, "get_paper", fake_get_paper)
 
         works = traversal._fetch_works(["W2963403868"])
         recovered = works["https://openalex.org/W2963403868"]
@@ -154,7 +158,7 @@ class TestDeadEdgeRecovery:
                             lambda *a, **kw: _Response({"results": []}))
 
         called = []
-        monkeypatch.setattr(traversal.s2_client, "get_paper",
+        monkeypatch.setattr(traversal.s2, "get_paper",
                             lambda pid: called.append(pid))
 
         assert traversal._fetch_works(["W6739901393"]) == {}
@@ -167,7 +171,7 @@ class TestDeadEdgeRecovery:
         def boom(pid):
             raise RuntimeError("S2 down")
 
-        monkeypatch.setattr(traversal.s2_client, "get_paper", boom)
+        monkeypatch.setattr(traversal.s2, "get_paper", boom)
         assert traversal._fetch_works(["W2963403868"]) == {}
 
     def test_live_records_are_not_looked_up_again(self, monkeypatch):
@@ -175,7 +179,7 @@ class TestDeadEdgeRecovery:
             {"results": [_work("W2963403868", "Already Here")]}))
 
         called = []
-        monkeypatch.setattr(traversal.s2_client, "get_paper",
+        monkeypatch.setattr(traversal.s2, "get_paper",
                             lambda pid: called.append(pid))
 
         works = traversal._fetch_works(["W2963403868"])
@@ -212,8 +216,8 @@ class TestDuplicateRecordMerging:
     def test_limit_applies_after_merging(self, monkeypatch):
         """Two records merging into one must not cost a slot in the output."""
         monkeypatch.setattr(traversal, "_fetch_works", lambda wids, **kw: {
-            "https://openalex.org/WA": _work("WA", "Same Paper", 9),
-            "https://openalex.org/WB": _work("WB", "Same paper", 5),
+            "https://openalex.org/WA": _work("WA", "A Specific Study of Neural Retrieval", 9),
+            "https://openalex.org/WB": _work("WB", "A specific study of neural retrieval", 5),
             "https://openalex.org/WC": _work("WC", "Other", 1),
         })
 
@@ -222,8 +226,23 @@ class TestDuplicateRecordMerging:
              ("https://openalex.org/WC", 2)],
             "co_citation", limit=2)
 
-        assert [p["title"] for p in results] == ["Same Paper", "Other"]
+        assert [p["title"] for p in results] == ["A Specific Study of Neural Retrieval", "Other"]
         assert results[0]["_relation_strength"] == 6
+
+    def test_distinct_authored_works_keep_their_identity_and_metadata(self, monkeypatch):
+        first = {**_work('WA', 'A Specific Study of Neural Retrieval'),
+                 'authorships': [{'author': {'display_name': 'Alice Smith'}}],
+                 'abstract_inverted_index': {'First': [0], 'abstract': [1]}}
+        second = {**_work('WB', 'A Specific Study of Neural Retrieval'),
+                  'authorships': [{'author': {'display_name': 'Bob Jones'}}]}
+        monkeypatch.setattr(traversal, '_fetch_works', lambda *a, **kw: {
+            first['id']: first, second['id']: second})
+        rows = traversal._materialise([(first['id'], 4), (second['id'], 3)], 'co_citation', 10)
+        assert len(rows) == 2
+        assert rows[0]['authors'] == ['Alice Smith']
+        assert rows[0]['abstract'] == 'First abstract'
+        from scholar_mcp.records import deduplicate
+        assert deduplicate(rows + rows)[0]['_relation_strength'] == 4
 
     def test_titleless_records_are_dropped(self, monkeypatch):
         monkeypatch.setattr(traversal, "_fetch_works", lambda wids, **kw: {
