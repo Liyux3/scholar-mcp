@@ -184,8 +184,8 @@ def _run_install(argv: list[str], remove: bool) -> int:
     parser.add_argument("--force", action="store_true", help="replace or remove an entry this installer did not create")
     parser.add_argument("--json", action="store_true")
     if not remove:
-        parser.add_argument("--profile", choices=["core", "research", "science"], default="core",
-                            help="research adds graph/library; science adds scientific data search/lookup")
+        parser.add_argument("--profile", choices=["core", "research"], default="core",
+                            help="research adds the citation graph and paper library tools")
         parser.add_argument("--mode", choices=["auto", "tool", "uvx"], default="auto",
                             help="tool registers this installation's executable; uvx a pinned uvx command")
     args = parser.parse_args(argv)

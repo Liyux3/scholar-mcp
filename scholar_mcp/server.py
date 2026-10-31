@@ -1310,39 +1310,6 @@ def scholar_status() -> str:
     })
 
 
-def search_data(query: str, kind: str = "dataset", source: str = "", limit: int = 10) -> dict:
-    """Find scientific datasets, genes, proteins, compounds or research projects.
-
-    Returns typed native records, declared file links and per-source status.
-    Source order is preserved; files are not downloaded. For an accession or
-    record URL use data_info, for a paper's associations use paper_info(include="data").
-
-    Args:
-        query: The source's keyword/query expression.
-        kind: dataset, sequence, project, gene, protein or compound.
-        source: Optional geo/zenodo, sra, bioproject, gene, uniprot or pubchem.
-        limit: Maximum returned records, 1-50; a bounded first page.
-    """
-    from . import research_data
-    return research_data.search(query, kind=kind, source=source, limit=limit)
-
-
-def data_info(data_id: str, limit: int = 20) -> dict:
-    """Read a native scientific record and its explicitly declared relationships.
-
-    Accepts a GEO GSE/GDS, SRA experiment/run, BioProject accession, NCBIGene:ID,
-    UniProt:accession, PubChem:CID or Zenodo:ID and their official record URLs.
-    Returns the native identity, metadata, file pointers and database evidence.
-    Files stay at the source and no local library record is created.
-
-    Args:
-        data_id: Native prefixed identifier, accession or official record URL.
-        limit: Maximum declared relationships to return, 1-100.
-    """
-    from . import research_data
-    return research_data.info(data_id, limit=limit)
-
-
 def _register_extensions() -> None:
     enabled = {
         value.strip()
@@ -1379,14 +1346,6 @@ def _register_extensions() -> None:
                 openWorldHint=False,
             )
         )(knowledge_base)
-    if "science" in enabled:
-        for function in (search_data, data_info):
-            _tool(annotations=ToolAnnotations(
-                title="Search scientific data" if function is search_data else "Read a scientific record",
-                readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True,
-            ))(function)
-
-
 _register_extensions()
 
 

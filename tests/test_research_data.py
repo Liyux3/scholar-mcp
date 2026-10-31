@@ -151,16 +151,17 @@ def test_paper_links_require_verified_identity_and_are_explicit(monkeypatch):
     assert server.paper_info("PMID:12", include="data")["data"]["objects"]
 
 
-def test_science_extension_cli_and_python_share_one_boundary(monkeypatch, capsys):
-    monkeypatch.setattr(data, "info", lambda identifier, limit=20: {"object": {"id": identifier}})
+def test_scientific_cli_and_python_share_the_backend_without_new_mcp_tools(monkeypatch, capsys):
+    monkeypatch.setattr(api, "data_info", lambda identifier, limit=20: {"object": {"id": identifier}})
     assert cli.main(["data-info", "NCBIGene:7157", "--json"]) == 0
     assert '"id": "NCBIGene:7157"' in capsys.readouterr().out
-    assert install.launch_spec("tool", "science").env == {"SCHOLAR_MCP_EXTENSIONS": "science"}
+    with pytest.raises(ValueError, match="profile"):
+        install.launch_spec("tool", "science")
     registered = []
     monkeypatch.setenv("SCHOLAR_MCP_EXTENSIONS", "science")
     monkeypatch.setattr(server, "_tool", lambda **kw: lambda fn: registered.append(fn.__name__))
     server._register_extensions()
-    assert registered == ["search_data", "data_info"]
+    assert registered == []
 
 
 @pytest.mark.integration
@@ -184,7 +185,7 @@ def test_live_scientific_records_and_paper_associations():
 
 
 @pytest.mark.integration
-def test_live_science_mcp_contract():
+def test_live_paper_data_uses_the_existing_mcp_tool():
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
     import os
@@ -192,12 +193,12 @@ def test_live_science_mcp_contract():
 
     async def run():
         params = StdioServerParameters(command=sys.executable, args=["-m", "scholar_mcp"],
-            env={**os.environ, "SCHOLAR_MCP_EXTENSIONS": "science", "SCHOLAR_USAGE_LOG": "off"})
+            env={**os.environ, "SCHOLAR_MCP_EXTENSIONS": "research", "SCHOLAR_USAGE_LOG": "off"})
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
                 names = {t.name for t in (await session.list_tools()).tools}
-                assert len(names) == 8 and {"search_data", "data_info"} <= names
-                response = await session.call_tool("data_info", {"data_id": "PubChem:2244"})
-                assert response.structuredContent["object"]["id"] == "PubChem:2244"
+                assert len(names) == 8 and not {"search_data", "data_info"} & names
+                response = await session.call_tool("paper_info", {"paper_id": "PMID:26826244", "include": "data", "limit": 5})
+                assert any(obj["id"] == "GEO:GSE68849" for obj in response.structuredContent["data"]["objects"]), json.dumps(response.structuredContent)
     asyncio.run(run())

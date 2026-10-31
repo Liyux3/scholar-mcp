@@ -1,7 +1,7 @@
-"""Python API: the MCP tools as plain functions returning dicts.
+"""Python API: paper research and scientific records as plain functions.
 
-The same implementation serves MCP clients, the command line and Python code,
-so results carry the fields of the tools' structured output::
+The paper tools share their implementation with MCP and the command line.
+Independent scientific-record search and lookup are CLI/Python functions::
 
     from scholar_mcp import api
 
@@ -15,6 +15,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from . import server
+from .research_data import info as data_info, search as search_data
 
 __all__ = ["search", "info", "related", "authors", "read", "download", "graph", "library", "search_data", "data_info"]
 
@@ -25,8 +26,6 @@ authors = server.search_authors
 read = server.read_paper
 download = server.download_paper
 library = server.paper_library
-search_data = server.search_data
-data_info = server.data_info
 
 
 def graph(paper_ids: str | Iterable[str], **options) -> dict:

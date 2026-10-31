@@ -112,8 +112,8 @@ def launch_spec(mode: str = "auto", profile: str = "core") -> Spec:
     A persistent install registers its own executable, so upgrading the tool
     upgrades every client; an ephemeral uvx run registers a pinned uvx command.
     """
-    if profile not in {"core", "research", "science"}:
-        raise ValueError("profile must be core, research or science")
+    if profile not in {"core", "research"}:
+        raise ValueError("profile must be core or research")
     env = {"SCHOLAR_MCP_EXTENSIONS": profile} if profile != "core" else {}
     if mode == "auto":
         mode = "uvx" if install_method() == "uvx" else "tool"

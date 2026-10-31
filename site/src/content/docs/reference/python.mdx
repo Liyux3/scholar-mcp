@@ -34,8 +34,8 @@ graph = api.graph(["arXiv:2303.04137"], max_hops=1)
 | `api.download` | [`download_paper`](/scholar-mcp/tools/#download_paper) | The saved file path and its library collection |
 | `api.graph` | [`build_paper_graph`](/scholar-mcp/tools/#build_paper_graph) | `nodes`, `edges`, PageRank, bridges and a Mermaid diagram |
 | `api.library` | [`paper_library`](/scholar-mcp/tools/#paper_library) | The result of the chosen library action |
-| `api.search_data` | `search_data` | Typed scientific objects and source status |
-| `api.data_info` | `data_info` | A native scientific record, file pointers and declared relations |
+
+For independent [scientific data](/scholar-mcp/scientific-data/), `api.search_data` searches typed objects and `api.data_info` reads native records. These functions are available through CLI/Python; paper associations use the existing `api.info(..., include="data")` / `paper_info` path.
 
 Parameter names and defaults match the [MCP tools reference](/scholar-mcp/tools/), with one convenience: `api.graph` accepts seeds as a list as well as a comma-separated string. A lookup that finds nothing returns a dictionary with an `error` key, the same way the tools report it to a model.
 

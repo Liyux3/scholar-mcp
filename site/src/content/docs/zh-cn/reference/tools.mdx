@@ -63,10 +63,6 @@ import { Aside } from '@astrojs/starlight/components';
 
 `include="data"` 显式查询[科学数据库关联](/scholar-mcp/zh-cn/scientific-data/)，默认查询不增加这些数据库请求。
 
-## search_data 与 data_info
-
-可选的 `science` 扩展增加两个只读工具。`search_data(query, kind="dataset", source="", limit=10)` 检索有类型的记录；`data_info(data_id, limit=20)` 读取原生 ID 或官方记录链接。[科学数据指南](/scholar-mcp/zh-cn/scientific-data/)说明支持的类型、证据、文件指针和来源状态。`research,science` 可同时启用两类扩展。
-
 ## recommend_papers
 
 围绕一篇论文找相关工作，也能找到跨领域的联系。只读。

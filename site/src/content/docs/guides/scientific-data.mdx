@@ -6,17 +6,19 @@ description: Find and inspect scientific records and their database-declared lin
 
 Scholar can find the data and biological objects you need to investigate a paper: a deposited dataset, a sequencing experiment, a research project, a gene, a protein or a compound. Each keeps its own native identity and fields.
 
-## Connect the science tools
+## Start from a paper
 
-In a source installation that includes this feature, run:
+Ask the agent to use the existing `paper_info` tool with `include="data"`:
 
-```bash
-scholar-mcp install claude-code --profile science
+```python
+paper_info("PMID:26826244", include="detail,data")
 ```
 
-This adds `search_data` and `data_info` to the six paper tools. To enable both the science tools and the paper-library/graph tools, set `SCHOLAR_MCP_EXTENSIONS=research,science` in the server environment. Python and CLI calls work without enabling an MCP extension.
+This returns the paper and its explicitly recorded database associations. It works with the usual paper tools and needs no extra MCP profile. The core tool count stays at six, or eight with the research profile.
 
-## Search, inspect, then follow the links
+## Independent queries from CLI or Python
+
+For a dataset or biological object that you want to look up directly, the CLI and Python API use the same backend:
 
 ```bash
 scholar-mcp data 'TP53[Gene Name] AND human[Organism]' --kind gene
@@ -37,9 +39,9 @@ The first call searches for genes using NCBI's query syntax. The next calls read
 | `protein` | UniProtKB | `UniProt:P04637` |
 | `compound` | PubChem | `PubChem:2244` |
 
-`search_data(query, kind="dataset", source="", limit=10)` returns at most 50 records from a bounded first page. `source` selects one listed source. Results preserve each database's ordering, interleaved across sources; they have no invented common relevance score. `data_info(data_id, limit=20)` accepts native identifiers and official record URLs, and returns at most 100 declared relations.
+The Python function `api.search_data(query, kind="dataset", source="", limit=10)` returns at most 50 records from a bounded first page. `source` selects one listed source. Results preserve each database's ordering, interleaved across sources; they have no invented common relevance score. `api.data_info(data_id, limit=20)` accepts native identifiers and official record URLs, and returns at most 100 declared relations. These are Python functions, rather than additional MCP tools.
 
-Search returns compact identity cards, with a description of up to 1,200 characters and counts of declared files and relations. `description_truncated` marks a shortened description. Use `data_info` for the native `properties`, declared `files`, `relations` and source `provenance`. A returned relation includes its evidence URL. A run accession may resolve to its experiment, with the run retained as a confirmed alias. Objects from different namespaces are kept distinct even when their names match.
+Search returns compact identity cards, with a description of up to 1,200 characters and counts of declared files and relations. `description_truncated` marks a shortened description. Use `api.data_info` for the native `properties`, declared `files`, `relations` and source `provenance`. A returned relation includes its evidence URL. A run accession may resolve to its experiment, with the run retained as a confirmed alias. Objects from different namespaces are kept distinct even when their names match.
 
 ## Reuse the same backend
 

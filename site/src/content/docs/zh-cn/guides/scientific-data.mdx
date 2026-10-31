@@ -6,17 +6,19 @@ description: 检索科学数据记录，并查看数据库明确给出的论文�
 
 读论文时，Agent 还可以查找研究涉及的数据集、测序实验、研究项目、基因、蛋白质和化合物。每类对象保留原生标识和字段，供后续查看方法、规划实验或使用领域工具分析。
 
-## 接入科学数据工具
+## 从论文取得关联数据
 
-在包含此功能的源码安装中运行：
+让 Agent 使用已有的 `paper_info`，显式请求 `data`：
 
-```bash
-scholar-mcp install claude-code --profile science
+```python
+paper_info("PMID:26826244", include="detail,data")
 ```
 
-`science` 在六个论文工具之外增加 `search_data` 和 `data_info`。若还需要论文库和引用图，在服务器环境设置 `SCHOLAR_MCP_EXTENSIONS=research,science`。CLI 和 Python 直接使用同一实现，无需启用 MCP 扩展。
+响应包含论文及数据库明确记录的关联。使用通常的论文工具即可，无需额外配置。核心 MCP 保持六个工具，启用 `research` 时仍为八个。
 
-## 从检索进入原始记录
+## 通过 CLI 或 Python 独立查询
+
+直接查找数据集、基因或蛋白质时，CLI 和 Python API 复用同一后端：
 
 ```bash
 scholar-mcp data 'TP53[Gene Name] AND human[Organism]' --kind gene
@@ -37,9 +39,9 @@ scholar-mcp info PMID:26826244 --data
 | `protein` | UniProtKB | `UniProt:P04637` |
 | `compound` | PubChem | `PubChem:2244` |
 
-`search_data(query, kind="dataset", source="", limit=10)` 返回有界的第一页，最多 50 条，`source` 可指定其中一个来源。各数据库内部保留原有顺序，多来源交替呈现，不编造统一相关性分数。`data_info(data_id, limit=20)` 接受原生标识和官方记录链接，最多返回 100 条已声明关系。
+Python 函数 `api.search_data(query, kind="dataset", source="", limit=10)` 返回有界的第一页，最多 50 条，`source` 可指定其中一个来源。各数据库内部保留原有顺序，多来源交替呈现。`api.data_info(data_id, limit=20)` 接受原生标识和官方记录链接，最多返回 100 条已声明关系。这两个入口只作为 Python 函数和 CLI 命令提供。
 
-检索返回简洁的身份卡片、最多 1,200 字符的描述及文件和关系数量；`description_truncated` 标记被缩短的描述。使用 `data_info` 再取得原生 `properties`、文件指针 `files`、关系 `relations` 和来源 `provenance`。关系带证据链接。SRA run 可以解析到所属实验，同时保留经过来源确认的 run 别名。同名的不同类型对象继续保持各自身份。
+检索返回简洁的身份卡片、最多 1,200 字符的描述及文件和关系数量；`description_truncated` 标记被缩短的描述。使用 `api.data_info` 再取得原生 `properties`、文件指针 `files`、关系 `relations` 和来源 `provenance`。关系带证据链接。SRA run 可以解析到所属实验，同时保留经过来源确认的 run 别名。同名的不同类型对象继续保持各自身份。
 
 ## 与已有管线共用底层能力
 
