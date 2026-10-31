@@ -39,7 +39,7 @@ The first call searches for genes using NCBI's query syntax. The next calls read
 
 `search_data(query, kind="dataset", source="", limit=10)` returns at most 50 records from a bounded first page. `source` selects one listed source. Results preserve each database's ordering, interleaved across sources; they have no invented common relevance score. `data_info(data_id, limit=20)` accepts native identifiers and official record URLs, and returns at most 100 declared relations.
 
-Each object has `id`, `kind`, `source`, `native_id`, `title`, `description`, `url`, native `properties`, declared `files`, `relations` and `provenance`. A returned relation includes its evidence URL. A run accession may resolve to its experiment, with the run retained as a confirmed alias. Objects from different namespaces are kept distinct even when their names match.
+Search returns compact identity cards, with a description of up to 1,200 characters and counts of declared files and relations. `description_truncated` marks a shortened description. Use `data_info` for the native `properties`, declared `files`, `relations` and source `provenance`. A returned relation includes its evidence URL. A run accession may resolve to its experiment, with the run retained as a confirmed alias. Objects from different namespaces are kept distinct even when their names match.
 
 ## Reuse the same backend
 

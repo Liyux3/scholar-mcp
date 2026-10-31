@@ -39,7 +39,7 @@ scholar-mcp info PMID:26826244 --data
 
 `search_data(query, kind="dataset", source="", limit=10)` 返回有界的第一页，最多 50 条，`source` 可指定其中一个来源。各数据库内部保留原有顺序，多来源交替呈现，不编造统一相关性分数。`data_info(data_id, limit=20)` 接受原生标识和官方记录链接，最多返回 100 条已声明关系。
 
-每个对象包含 `id`、`kind`、`source`、`native_id`、标题、描述、原生 `properties`、文件指针 `files`、关系 `relations` 和来源 `provenance`。关系带证据链接。SRA run 可以解析到所属实验，同时保留经过来源确认的 run 别名。同名的不同类型对象继续保持各自身份。
+检索返回简洁的身份卡片、最多 1,200 字符的描述及文件和关系数量；`description_truncated` 标记被缩短的描述。使用 `data_info` 再取得原生 `properties`、文件指针 `files`、关系 `relations` 和来源 `provenance`。关系带证据链接。SRA run 可以解析到所属实验，同时保留经过来源确认的 run 别名。同名的不同类型对象继续保持各自身份。
 
 ## 与已有管线共用底层能力
 

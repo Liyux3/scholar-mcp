@@ -102,10 +102,14 @@ def test_failed_source_leaves_other_typed_results_usable(monkeypatch):
     def search(source, query, limit):
         if source == "zenodo":
             raise httpx.ConnectError("unavailable")
-        return [{"id": "GEO:GSE1", "source": "geo", "kind": "dataset", "title": "A"}]
+        return [{"id": "GEO:GSE1", "source": "geo", "native_id": "GSE1", "kind": "dataset", "title": "A",
+                 "url": "https://example.test", "provenance": {"url": "https://example.test"},
+                 "description": "x" * 2000, "properties": {"samples": ["large"] * 1000}}]
     monkeypatch.setattr(data, "_search", search)
     result = api.search_data("experiment")
     assert result["status"] == "partial" and result["objects"][0]["id"] == "GEO:GSE1"
+    assert len(result["objects"][0]["description"]) == 1200
+    assert result["objects"][0]["description_truncated"] and "properties" not in result["objects"][0]
     assert {r["source"]: r["status"] for r in result["sources"]} == {"geo": "ok", "zenodo": "error"}
     assert api.search_data("experiment", kind="gene", source="zenodo")["error"]
 

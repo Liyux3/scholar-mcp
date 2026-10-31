@@ -293,6 +293,13 @@ def search(query: str, kind: str = "dataset", source: str = "", limit: int = 10)
     # Round robin preserves each database's rank without inventing a common score.
     by_source = [[obj for obj in objects if obj["source"] == s] for s in selected]
     merged = [rows[index] for index in range(limit) for rows in by_source if len(rows) > index][:limit]
+    # Discovery stays compact even for proteins with hundreds of references or
+    # GEO series with many samples; the native getter retains their detail.
+    merged = [{**{k: obj[k] for k in ("id", "kind", "source", "native_id", "title", "url", "provenance")},
+               "description": obj.get("description", "")[:1200],
+               "description_truncated": len(obj.get("description", "")) > 1200,
+               "organism": obj.get("organism", ""), "files_count": len(obj.get("files", [])),
+               "relations_count": len(obj.get("relations", []))} for obj in merged]
     return {"query": query, "kind": kind, "objects": merged, "total": len(merged),
             "sources": reports, "status": "partial" if any(r["status"] not in {"ok", "empty"} for r in reports) else "ok",
             "scope": "First bounded result page; database order within each source, no cross-type relevance score."}
