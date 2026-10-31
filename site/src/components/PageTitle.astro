@@ -21,11 +21,19 @@ function currentGroup(entries: Entry[], label?: string): string | undefined {
 const eyebrow = currentGroup(route.sidebar as Entry[]);
 const description = route.entry.data.description;
 const chinese = Astro.url.pathname.includes('/zh-cn/');
+const body = route.id === '404' ? '' : route.entry.body?.replace(/^import .*\n/gm, '').trim();
+const source = body ? `# ${route.entry.data.title}\n\n${body}\n` : '';
 ---
 
 {eyebrow && <p class="sc-eyebrow">{eyebrow}</p>}
-<Default />
+<div class="sc-title-row">
+	<Default />
+	{source && <button class="sc-copy" type="button" data-copy-page data-copied={chinese ? '已复制' : 'Copied'} data-pagefind-ignore>
+		{chinese ? '复制页面' : 'Copy page'}
+	</button>}
+</div>
 {description && <p class="sc-lead">{description}</p>}
+{source && <template data-page-source data-pagefind-ignore="all" set:text={source} />}
 {scholarDocs.channel === 'preview' && <p class="sc-version" data-pagefind-ignore>
 	{chinese ? '0.9 开发版文档，安装示例固定到已验收源码。' : '0.9 preview documentation. Install examples use tested source.'}
 	{' '}<a href={`https://github.com/Liyux3/scholar-mcp/releases/tag/v${scholarDocs.stableVersion}`}>
@@ -36,4 +44,22 @@ const chinese = Astro.url.pathname.includes('/zh-cn/');
 <style>
 	.sc-version { margin-top: 1rem; font-size: .8125rem; color: var(--sc-muted); }
 	.sc-version a { color: inherit; white-space: nowrap; text-underline-offset: .15em; }
+	.sc-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+	.sc-copy {
+		flex: none; margin-top: .5rem; padding: .25rem .625rem; font: inherit; font-size: .8125rem; cursor: pointer;
+		color: var(--sc-muted); background: transparent; border: 1px solid var(--sc-border); border-radius: 8px;
+	}
+	.sc-copy:hover { color: var(--sc-ink); background: var(--sc-hover); }
 </style>
+
+<script>
+	for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy-page]')) {
+		const label = button.textContent;
+		button.addEventListener('click', async () => {
+			const source = document.querySelector<HTMLTemplateElement>('template[data-page-source]');
+			await navigator.clipboard.writeText(source?.content.textContent ?? '');
+			button.textContent = button.dataset.copied ?? label;
+			setTimeout(() => (button.textContent = label), 1500);
+		});
+	}
+</script>

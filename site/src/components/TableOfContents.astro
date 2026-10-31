@@ -1,0 +1,24 @@
+---
+// Starlight marks the current section but leaves a long list where it is, so the mark can leave the window.
+// This keeps it in view, and leaves the list alone while the pointer is on it.
+import Default from '@astrojs/starlight/components/TableOfContents.astro';
+---
+
+<Default />
+
+<script>
+	const rail = document.querySelector<HTMLElement>('.right-sidebar');
+	const toc = document.querySelector('starlight-toc');
+	const margin = 96;
+
+	if (rail && toc) {
+		new MutationObserver(() => {
+			const current = toc.querySelector('a[aria-current="true"]');
+			if (!current || rail.matches(':hover')) return;
+			const link = current.getBoundingClientRect();
+			const view = rail.getBoundingClientRect();
+			if (link.top >= view.top + margin && link.bottom <= view.bottom - margin) return;
+			rail.scrollBy({ top: link.top - view.top - view.height / 2, behavior: 'smooth' });
+		}).observe(toc, { subtree: true, attributes: true, attributeFilter: ['aria-current'] });
+	}
+</script>

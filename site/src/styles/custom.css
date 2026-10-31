@@ -882,12 +882,19 @@ starlight-toc li:has(> a[href='#_top']) > ul a {
 	--depth: 0;
 }
 
+/* One rail down the whole list; the current section is a thicker mark centred on it. */
+starlight-toc nav > ul {
+	border-inline-start: 1px solid var(--sc-border);
+}
+
 starlight-toc a {
 	font-size: 0.8125rem;
 	line-height: 1.45;
 	color: var(--sc-muted);
 	padding-block: 0.3rem;
-	border-inline-start: 1px solid var(--sc-border);
+	border-inline-start: 2px solid transparent;
+	margin-inline-start: -1.5px;
+	border-radius: 0;
 	padding-inline-start: calc(0.875rem + var(--depth, 0) * 0.75rem);
 }
 

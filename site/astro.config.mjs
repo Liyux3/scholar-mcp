@@ -31,6 +31,7 @@ export default defineConfig({
 			components: {
 				PageTitle: './src/components/PageTitle.astro',
 				ThemeSelect: './src/components/ThemeToggle.astro',
+				TableOfContents: './src/components/TableOfContents.astro',
 			},
 			expressiveCode: {
 				themes: ['github-dark-default', 'github-light'],
