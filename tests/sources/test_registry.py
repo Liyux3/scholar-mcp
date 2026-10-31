@@ -55,7 +55,11 @@ def ready_flow(monkeypatch):
         monkeypatch.setattr(sources, "_source_pool", pool)
         def create(*args, **kwargs):
             ready = threading.Event()
-            token = sources._progress.set(lambda rows: ready.set() or True)
+            def published(rows):
+                if rows:
+                    ready.set()
+                return True
+            token = sources._progress.set(published)
             try:
                 flow = flow_type(*args, **kwargs)
             finally:
@@ -526,7 +530,7 @@ class TestSearchFlow:
         time.sleep(0.2)
         assert started == ["a"]
 
-    def test_a_slow_metadata_lookup_cannot_hold_the_search_past_its_deadline(self, isolated_registry, monkeypatch):
+    def test_a_slow_metadata_lookup_cannot_hold_the_search_past_its_deadline(self, isolated_registry, ready_flow, monkeypatch):
         import threading
         import time
         from scholar_mcp import metadata
@@ -537,15 +541,18 @@ class TestSearchFlow:
         sources.register(sources.Source(name="sparse", search=lambda q, limit, **kw: [{"title": "bare"}]))
 
         flow = sources.search_flow([("q", "", "")], budget_s=0.3)
-        t0 = time.monotonic()
-        first = {sr.source: sr.status for sr in flow.take()}
-        assert time.monotonic() - t0 < 1.0
-        assert first == {"plain": "ok", "sparse": "timeout"}
+        try:
+            t0 = time.monotonic()
+            first = {sr.source: sr.status for sr in flow.take()}
+            assert time.monotonic() - t0 < 1.0
+            assert first == {"plain": "ok", "sparse": "timeout"}
 
-        release.set()
-        time.sleep(0.1)
-        assert [(sr.source, sr.status) for sr in flow.take(wait_for_lanes=False)] == [("sparse", "ok")]
-        flow.close()
+            release.set()
+            flow.deadline += 5
+            assert [(sr.source, sr.status) for sr in flow.take()] == [("sparse", "ok")]
+        finally:
+            release.set()
+            flow.close()
 
     def test_close_between_calls_sends_nothing_more(self, isolated_registry):
         import threading
