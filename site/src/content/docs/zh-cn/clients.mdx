@@ -10,7 +10,7 @@ import { Aside, LinkButton, TabItem, Tabs } from '@astrojs/starlight/components'
 ```bash
 uv tool install --python 3.12 \
   --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-  "scholar-mcp[rerank]"
+  "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8"
 scholar-mcp install --all --dry-run   # 预览所有检测到的客户端
 scholar-mcp install --all             # 或者逐个指定：claude-code codex cursor
 ```
@@ -18,6 +18,8 @@ scholar-mcp install --all             # 或者逐个指定：claude-code codex c
 写入前会先备份，中途出错也不会留下损坏的文件，重复运行结果相同。你手写的 `scholar` 条目不会被改动，除非加 `--force`。全部选项和各客户端的配置文件位置见[命令行](/scholar-mcp/zh-cn/cli/#install-和-uninstall)。
 
 ## 手动配置
+
+下方源码命令固定到已验收的 0.9 开发版。插件市场、桌面包和容器当前安装稳定版 0.8.5；使用本文的 CLI 和科学数据能力时，采用源码安装。
 
 以下配置均通过 `uvx` 启动，无需提前安装。首次启动时，uvx 会准备好 Python 3.12 和本地排序模型。`--find-links` 为 Intel 版 macOS 和 ARM 版 Windows 提供现成的安装包，其他平台照常从 PyPI 安装。每段配置都用 `SCHOLAR_MCP_EXTENSIONS=research` 启用了研究工具集，删去这一行即只保留六个核心工具。
 
@@ -30,7 +32,7 @@ scholar-mcp install --all             # 或者逐个指定：claude-code codex c
 claude mcp add scholar --scope user -e SCHOLAR_MCP_EXTENSIONS=research \
   -- uvx --python 3.12 \
   --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-  --from 'scholar-mcp[rerank]' scholar-mcp
+  --from 'scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8' scholar-mcp
 ```
 
 也可装插件，效果一样，还会带上研究工具集和 Deep Research 技能。
@@ -55,7 +57,7 @@ macOS 上最省事的是用安装包。在[最新版本](https://github.com/Liyu
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -76,7 +78,7 @@ command = "uvx"
 args = [
   "--python", "3.12",
   "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-  "--from", "scholar-mcp[rerank]", "scholar-mcp",
+  "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp",
 ]
 startup_timeout_sec = 60
 tool_timeout_sec = 600
@@ -109,7 +111,7 @@ codex plugin add scholar-mcp@scholar-mcp
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -120,7 +122,7 @@ codex plugin add scholar-mcp@scholar-mcp
 </TabItem>
 <TabItem label="VS Code">
 
-<LinkButton href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">在 VS Code 中安装</LinkButton>
+<LinkButton href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D+%40+git%2Bhttps%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp.git%4067a832cdccab7120f470df80e3ae24f0324b55e8%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">在 VS Code 中安装</LinkButton>
 
 也可写入工作区的 `.vscode/mcp.json`，或者用 **MCP: Open User Configuration** 打开用户级的 `mcp.json`。注意 VS Code 用的键是 `servers`。
 
@@ -133,7 +135,7 @@ codex plugin add scholar-mcp@scholar-mcp
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -154,7 +156,7 @@ codex plugin add scholar-mcp@scholar-mcp
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -176,7 +178,7 @@ OpenCode 的本地服务器写在 `mcp` 下，命令写成数组。`~/.config/op
       "command": [
         "uvx", "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp"
       ],
       "environment": { "SCHOLAR_MCP_EXTENSIONS": "research" },
       "enabled": true
@@ -198,7 +200,7 @@ OpenCode 的本地服务器写在 `mcp` 下，命令写成数组。`~/.config/op
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -209,7 +211,7 @@ OpenCode 的本地服务器写在 `mcp` 下，命令写成数组。`~/.config/op
 </TabItem>
 <TabItem label="Kiro">
 
-<LinkButton href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">添加到 Kiro</LinkButton>
+<LinkButton href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D+%40+git%2Bhttps%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp.git%4067a832cdccab7120f470df80e3ae24f0324b55e8%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">添加到 Kiro</LinkButton>
 
 也可写入 `~/.kiro/settings/mcp.json`，或工作区里的 `.kiro/settings/mcp.json`。
 
@@ -221,7 +223,7 @@ OpenCode 的本地服务器写在 `mcp` 下，命令写成数组。`~/.config/op
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" },
       "disabled": false,
@@ -245,7 +247,7 @@ Zed 把 MCP 服务器叫作 context server。写入设置文件（**zed: open se
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -270,7 +272,7 @@ pi install npm:pi-mcp-adapter
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -293,7 +295,7 @@ pi install npm:pi-mcp-adapter
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank]", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }

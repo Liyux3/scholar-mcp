@@ -6,7 +6,7 @@ on:
     workflows: ["Publish release"]
     types: [completed]
   push:
-    branches: [main]
+    branches: [main, docs/site]
     paths:
       - "site/**"
       # The site renders these directly, so their edits must redeploy it too.
@@ -31,26 +31,37 @@ jobs:
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     outputs:
-      released: ${{ steps.release.outputs.released }}
+      ready: ${{ steps.release.outputs.ready }}
     steps:
       - uses: actions/checkout@v7
-      - name: Check the documented package is available
+      - name: Check the documented installation is available
         id: release
         run: |
           python3 - <<'PY'
-          import json, os, pathlib, tomllib, urllib.error, urllib.request
+          import json, os, pathlib, re, subprocess, tomllib, urllib.error, urllib.request
           version = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version']
+          docs = json.loads(pathlib.Path('site/package.json').read_text()).get('scholarDocs', {})
+          preview = docs.get('channel') == 'preview'
+          if preview:
+              ref = docs.get('sourceRef', '')
+              if not re.fullmatch('[0-9a-f]{40}', ref):
+                  raise ValueError('Preview documentation must pin an immutable source commit')
+              subprocess.run(['git', 'fetch', '--depth=1', 'origin', ref], check=True)
+              source = subprocess.check_output(['git', 'show', ref + ':pyproject.toml'], text=True)
+              if tomllib.loads(source)['project']['version'] != version:
+                  raise ValueError('Preview source and documentation versions differ')
+              version = docs['stableVersion']
           try:
               with urllib.request.urlopen(f'https://pypi.org/pypi/scholar-mcp/{version}/json', timeout=20) as response:
                   package = json.load(response)
-              released = package['info']['version'] == version and bool(package['urls'])
+              ready = package['info']['version'] == version and bool(package['urls'])
           except urllib.error.HTTPError as error:
               if error.code != 404:
                   raise
-              released = False
+              ready = False
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write(f'released={str(released).lower()}\n')
-          print(f'Documented package {version}: {"available" if released else "awaiting release"}')
+              output.write(f'ready={str(ready).lower()}\n')
+          print(f'Stable package {version}: {"available" if ready else "awaiting release"}; preview={preview}')
           PY
       - uses: withastro/action@v6
         with:
@@ -59,7 +70,7 @@ jobs:
 
   deploy:
     needs: build
-    if: needs.build.outputs.released == 'true'
+    if: needs.build.outputs.ready == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

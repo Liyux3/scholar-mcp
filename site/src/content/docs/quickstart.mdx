@@ -7,6 +7,8 @@ import { Aside, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/compon
 
 Scholar is a local MCP server that runs on the same computer as your agent. This page uses Claude Code as the example. Other clients follow the same steps, and [Install in your client](/scholar-mcp/clients/) has their configuration.
 
+This guide documents the 0.9 preview. The commands below install the tested source revision, including the CLI and scientific data tools. [Stable 0.8.5](https://pypi.org/project/scholar-mcp/0.8.5/) remains available through PyPI, plugins, containers and desktop bundles. The compatibility wheel index supplies dependencies; it is independent of the source revision.
+
 <Steps>
 
 1. ## Install uv
@@ -35,11 +37,11 @@ Scholar is a local MCP server that runs on the same computer as your agent. This
    ```bash
    uv tool install --python 3.12 \
      --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-     "scholar-mcp[rerank]"
+     "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8"
    scholar-mcp install claude-code
    ```
 
-   `install` backs up a file before changing it and can be run again safely. `--all` configures every client it detects, `--dry-run` only shows the change, and `--profile research` adds the citation graph and paper library. Later, one `scholar-mcp update` upgrades every client.
+   `install` backs up a file before changing it and can be run again safely. `--all` configures every client it detects, `--dry-run` only shows the change, and `--profile research` adds the citation graph and paper library. For preview updates, repeat the source installation with a newly tested revision. `scholar-mcp update` follows the published package channel.
    </TabItem>
    <TabItem label="Manual">
    To skip installing the command, register the server with uvx. On first launch uvx prepares Python 3.12 and the local ranking model.
@@ -47,7 +49,7 @@ Scholar is a local MCP server that runs on the same computer as your agent. This
    ```bash
    claude mcp add scholar -- uvx --python 3.12 \
      --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-     --from 'scholar-mcp[rerank]' scholar-mcp
+     --from 'scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8' scholar-mcp
    ```
 
    This registers the six core tools for the current project. `--scope user` makes it apply to every project, and `-e SCHOLAR_MCP_EXTENSIONS=research` before `--` adds the citation graph and paper library.
@@ -57,7 +59,7 @@ Scholar is a local MCP server that runs on the same computer as your agent. This
 
    ```text
    Install Scholar MCP into the client you are running in, following
-   https://raw.githubusercontent.com/Liyux3/scholar-mcp/main/llms-install.md
+   https://raw.githubusercontent.com/Liyux3/scholar-mcp/67a832cdccab7120f470df80e3ae24f0324b55e8/llms-install.md
    Then tell me to restart, and check that search_papers is available.
    ```
 

@@ -54,7 +54,7 @@ for hit in hits["objects"]:
 linked = api.info("PMID:26826244", include="detail,data")
 ```
 
-Batch jobs can call these same functions and keep their own progress using returned native IDs. Scholar's existing paper Corpus continues to handle papers and companion files; scientific objects do not silently become paper-library entries. Search, record lookup and paper association reuse the shared request transport, cross-process provider pacing, bounded source workers and persistent cache. A failed source is reported while completed results remain usable.
+Batch jobs can call these same functions and keep their own progress using returned native IDs. Scientific objects stay separate from paper-library entries. Search, record lookup and paper association reuse the shared request transport, cross-process provider pacing, bounded source workers and persistent cache. A failed source is reported while completed results remain usable.
 
 File entries are pointers with any supplied size, checksum and format. These tools read metadata; they do not download raw sequencing runs or claim access to restricted files. `paper_info` only contacts scientific databases when `data` is explicitly requested. Paper associations currently use verified PubMed identities and NCBI links to GEO, SRA, BioProject and Gene. The source reports distinguish failed retrieval from an empty response.
 

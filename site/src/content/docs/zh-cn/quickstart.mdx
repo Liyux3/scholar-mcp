@@ -7,6 +7,8 @@ import { Aside, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/compon
 
 Scholar 是一个本地 MCP 服务器，与智能体运行在同一台电脑上。下面以 Claude Code 为例，其他客户端步骤相同，配置写法见[接入客户端](/scholar-mcp/zh-cn/clients/)。
 
+本指南对应 0.9 开发版。下方命令安装固定的已验收源码，包含 CLI 和科学数据工具。[稳定版 0.8.5](https://pypi.org/project/scholar-mcp/0.8.5/) 仍通过 PyPI、插件、容器和桌面包分发。兼容 wheel 索引提供依赖，与源码版本独立。
+
 <Steps>
 
 1. ## 安装 uv
@@ -35,7 +37,7 @@ Scholar 是一个本地 MCP 服务器，与智能体运行在同一台电脑上�
    ```bash
    uv tool install --python 3.12 \
      --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-     "scholar-mcp[rerank]"
+     "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8"
    scholar-mcp install claude-code
    ```
 
@@ -47,7 +49,7 @@ Scholar 是一个本地 MCP 服务器，与智能体运行在同一台电脑上�
    ```bash
    claude mcp add scholar -- uvx --python 3.12 \
      --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-     --from 'scholar-mcp[rerank]' scholar-mcp
+     --from 'scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8' scholar-mcp
    ```
 
    这样注册的是当前项目中的六个核心工具。加 `--scope user` 对所有项目生效，在 `--` 之前加 `-e SCHOLAR_MCP_EXTENSIONS=research` 会同时启用引用图谱和文献库。
@@ -56,7 +58,7 @@ Scholar 是一个本地 MCP 服务器，与智能体运行在同一台电脑上�
    适用于任何客户端，包括本站没有列出的。把下面这段话发给你的智能体：
 
    ```text
-   按照 https://raw.githubusercontent.com/Liyux3/scholar-mcp/main/llms-install.md
+   按照 https://raw.githubusercontent.com/Liyux3/scholar-mcp/67a832cdccab7120f470df80e3ae24f0324b55e8/llms-install.md
    把 Scholar MCP 装进你当前所在的客户端。完成后提醒我重启，
    并确认能看到 search_papers。
    ```

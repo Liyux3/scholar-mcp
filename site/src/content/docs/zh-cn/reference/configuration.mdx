@@ -18,7 +18,7 @@ description: 数据位置、数据源密钥、排序模型、连接方式和文�
 | `SCHOLAR_KB_DIR` | SQLite 文献库和 JSONL 快照目录 |
 | `SCHOLAR_DOWNLOAD_DIR` | 保存 PDF 的目录，默认 `<data>/papers` |
 | `SCHOLAR_OBSIDIAN_VAULT` | Obsidian 同步目录，无需登录 |
-| `SCHOLAR_MCP_EXTENSIONS` | 设成 `research` 加上引用图谱和文献库 |
+| `SCHOLAR_MCP_EXTENSIONS` | `research` 增加引用图和文献库；`science` 增加科学数据检索/读取；逗号可组合多个扩展 |
 | `SCHOLAR_READ_CHAR_BUDGET` | 每次 `read_paper` 最多返回多少字的正文，在页边界截断，默认 100,000，`0` 不限 |
 | `SCHOLAR_USAGE_LOG` | 本地调用记录，存在 `<data>/usage/`，最多约 4 MB，`scholar-mcp doctor` 会汇总：`on`（默认，不含查询内容）、`full`（含参数）或 `off` |
 | `SCHOLAR_MCP_TRANSPORT` | 设成 `http` 时作为网络服务运行（Streamable HTTP），供不能自己启动程序的客户端连接，默认由客户端经 stdio 启动 |

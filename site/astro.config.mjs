@@ -26,7 +26,7 @@ export default defineConfig({
 			social: [
 				{ icon: 'github', label: 'GitHub', href: 'https://github.com/Liyux3/scholar-mcp' },
 			],
-			editLink: { baseUrl: 'https://github.com/Liyux3/scholar-mcp/edit/main/site/' },
+			editLink: { baseUrl: 'https://github.com/Liyux3/scholar-mcp/edit/docs/site/site/' },
 			customCss: ['@fontsource-variable/inter', './src/styles/custom.css'],
 			components: {
 				PageTitle: './src/components/PageTitle.astro',

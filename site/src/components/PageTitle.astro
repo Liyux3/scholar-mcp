@@ -2,6 +2,7 @@
 // Page heading in the Mintlify pattern: sidebar group as a small eyebrow,
 // the title, then the frontmatter description as the lead paragraph.
 import Default from '@astrojs/starlight/components/PageTitle.astro';
+import { scholarDocs } from '../../package.json';
 
 type Entry = { type: 'link'; isCurrent: boolean } | { type: 'group'; label: string; entries: Entry[] };
 
@@ -19,8 +20,20 @@ function currentGroup(entries: Entry[], label?: string): string | undefined {
 
 const eyebrow = currentGroup(route.sidebar as Entry[]);
 const description = route.entry.data.description;
+const chinese = Astro.url.pathname.includes('/zh-cn/');
 ---
 
 {eyebrow && <p class="sc-eyebrow">{eyebrow}</p>}
 <Default />
 {description && <p class="sc-lead">{description}</p>}
+{scholarDocs.channel === 'preview' && <p class="sc-version" data-pagefind-ignore>
+	{chinese ? '0.9 开发版文档，安装示例固定到已验收源码。' : '0.9 preview documentation. Install examples use tested source.'}
+	{' '}<a href={`https://github.com/Liyux3/scholar-mcp/releases/tag/v${scholarDocs.stableVersion}`}>
+		{chinese ? `稳定版 ${scholarDocs.stableVersion}` : `Stable ${scholarDocs.stableVersion}`}
+	</a>
+</p>}
+
+<style>
+	.sc-version { margin-top: 1rem; font-size: .8125rem; color: var(--sc-muted); }
+	.sc-version a { color: inherit; white-space: nowrap; text-underline-offset: .15em; }
+</style>

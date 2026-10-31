@@ -16,5 +16,10 @@
   },
   "devDependencies": {
     "starlight-links-validator": "^0.27.0"
+  },
+  "scholarDocs": {
+    "channel": "preview",
+    "sourceRef": "67a832cdccab7120f470df80e3ae24f0324b55e8",
+    "stableVersion": "0.8.5"
   }
 }
