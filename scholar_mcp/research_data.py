@@ -108,6 +108,8 @@ def _json(provider: str, url: str, **params) -> dict:
     search = payload.get("esearchresult") or {}
     if search.get("ERROR") or search.get("errorlist", {}).get("fieldsnotfound"):
         raise ValueError("NCBI rejected the search expression")
+    if any(group.get("error") for group in payload.get("linksets", []) if isinstance(group, dict)):
+        raise ValueError("NCBI could not supply the requested links")
     if isinstance(result, dict) and any(isinstance(v, dict) and v.get("error") for v in result.values()):
         return PartialRecords(payload)
     return payload
@@ -268,7 +270,9 @@ def _get_native(source: str, native: str) -> list[dict]:
         field = "PRJA" if source == "bioproject" else "ACCN"
         uids = [native] if source == "gene" else _ncbi_search(DATABASES[source][0], f"{native}[{field}]", 20)
         found = _ncbi_records(source, uids)
-        return [r for r in found if native in [r["native_id"], *r.get("aliases", [])]]
+        selected = [r for r in found if native in [r["native_id"], *r.get("aliases", [])]]
+        warning = getattr(found, 'partial_warning', '')
+        return sources.PartialResults(selected, warning) if warning else selected
     if source == "uniprot":
         obj = _uniprot(_json("uniprot", f"{UNIPROT}/{native}.json"))
         return [obj] if native in [obj["native_id"], *obj["aliases"]] else []

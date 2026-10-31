@@ -46,6 +46,8 @@ def test_native_summaries_preserve_types_and_partial_records(monkeypatch):
     assert "paper_id" not in obj and "citation_count" not in obj
     monkeypatch.setattr(data, "_ncbi_search", lambda *a: ["1"])
     assert data.info("GSE99")["status"] == "not_found"
+    monkeypatch.setattr(data, "_ncbi_search", lambda *a: ["2"])
+    assert data.info("GSE99")["status"] == "unavailable"
 
 
 def test_sra_run_is_a_confirmed_alias_of_its_experiment(monkeypatch):
