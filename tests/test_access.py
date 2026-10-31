@@ -18,9 +18,11 @@ from scholar_mcp.sources import dblp, doaj, google_scholar
 
 def test_host_json_pipe_reads_utf8_and_types_invalid_bytes(monkeypatch):
     command = [sys.executable, '-c',
-               'import sys; sys.stdout.buffer.write(\'{"ok":true,"label":"研究 café"}\'.encode("utf-8"))']
+               'import json,sys; data=json.loads(sys.stdin.buffer.read().decode("utf-8")); '
+               'sys.stderr.buffer.write(bytes([255])); '
+               'sys.stdout.buffer.write(json.dumps({"ok":True,"label":data["label"]},ensure_ascii=False).encode("utf-8"))']
     monkeypatch.setenv('SCHOLAR_ACCESS_COMMAND', json.dumps(command))
-    assert access._run({'op': 'fixture'}, 5)['label'] == '研究 café'
+    assert access._run({'op': 'fixture', 'label': '研究 café'}, 5)['label'] == '研究 café'
     command[-1] = 'import sys; sys.stdout.buffer.write(bytes([255]))'
     monkeypatch.setenv('SCHOLAR_ACCESS_COMMAND', json.dumps(command))
     with pytest.raises(access.AccessError) as failure:
@@ -40,7 +42,7 @@ def test_background_requests_coordinate_one_browser_owner(monkeypatch):
         with guard:
             counts['active'] -= 1
         assert json.loads(kwargs['input'])['timeout'] <= 2
-        return SimpleNamespace(returncode=0, stdout='{"ok": true}')
+        return SimpleNamespace(returncode=0, stdout=b'{"ok": true}')
     monkeypatch.setattr(access.subprocess, 'run', run)
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda _: access._run({'engine': 'background'}, 2), range(2)))
@@ -145,7 +147,7 @@ def host(monkeypatch, body=b'{"records": []}', receipt=None):
         seen.append((command, request))
         Path(request["out"]).write_bytes(body)
         return SimpleNamespace(returncode=0, stdout=json.dumps(receipt or {
-            "ok": True, "status": 200, "content_type": "application/json", "engine": "http"}))
+            "ok": True, "status": 200, "content_type": "application/json", "engine": "http"}).encode('utf-8'))
 
     monkeypatch.setattr(access.subprocess, "run", run)
     return seen
@@ -183,7 +185,7 @@ def test_invalid_adapter_configuration_and_receipt_are_explicit(monkeypatch):
         access.fetch("https://source.test/api")
     host(monkeypatch)
     monkeypatch.setattr(access.subprocess, "run", lambda *args, **kwargs: SimpleNamespace(
-        returncode=0, stdout="not JSON"))
+        returncode=0, stdout=b"not JSON"))
     with pytest.raises(access.AccessError, match="PROTOCOL"):
         access.fetch("https://source.test/api")
 
