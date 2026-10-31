@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import subprocess
+import sys
 from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 import threading
@@ -13,6 +14,18 @@ import pytest
 
 from scholar_mcp import access, sources
 from scholar_mcp.sources import dblp, doaj, google_scholar
+
+
+def test_host_json_pipe_reads_utf8_and_types_invalid_bytes(monkeypatch):
+    command = [sys.executable, '-c',
+               'import sys; sys.stdout.buffer.write(\'{"ok":true,"label":"研究 café"}\'.encode("utf-8"))']
+    monkeypatch.setenv('SCHOLAR_ACCESS_COMMAND', json.dumps(command))
+    assert access._run({'op': 'fixture'}, 5)['label'] == '研究 café'
+    command[-1] = 'import sys; sys.stdout.buffer.write(bytes([255]))'
+    monkeypatch.setenv('SCHOLAR_ACCESS_COMMAND', json.dumps(command))
+    with pytest.raises(access.AccessError) as failure:
+        access._run({'op': 'fixture'}, 5)
+    assert failure.value.code == 'PROTOCOL'
 
 
 def test_background_requests_coordinate_one_browser_owner(monkeypatch):

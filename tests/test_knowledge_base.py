@@ -4,8 +4,36 @@ import json
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from scholar_mcp import knowledge_base as kb
 from scholar_mcp.library_connectors import publish_notion, sync_zotero
+
+
+@pytest.mark.parametrize('title', ['A shared title for two distinct works', '两篇不同论文使用相同的研究标题'])
+def test_ambiguous_title_does_not_attach_notes_to_the_last_index_owner(tmp_path, title):
+    from scholar_mcp.library_store import LibraryStore
+    store = LibraryStore(tmp_path)
+    a = {'title': title, 'authors': ['Alice Anderson'], 'external_ids': {'DOI': '10.1000/a'}, 'notes': 'Note A'}
+    b = {'title': title, 'authors': ['Bob Brown'], 'external_ids': {'DOI': '10.1000/b'}, 'notes': 'Note B'}
+    store.add_records([a, b], 'work')
+    assert store.add_records([{'title': title, 'notes': 'Unresolved note'}], 'work')['added'] == 1
+    assert store.get_record('work', '10.1000/a')['notes'] == 'Note A'
+    assert store.get_record('work', '10.1000/b')['notes'] == 'Note B'
+    assert len(store.list_records('work')) == 3
+
+
+def test_authored_title_match_considers_earlier_index_owners(tmp_path):
+    from scholar_mcp.library_store import LibraryStore
+    store = LibraryStore(tmp_path)
+    title = 'A shared title for two distinct works'
+    store.add_records([
+        {'title': title, 'authors': ['Alice Anderson'], 'external_ids': {'DOI': '10.1000/a'}},
+        {'title': title, 'authors': ['Bob Brown'], 'external_ids': {'DOI': '10.1000/b'}}], 'work')
+    result = store.add_records([{'title': title, 'authors': ['Alice Anderson'], 'abstract': 'New abstract'}], 'work')
+    assert result['added'] == 0 and result['updated'] == 1
+    assert store.get_record('work', '10.1000/a')['abstract'] == 'New abstract'
+    assert not store.get_record('work', '10.1000/b').get('abstract')
 
 
 def test_pmc_aliases_reuse_legacy_notes_and_pdf_indexes(tmp_path):

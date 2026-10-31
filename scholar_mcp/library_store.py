@@ -185,7 +185,18 @@ class LibraryStore:
         ).fetchall()
         strong = {int(row['record_id']) for row in rows
                   if not row['identity_key'].startswith(('title:', 'library_title:'))}
-        return sorted(strong or {int(row['record_id']) for row in rows})
+        if strong:
+            return sorted(strong)
+        # A title alias has one index owner, but several distinct works may
+        # share that title. Consider all of them before accepting a weak match.
+        titles = {key.removeprefix('library_title:') for key in keys if key.startswith('library_title:')}
+        titles.update(_title_key(key.removeprefix('title:')) for key in keys if key.startswith('title:'))
+        candidates = {int(row['record_id']) for row in rows}
+        if titles:
+            candidates.update(int(row[0]) for row in connection.execute(
+                f'SELECT id FROM records WHERE collection=? AND title_key IN ({",".join("?" for _ in titles)})',
+                (collection, *sorted(titles))))
+        return sorted(candidates)
 
     def _replace_fts(self, connection: sqlite3.Connection, record_id: int, record: dict) -> None:
         connection.execute("DELETE FROM records_fts WHERE rowid=?", (record_id,))

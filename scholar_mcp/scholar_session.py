@@ -238,7 +238,7 @@ def recover(query: str, previous: dict, *, target: str = "") -> dict:
             process = subprocess.Popen(
                 [sys.executable, '-m', 'scholar_mcp.scholar_session'],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                text=True, start_new_session=os.name == 'posix')
+                text=True, encoding='utf-8', start_new_session=os.name == 'posix')
             try:
                 output, _ = process.communicate(json.dumps(request), timeout=budget)
             except subprocess.TimeoutExpired:

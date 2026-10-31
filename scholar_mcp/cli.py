@@ -260,7 +260,7 @@ def _run_update(argv: list[str]) -> int:
         return 0
     import subprocess
 
-    completed = subprocess.run(command, capture_output=True, text=True)
+    completed = subprocess.run(command, capture_output=True, text=True, encoding='utf-8', errors='replace')
     result.update(command=" ".join(command), returncode=completed.returncode,
                   output=(completed.stdout + completed.stderr).strip()[-600:],
                   next="Restart MCP clients so they start the upgraded server.")

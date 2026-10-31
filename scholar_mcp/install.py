@@ -539,7 +539,8 @@ def _plan(client: Client, spec: Spec | None, project: bool) -> dict:
 def _claude_cli(args: list[str]) -> tuple[bool, str]:
     binary = shutil.which("claude") or str(_home() / ".claude/local/claude")
     try:
-        result = subprocess.run([binary, *args], capture_output=True, text=True, timeout=60)
+        result = subprocess.run([binary, *args], capture_output=True, text=True,
+                                encoding='utf-8', errors='replace', timeout=60)
     except (OSError, subprocess.SubprocessError) as error:
         return False, f"{type(error).__name__}: {error}"[-400:]
     return result.returncode == 0, (result.stderr or result.stdout).strip()[-400:]

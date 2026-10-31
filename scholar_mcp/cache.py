@@ -161,7 +161,7 @@ def cached(ttl: int = DEFAULT_TTL, *, persistent: bool = False, namespace: str =
                 snapshot = deepcopy(result)
                 cacheable = _is_cacheable(result)
                 expires = time.time() + (ttl if cacheable else miss_ttl)
-                if persistent and _is_cacheable(result):
+                if persistent and cacheable:
                     _disk(key, (expires, snapshot))
                 with _guard:
                     if cacheable or miss_ttl and result in (None, {}, []) and not getattr(result, 'partial_warning', None):

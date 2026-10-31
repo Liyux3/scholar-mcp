@@ -125,13 +125,15 @@ def _run(request: dict, timeout: float) -> dict:
         with gate:
             remaining = max(.01, timeout - (time.monotonic() - started))
             result = subprocess.run(command, input=json.dumps({**request, 'timeout': remaining}), capture_output=True,
-                                    text=True, timeout=remaining + 2)
+                                    text=True, encoding='utf-8', timeout=remaining + 2)
     except Timeout:
         raise AccessError('BUSY', 'background browser is completing another source request') from None
     except subprocess.TimeoutExpired:
         raise AccessError("TIMEOUT", "host access exceeded its request budget") from None
     except OSError as error:
         raise AccessError("UNAVAILABLE", type(error).__name__) from None
+    except UnicodeError:
+        raise AccessError("PROTOCOL", "host access returned invalid UTF-8") from None
     try:
         receipt = json.loads(result.stdout)
     except ValueError:

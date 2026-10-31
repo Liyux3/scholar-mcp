@@ -27,6 +27,7 @@ from scholar_mcp import api, cli, install, research_data as data, server
     ("TP53", None), ("7157", None),
     ("https://www.ncbi.nlm.nih.gov.evil.test/gene/7157", None),
     ("https://example.test/UniProt:P04637", None),
+    ("https://[invalid/gene/7157", None),
 ])
 def test_native_id_and_official_url_boundaries(value, expected):
     assert data.identifier(value) == expected
@@ -120,7 +121,7 @@ def test_native_request_reuses_cache_and_shared_ncbi_quota(monkeypatch):
     monkeypatch.setattr(data.pacing, "wait", lambda *a, **kw: waits.append((a, kw)))
     def get(url, **kw):
         calls.append(kw)
-        return httpx.Response(200, json={"result": {"7157": {"uid": "7157"}}}, request=httpx.Request("GET", url))
+        return httpx.Response(200, json={"result": {"uids": ["7157"], "7157": {"uid": "7157"}}}, request=httpx.Request("GET", url))
     monkeypatch.setattr(data.access, "get", get)
     first = data._json("ncbi", data.pubmed.BASE_URL + "/esummary.fcgi", db="gene", id="7157")
     first["result"].clear()
@@ -129,6 +130,36 @@ def test_native_request_reuses_cache_and_shared_ncbi_quota(monkeypatch):
     assert len(calls) == 1 and waits == [(("ncbi",), {"key": "fixture-secret"})]
     assert calls[0]["params"]["api_key"] == "fixture-secret"
     assert "fixture-secret" not in str(second)
+
+
+@pytest.mark.parametrize('provider,url,payload', [
+    ('ncbi', data.pubmed.BASE_URL + '/esearch.fcgi', {'esearchresult': {'idlist': []}}),
+    ('uniprot', data.UNIPROT + '/search', {'results': []}),
+    ('pubchem', data.PUBCHEM + '/cid/2244/property/Title/JSON', {'PropertyTable': {'Properties': []}}),
+    ('zenodo', data.zenodo.BASE_URL, {'hits': {'hits': []}}),
+])
+def test_wrong_json_shape_is_retryable_but_valid_empty_response_is_cached(monkeypatch, provider, url, payload):
+    replies = iter([{}, payload])
+    calls = []
+    def get(target, **kwargs):
+        calls.append(target)
+        return httpx.Response(200, json=next(replies), request=httpx.Request('GET', target))
+    monkeypatch.setattr(data.access, 'get', get)
+    with pytest.raises(ValueError):
+        data._json(provider, url)
+    assert data._json(provider, url) == payload
+    assert data._json(provider, url) == payload
+    assert len(calls) == 2
+
+
+def test_all_scientific_sources_failing_is_a_cli_failure(monkeypatch, capsys):
+    def failed(*args):
+        raise httpx.ConnectError('unavailable')
+    monkeypatch.setattr(data, '_search', failed)
+    assert cli.main(['data', 'experiment', '--json']) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result['status'] == 'unavailable' and result['error']
+    assert result['objects'] == [] and len(result['sources']) == 2
 
 
 def test_paper_links_require_verified_identity_and_are_explicit(monkeypatch):

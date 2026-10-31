@@ -10,6 +10,8 @@ import re
 from urllib.parse import parse_qs, quote, urlsplit
 import xml.etree.ElementTree as ET
 
+import httpx
+
 from . import access, config, records, sources
 from .cache import PartialRecords, cached
 from .sources import europepmc, pacing, pubmed, zenodo
@@ -29,9 +31,12 @@ PUBCHEM = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound"
 def identifier(value: str) -> tuple[str, str] | None:
     """Recognize only native namespaces and official record URLs, never titles."""
     value = value.strip()
-    parsed = urlsplit(value)
     if value.lower().startswith(("http://", "https://")):
-        host, path = (parsed.hostname or "").casefold(), parsed.path.rstrip("/")
+        try:
+            parsed = urlsplit(value)
+            host, path = (parsed.hostname or "").casefold(), parsed.path.rstrip("/")
+        except ValueError:
+            return None
         if host in {"www.ncbi.nlm.nih.gov", "ncbi.nlm.nih.gov"}:
             value = ("NCBIGene:" + path.split("/")[-1] if path.startswith("/gene/") else
                      parse_qs(parsed.query).get("acc", [""])[0] if path == "/geo/query/acc.cgi" else
@@ -72,7 +77,7 @@ def _relation(target: str, url: str, evidence_url: str, relation="associated_wit
             "evidence": {"type": "database_link", "url": evidence_url}}
 
 
-@cached(ttl=3600, persistent=True, namespace="science.v1")
+@cached(ttl=3600, persistent=True, namespace="science.v2")
 def _json(provider: str, url: str, **params) -> dict:
     """Reuse public transport, shared quota gates and completed-response caching."""
     key = config.NCBI_API_KEY if provider == "ncbi" else None
@@ -84,6 +89,21 @@ def _json(provider: str, url: str, **params) -> dict:
     payload = response.json()
     if not isinstance(payload, dict) or any(k in payload for k in ("error", "ERROR", "Fault")):
         raise ValueError(f"{provider} returned an invalid record")
+    if provider == "ncbi":
+        field = {"esearch.fcgi": "esearchresult.idlist", "esummary.fcgi": "result.uids",
+                 "elink.fcgi": "linksets"}[url.rsplit("/", 1)[-1]]
+    elif provider == "uniprot":
+        field = "results" if url.endswith("/search") else "primaryAccession"
+    elif provider == "pubchem":
+        field = "PropertyTable.Properties"
+    else:
+        field = "hits.hits" if url == zenodo.BASE_URL else "metadata"
+    node = payload
+    for key in field.split("."):
+        node = node.get(key) if isinstance(node, dict) else None
+    expected = str if field == "primaryAccession" else dict if field == "metadata" else list
+    if not isinstance(node, expected):
+        raise ValueError(f"{provider} returned an invalid {field} response")
     result = payload.get("result") or {}
     search = payload.get("esearchresult") or {}
     if search.get("ERROR") or search.get("errorlist", {}).get("fieldsnotfound"):
@@ -261,8 +281,8 @@ def _get_native(source: str, native: str) -> list[dict]:
 def _get(source: str, native: str) -> list[dict]:
     try:
         return _get_native(source, native)
-    except Exception as error:
-        if getattr(getattr(error, "response", None), "status_code", None) == 404:
+    except httpx.HTTPStatusError as error:
+        if error.response.status_code == 404:
             return []
         raise
 
@@ -274,6 +294,12 @@ def _collect(calls: dict) -> tuple[list[dict], list[dict]]:
                 "latency_ms": p.latency_ms, **({"error": p.error} if p.error else {})} for p in packets]
     return [{k: v for k, v in row.items() if not k.startswith("_")}
             for p in packets for row in p.results], reports
+
+
+def _status(reports: list[dict]) -> str:
+    if all(r["status"] in {"ok", "empty"} for r in reports):
+        return "ok"
+    return "partial" if any(r["count"] or r["status"] in {"ok", "empty"} for r in reports) else "unavailable"
 
 
 def search(query: str, kind: str = "dataset", source: str = "", limit: int = 10) -> dict:
@@ -300,8 +326,10 @@ def search(query: str, kind: str = "dataset", source: str = "", limit: int = 10)
                "description_truncated": len(obj.get("description", "")) > 1200,
                "organism": obj.get("organism", ""), "files_count": len(obj.get("files", [])),
                "relations_count": len(obj.get("relations", []))} for obj in merged]
+    status = _status(reports)
     return {"query": query, "kind": kind, "objects": merged, "total": len(merged),
-            "sources": reports, "status": "partial" if any(r["status"] not in {"ok", "empty"} for r in reports) else "ok",
+            "sources": reports, "status": status,
+            **({"error": "Scientific sources could not be read"} if status == "unavailable" else {}),
             "scope": "First bounded result page; database order within each source, no cross-type relevance score."}
 
 
@@ -331,7 +359,7 @@ def info(data_id: str, limit: int = 20) -> dict:
     count = len(obj["relations"])
     obj["relations"] = obj["relations"][:min(max(limit, 1), 100)]
     return {"requested_id": data_id, "object": obj,
-            "status": "partial" if any(r["status"] not in {"ok", "empty"} for r in reports) else "ok",
+            "status": _status(reports),
             "relations_truncated": count > len(obj["relations"]), "sources": reports}
 
 
@@ -363,5 +391,5 @@ def for_paper(paper: dict, limit: int = 20) -> dict:
         objects, reports = _collect({s: partial(linked, s) for s in DATABASES})
     objects = [obj for source in DATABASES for obj in objects if obj.get("source") == source]
     return {"paper": f"PMID:{pmid}", "objects": objects[:limit], "sources": reports,
-            "status": "partial" if any(r["status"] not in {"ok", "empty"} for r in reports) else "ok",
+            "status": _status(reports),
             "scope": "NCBI PubMed links to GEO, SRA, BioProject and Gene; associations do not establish experimental use or causation."}

@@ -371,15 +371,11 @@ def _format_paper(p: dict, *, detailed: bool = False, debug: bool = False) -> di
 
 
 def _format_compact(p: dict) -> dict:
-    citation_count = p.get("citation_count")
-    citation_known = p.get("_citation_count_known")
-    if citation_known is None:
-        citation_known = (citation_count or 0) > 0
     out = {
         "title": p.get("title", ""),
         "authors": (p.get("authors") or [])[:3] or None,
         "year": p.get("year") if p.get("year") not in (None, "") else None,
-        "citations": citation_count if citation_known else None,
+        "citations": record_ops.known_citations(p),
     }
     doi = (p.get("external_ids") or {}).get("DOI", "")
     if doi:
