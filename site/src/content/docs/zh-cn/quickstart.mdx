@@ -37,7 +37,7 @@ Scholar 是一个本地 MCP 服务器，与智能体运行在同一台电脑上�
    ```bash
    uv tool install --python 3.12 \
      --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-     "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8"
+     "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9"
    scholar-mcp install claude-code
    ```
 
@@ -49,7 +49,7 @@ Scholar 是一个本地 MCP 服务器，与智能体运行在同一台电脑上�
    ```bash
    claude mcp add scholar -- uvx --python 3.12 \
      --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-     --from 'scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@67a832cdccab7120f470df80e3ae24f0324b55e8' scholar-mcp
+     --from 'scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9' scholar-mcp
    ```
 
    这样注册的是当前项目中的六个核心工具。加 `--scope user` 对所有项目生效，在 `--` 之前加 `-e SCHOLAR_MCP_EXTENSIONS=research` 会同时启用引用图谱和文献库。
@@ -58,7 +58,7 @@ Scholar 是一个本地 MCP 服务器，与智能体运行在同一台电脑上�
    适用于任何客户端，包括本站没有列出的。把下面这段话发给你的智能体：
 
    ```text
-   按照 https://raw.githubusercontent.com/Liyux3/scholar-mcp/67a832cdccab7120f470df80e3ae24f0324b55e8/llms-install.md
+   按照 https://raw.githubusercontent.com/Liyux3/scholar-mcp/6d2bdbd612da2d3c78bb1ec16f253288189083e9/llms-install.md
    把 Scholar MCP 装进你当前所在的客户端。完成后提醒我重启，
    并确认能看到 search_papers。
    ```
