@@ -60,6 +60,8 @@ LIMITS: dict[str, tuple[Limits, Limits]] = {
     "library-proxy": (((1, 3.0), (20, 3600), (150, 86400)),) * 2,
     "lens": (((10, 60),), ((10, 60),)),                   # plan-dependent; a library guide gives 10 a minute
     "ncbi": (((1, 0.34),), ((1, 0.1),)),                  # 3 a second, 10 with an API key
+    "uniprot": (((1, 0.2),), ((1, 0.2),)),              # conservative requests, native cursor search
+    "pubchem": (((1, 0.21),), ((1, 0.21),)),            # PUG REST at most 5 requests/second
     "openaire": (((60, 3600),), ((7200, 3600),)),
     "openalex": (((10, 1.0),), ((30, 1.0),)),
     "openalex-semantic": (((1, 1.0),), ((1, 1.0),)),

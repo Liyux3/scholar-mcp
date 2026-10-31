@@ -78,6 +78,7 @@ export default defineConfig({
 					items: [
 						{ label: 'Research workflows', translations: { 'zh-CN': '研究工作流' }, slug: 'research-workflows' },
 						{ label: 'Paper library', translations: { 'zh-CN': '文献库' }, slug: 'paper-library' },
+						{ label: 'Scientific data', translations: { 'zh-CN': '科学数据' }, slug: 'scientific-data' },
 						{ label: 'Institutional access', translations: { 'zh-CN': '机构访问' }, slug: 'institutional-access' },
 					],
 				},

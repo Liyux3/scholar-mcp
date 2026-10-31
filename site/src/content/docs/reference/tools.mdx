@@ -56,10 +56,16 @@ Look at one paper, what it cites and what cites it. Read-only.
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `paper_id` | string | required | DOI, `arXiv:ID`, Semantic Scholar ID or OpenAlex `W` ID |
-| `include` | string | `"detail"` | Comma-separated: `detail`, `citations`, `references` |
+| `include` | string | `"detail"` | Comma-separated: `detail`, `citations`, `references`, `data` |
 | `limit` | integer | `20` | Maximum citations and references, 1 to 100, applied to each list |
 
 Returns `paper` with full detail (publication types and date, all identifiers, PDF link and fields when known), `citations` for papers that cite it and `references` for papers it cites, both ordered by citation count.
+
+`include="data"` explicitly asks for [scientific database associations](/scholar-mcp/scientific-data/). Default lookups do not contact those databases.
+
+## search_data and data_info
+
+The optional `science` extension adds these two read-only tools. `search_data(query, kind="dataset", source="", limit=10)` searches typed records; `data_info(data_id, limit=20)` reads a native ID or official record URL. See [Scientific data](/scholar-mcp/scientific-data/) for supported kinds, evidence, file pointers and source status. `research,science` enables both extensions.
 
 ## recommend_papers
 

@@ -409,6 +409,29 @@ not the library's authority.
 
 ## MCP surface
 
+### Scientific records
+
+`research_data.py` adds native scientific records without changing the paper
+record or library schema. GEO, SRA, BioProject and Gene share the NCBI E-utilities
+adapter; UniProtKB, PubChem and Zenodo keep their source-specific representations.
+Objects expose a typed native ID, description, properties, file pointers and
+database-declared relations with evidence URLs. Same-name objects never merge
+through the bibliographic deduplicator or enter paper ranking.
+
+`search_data` and `data_info` are opt-in through the `science` extension. The
+same functions are available through `api.search_data`/`api.data_info` and the
+`data`/`data-info` CLI commands. `paper_info(include="data")` explicitly requests
+NCBI associations from a verified PubMed identity. Default paper requests incur
+no scientific-data calls. These paths share `SourceFlow(hydrate=False)`, the
+process-wide worker pool, `access.get`, cross-process provider pacing and the
+existing persistent response cache. They add no SDK, storage service or runtime
+dependency. Completed results survive a partial source failure; searches expose
+their bounded first-page scope and preserve native ordering. Batch consumers
+call the same API rather than launching a second data backend.
+
+The science tools return metadata and declared file pointers. Sequence analysis,
+large raw downloads and a persistent general knowledge graph remain separate.
+
 The core profile exposes six tools:
 
 | Tool | Research task |

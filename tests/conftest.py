@@ -16,12 +16,13 @@ from scholar_mcp.sources import dblp, google_scholar, pacing
 
 
 @pytest.fixture(autouse=True)
-def isolated_google_state(monkeypatch, tmp_path):
+def isolated_google_state(monkeypatch, tmp_path, request):
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(relevance, "_local_score_cache", {})
     monkeypatch.setattr(access, "_host_until", {})
     # Provider fixtures patch httpx.get; production uses its shared keep-alive client.
-    monkeypatch.setattr(access, "_native_get", lambda url, **kw: httpx.get(url, **kw))
+    if not request.node.get_closest_marker("integration"):
+        monkeypatch.setattr(access, "_native_get", lambda url, **kw: httpx.get(url, **kw))
     monkeypatch.setenv("SCHOLAR_GOOGLE_RECOVERY", "off")
     monkeypatch.setenv("SCHOLAR_USAGE_LOG", "off")
     monkeypatch.delenv("SCHOLAR_ACCESS_COMMAND", raising=False)

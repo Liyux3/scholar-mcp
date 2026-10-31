@@ -22,6 +22,8 @@ Research
   info ID               paper details, citations and references
   related ID            semantic neighbours, co-cited peers or shared references
   authors NAME          author profiles
+  data QUERY            search scientific data (--kind protein, gene, ...)
+  data-info ID          read a native scientific record
   read ID               read pages, figures or tables of a paper
   download ID           keep a PDF in your library
   graph ID[,ID...]      citation graph around seed papers
@@ -81,6 +83,7 @@ def _research_parser() -> argparse.ArgumentParser:
     p.add_argument("paper_id")
     p.add_argument("--citations", action="store_true")
     p.add_argument("--references", action="store_true")
+    p.add_argument("--data", action="store_true", help="explicit scientific database associations")
     p.add_argument("--limit", type=int, default=20)
 
     p = command("related", "related work around a paper")
@@ -91,6 +94,16 @@ def _research_parser() -> argparse.ArgumentParser:
     p = command("authors", "author profiles")
     p.add_argument("name")
     p.add_argument("--limit", type=int, default=5)
+
+    p = command("data", "search scientific data without downloading files")
+    p.add_argument("query")
+    p.add_argument("--kind", choices=["dataset", "sequence", "project", "gene", "protein", "compound"], default="dataset")
+    p.add_argument("--source", default="")
+    p.add_argument("--limit", type=int, default=10)
+
+    p = command("data-info", "read a native scientific record")
+    p.add_argument("data_id")
+    p.add_argument("--limit", type=int, default=20)
 
     p = command("read", "read a paper's pages, figures or tables")
     p.add_argument("paper_id")
@@ -123,12 +136,16 @@ def _run_research(argv: list[str]) -> int:
                             min_citations=args.min_citations, open_access_only=args.open_access,
                             sort=args.sort, intent=args.intent, debug=args.debug)
     elif args.command == "info":
-        parts = ["detail"] + (["citations"] if args.citations else []) + (["references"] if args.references else [])
+        parts = ["detail"] + (["citations"] if args.citations else []) + (["references"] if args.references else []) + (["data"] if args.data else [])
         result = api.info(args.paper_id, include=",".join(parts), limit=args.limit)
     elif args.command == "related":
         result = api.related(args.paper_id, relation=args.relation, limit=args.limit)
     elif args.command == "authors":
         result = api.authors(args.name, limit=args.limit)
+    elif args.command == "data":
+        result = api.search_data(args.query, kind=args.kind, source=args.source, limit=args.limit)
+    elif args.command == "data-info":
+        result = api.data_info(args.data_id, limit=args.limit)
     elif args.command == "read":
         result = api.read(args.paper_id, pages=args.pages, visual=args.visual)
         image = result.pop("image_png", None) if isinstance(result, dict) else None
@@ -167,8 +184,8 @@ def _run_install(argv: list[str], remove: bool) -> int:
     parser.add_argument("--force", action="store_true", help="replace or remove an entry this installer did not create")
     parser.add_argument("--json", action="store_true")
     if not remove:
-        parser.add_argument("--profile", choices=["core", "research"], default="core",
-                            help="research adds the citation graph and paper library tools")
+        parser.add_argument("--profile", choices=["core", "research", "science"], default="core",
+                            help="research adds graph/library; science adds scientific data search/lookup")
         parser.add_argument("--mode", choices=["auto", "tool", "uvx"], default="auto",
                             help="tool registers this installation's executable; uvx a pinned uvx command")
     args = parser.parse_args(argv)
@@ -443,7 +460,7 @@ def _run_sources(argv: list[str]) -> int:
     return 1 if any(r.get("status") in {"error", "blocked", "timeout", "paced"} for r in rows) else 0
 
 
-RESEARCH = {"search", "info", "related", "authors", "read", "download", "graph"}
+RESEARCH = {"search", "info", "related", "authors", "read", "download", "graph", "data", "data-info"}
 
 
 def _run_keys(argv: list[str]) -> int:

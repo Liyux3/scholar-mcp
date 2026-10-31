@@ -599,7 +599,8 @@ class TestSearchFlow:
         import re
         from scholar_mcp.sources import pacing
         code = "".join(p.read_text(encoding="utf-8") for p in pathlib.Path(pacing.__file__).parents[1].rglob("*.py"))
-        named = set(re.findall(r'''pacing\.wait\(["']([a-z-]+)["']''', code)) | {"crossref", "crossref-record", "semantic-scholar"}
+        # Scientific REST adapters share research_data._json's provider argument.
+        named = set(re.findall(r'''pacing\.wait\(["']([a-z-]+)["']''', code)) | {"crossref", "crossref-record", "semantic-scholar", "uniprot", "pubchem"}
         assert named == set(pacing.LIMITS)
         assert pacing.LIMITS["arxiv"][0] == ((1, 3.0),) and pacing.LIMITS["openaire"][0] == ((60, 3600),)
 

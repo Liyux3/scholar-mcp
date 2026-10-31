@@ -16,7 +16,7 @@ from collections.abc import Iterable
 
 from . import server
 
-__all__ = ["search", "info", "related", "authors", "read", "download", "graph", "library"]
+__all__ = ["search", "info", "related", "authors", "read", "download", "graph", "library", "search_data", "data_info"]
 
 search = server.search_papers
 info = server.paper_info
@@ -25,6 +25,8 @@ authors = server.search_authors
 read = server.read_paper
 download = server.download_paper
 library = server.paper_library
+search_data = server.search_data
+data_info = server.data_info
 
 
 def graph(paper_ids: str | Iterable[str], **options) -> dict:

@@ -1,0 +1,61 @@
+---
+slug: scientific-data
+title: Scientific data
+description: Find and inspect scientific records and their database-declared links to papers.
+---
+
+Scholar can find the data and biological objects you need to investigate a paper: a deposited dataset, a sequencing experiment, a research project, a gene, a protein or a compound. Each keeps its own native identity and fields.
+
+## Connect the science tools
+
+In a source installation that includes this feature, run:
+
+```bash
+scholar-mcp install claude-code --profile science
+```
+
+This adds `search_data` and `data_info` to the six paper tools. To enable both the science tools and the paper-library/graph tools, set `SCHOLAR_MCP_EXTENSIONS=research,science` in the server environment. Python and CLI calls work without enabling an MCP extension.
+
+## Search, inspect, then follow the links
+
+```bash
+scholar-mcp data 'TP53[Gene Name] AND human[Organism]' --kind gene
+scholar-mcp data-info NCBIGene:7157
+scholar-mcp data-info UniProt:P04637
+scholar-mcp data-info PubChem:2244
+scholar-mcp info PMID:26826244 --data
+```
+
+The first call searches for genes using NCBI's query syntax. The next calls read the human TP53 gene, its UniProt protein record and aspirin's PubChem properties. The final call asks NCBI for a paper's explicit associations, including its GEO record. A database association says that two records are linked; the paper's methods and data-availability statement explain how the data was used.
+
+| Kind | Sources | Native identifiers |
+|---|---|---|
+| `dataset` | GEO and Zenodo | `GEO:GSE68849`, `Zenodo:ID` or a Zenodo DOI |
+| `sequence` | NCBI SRA | `SRA:SRX1165323` or a run accession |
+| `project` | NCBI BioProject | `BioProject:PRJNA293818` |
+| `gene` | NCBI Gene | `NCBIGene:7157` |
+| `protein` | UniProtKB | `UniProt:P04637` |
+| `compound` | PubChem | `PubChem:2244` |
+
+`search_data(query, kind="dataset", source="", limit=10)` returns at most 50 records from a bounded first page. `source` selects one listed source. Results preserve each database's ordering, interleaved across sources; they have no invented common relevance score. `data_info(data_id, limit=20)` accepts native identifiers and official record URLs, and returns at most 100 declared relations.
+
+Each object has `id`, `kind`, `source`, `native_id`, `title`, `description`, `url`, native `properties`, declared `files`, `relations` and `provenance`. A returned relation includes its evidence URL. A run accession may resolve to its experiment, with the run retained as a confirmed alias. Objects from different namespaces are kept distinct even when their names match.
+
+## Reuse the same backend
+
+```python
+from scholar_mcp import api
+
+hits = api.search_data("gene_exact:TP53 AND organism_id:9606", kind="protein")
+for hit in hits["objects"]:
+    record = api.data_info(hit["id"])
+    print(record["object"]["id"], record["object"]["properties"])
+
+linked = api.info("PMID:26826244", include="detail,data")
+```
+
+Batch jobs can call these same functions and keep their own progress using returned native IDs. Scholar's existing paper Corpus continues to handle papers and companion files; scientific objects do not silently become paper-library entries. Search, record lookup and paper association reuse the shared request transport, cross-process provider pacing, bounded source workers and persistent cache. A failed source is reported while completed results remain usable.
+
+File entries are pointers with any supplied size, checksum and format. These tools read metadata; they do not download raw sequencing runs or claim access to restricted files. `paper_info` only contacts scientific databases when `data` is explicitly requested. Paper associations currently use verified PubMed identities and NCBI links to GEO, SRA, BioProject and Gene. The source reports distinguish failed retrieval from an empty response.
+
+API contracts: [NCBI E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/), [UniProt](https://www.uniprot.org/help/api_queries), [PubChem PUG REST](https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest) and [Zenodo](https://developers.zenodo.org/).

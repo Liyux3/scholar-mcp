@@ -22,6 +22,7 @@ Research and setup commands print readable YAML, or JSON with `--json` for `jq` 
 | [`info`](#info) | Paper detail, citations and references, like `paper_info` |
 | [`related`](#related) | Related work, like `recommend_papers` |
 | [`authors`](#authors) | Author profiles, like `search_authors` |
+| `data`, `data-info` | [Scientific data](/scholar-mcp/scientific-data/) search and native record lookup |
 | [`read`](#read) | Pages, figures or tables of a paper, like `read_paper` |
 | [`download`](#download) | Keep a PDF in your library, like `download_paper` |
 | [`graph`](#graph) | Citation graph around seed papers, like `build_paper_graph` |
@@ -63,7 +64,7 @@ scholar-mcp search "long-term memory benchmarks for LLM agents" --year 2024-2026
 scholar-mcp info arXiv:2303.04137 --citations --limit 10
 ```
 
-Prints the paper's detail. `--citations` adds papers that cite it, `--references` adds papers it cites, and `--limit N` bounds each list (default 20).
+Prints the paper's detail. `--citations` adds papers that cite it, `--references` adds papers it cites, `--data` asks for scientific database associations, and `--limit N` bounds each list (default 20).
 
 ### related
 

@@ -22,6 +22,8 @@ saved = api.download("10.1038/s41586-021-03819-2", save_dir="papers")
 graph = api.graph(["arXiv:2303.04137"], max_hops=1)
 ```
 
+科学数据入口是 `api.search_data(query, kind="protein")` 和 `api.data_info("UniProt:P04637")`，与 CLI/MCP 共用实现。[科学数据指南](/scholar-mcp/zh-cn/scientific-data/)包含完整示例。
+
 ## 函数
 
 | 函数 | MCP 工具 | 返回 |
