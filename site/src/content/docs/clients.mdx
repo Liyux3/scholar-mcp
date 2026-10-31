@@ -10,7 +10,7 @@ Every client starts Scholar the same way. The fastest route is the `scholar-mcp`
 ```bash
 uv tool install --python 3.12 \
   --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-  "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9"
+  "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2"
 scholar-mcp install --all --dry-run   # preview every detected client
 scholar-mcp install --all             # or name them: claude-code codex cursor
 ```
@@ -32,7 +32,7 @@ Add the server from your terminal. `--scope user` makes it available in every pr
 claude mcp add scholar --scope user -e SCHOLAR_MCP_EXTENSIONS=research \
   -- uvx --python 3.12 \
   --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-  --from 'scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9' scholar-mcp
+  --from 'scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2' scholar-mcp
 ```
 
 Or install the plugin, which adds the same server with the research profile and the Deep Research skill:
@@ -57,7 +57,7 @@ On any platform you can also edit `claude_desktop_config.json` (Settings, Develo
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -78,7 +78,7 @@ command = "uvx"
 args = [
   "--python", "3.12",
   "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-  "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp",
+  "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp",
 ]
 startup_timeout_sec = 60
 tool_timeout_sec = 600
@@ -111,7 +111,7 @@ Or add the server to `~/.cursor/mcp.json`, or to `.cursor/mcp.json` in a project
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -122,7 +122,7 @@ Or add the server to `~/.cursor/mcp.json`, or to `.cursor/mcp.json` in a project
 </TabItem>
 <TabItem label="VS Code">
 
-<LinkButton href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D+%40+git%2Bhttps%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp.git%406d2bdbd612da2d3c78bb1ec16f253288189083e9%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">Install in VS Code</LinkButton>
+<LinkButton href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D+%40+git%2Bhttps%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp.git%40b1adde9a843e25d14f6b52855dba7ff17e2346d2%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">Install in VS Code</LinkButton>
 
 Or add it to `.vscode/mcp.json` in a workspace, or to your user `mcp.json` with the **MCP: Open User Configuration** command. VS Code uses a `servers` key:
 
@@ -135,7 +135,7 @@ Or add it to `.vscode/mcp.json` in a workspace, or to your user `mcp.json` with 
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -156,7 +156,7 @@ Add the server to `~/.gemini/settings.json`, or to `.gemini/settings.json` in a 
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -178,7 +178,7 @@ OpenCode lists local servers under an `mcp` key, with the command as one array. 
       "command": [
         "uvx", "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp"
       ],
       "environment": { "SCHOLAR_MCP_EXTENSIONS": "research" },
       "enabled": true
@@ -204,7 +204,7 @@ Add the server to `~/.codeium/windsurf/mcp_config.json`, then refresh the server
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -215,7 +215,7 @@ Add the server to `~/.codeium/windsurf/mcp_config.json`, then refresh the server
 </TabItem>
 <TabItem label="Kiro">
 
-<LinkButton href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D+%40+git%2Bhttps%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp.git%406d2bdbd612da2d3c78bb1ec16f253288189083e9%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">Add to Kiro</LinkButton>
+<LinkButton href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.8.5%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D+%40+git%2Bhttps%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp.git%40b1adde9a843e25d14f6b52855dba7ff17e2346d2%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D" variant="secondary" icon="external">Add to Kiro</LinkButton>
 
 Or add the server to `~/.kiro/settings/mcp.json`, or to `.kiro/settings/mcp.json` in a workspace:
 
@@ -227,7 +227,7 @@ Or add the server to `~/.kiro/settings/mcp.json`, or to `.kiro/settings/mcp.json
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" },
       "disabled": false,
@@ -251,7 +251,7 @@ Zed calls MCP servers context servers. Add one to your settings file (**zed: ope
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -276,7 +276,7 @@ pi install npm:pi-mcp-adapter
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
@@ -299,7 +299,7 @@ Any client that launches stdio servers can use the same command and arguments:
       "args": [
         "--python", "3.12",
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
-        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9", "scholar-mcp"
+        "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2", "scholar-mcp"
       ],
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }

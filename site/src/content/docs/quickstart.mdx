@@ -37,7 +37,7 @@ This guide documents the 0.9 preview. The commands below install the tested sour
    ```bash
    uv tool install --python 3.12 \
      --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-     "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9"
+     "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2"
    scholar-mcp install claude-code
    ```
 
@@ -49,7 +49,7 @@ This guide documents the 0.9 preview. The commands below install the tested sour
    ```bash
    claude mcp add scholar -- uvx --python 3.12 \
      --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-     --from 'scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@6d2bdbd612da2d3c78bb1ec16f253288189083e9' scholar-mcp
+     --from 'scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@b1adde9a843e25d14f6b52855dba7ff17e2346d2' scholar-mcp
    ```
 
    This registers the six core tools for the current project. `--scope user` makes it apply to every project, and `-e SCHOLAR_MCP_EXTENSIONS=research` before `--` adds the citation graph and paper library.
@@ -59,7 +59,7 @@ This guide documents the 0.9 preview. The commands below install the tested sour
 
    ```text
    Install Scholar MCP into the client you are running in, following
-   https://raw.githubusercontent.com/Liyux3/scholar-mcp/6d2bdbd612da2d3c78bb1ec16f253288189083e9/llms-install.md
+   https://raw.githubusercontent.com/Liyux3/scholar-mcp/b1adde9a843e25d14f6b52855dba7ff17e2346d2/llms-install.md
    Then tell me to restart, and check that search_papers is available.
    ```
 
