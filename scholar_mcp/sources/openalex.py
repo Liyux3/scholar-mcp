@@ -32,21 +32,16 @@ def _params_base() -> dict:
 
 
 def _request(url: str, params: dict, timeout: int = 30) -> httpx.Response:
-    """GET with key rotation on 429, without raising.
-
-    OpenAlex keys carry a small daily budget and are exhausted independently.
-    get_openalex_api_key picks one at random, so a depleted key fails roughly
-    half the requests even when a healthy key is configured. On 429, retry
-    with each of the other keys before giving up.
-    """
+    """GET with bounded recovery for independent keys and shared budget limits."""
     if "search.semantic" in params:
         pacing.wait("openalex-semantic", key=params.get("api_key"))
     pacing.wait("openalex", key=params.get("api_key"))
     response = access.get(url, params=params, timeout=timeout)
-    if response.status_code != 429 or not config.OPENALEX_API_KEYS:
+    if response.status_code != 429:
         return response
 
-    _note_exhausted(params.get("api_key"), response)
+    if _note_exhausted(params.get("api_key"), response) or not config.OPENALEX_API_KEYS:
+        return response
 
     tried = {params.get("api_key")}
     for key in config.OPENALEX_API_KEYS:
@@ -59,7 +54,8 @@ def _request(url: str, params: dict, timeout: int = 30) -> httpx.Response:
         response = access.get(url, params={**params, "api_key": key}, timeout=timeout)
         if response.status_code != 429:
             break
-        _note_exhausted(key, response)
+        if _note_exhausted(key, response):
+            break
     return response
 
 
@@ -72,20 +68,23 @@ def _found(response: httpx.Response) -> bool:
     return True
 
 
-def _note_exhausted(key: str | None, response: httpx.Response) -> None:
-    """Record a spent key so rotation stops picking it until it refills.
-
-    OpenAlex reports the seconds remaining until the allowance resets, so the
-    key can come back on its own rather than being dropped for good.
-    """
-    if not key:
-        return
+def _note_exhausted(key: str | None, response: httpx.Response) -> bool:
+    """Honor a provider reset; return true when it applies to the whole client."""
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {}
+    shared = isinstance(payload, dict) and 'share one free daily budget' in str(payload.get('message', '')).casefold()
     try:
         headers = getattr(response, "headers", {}) or {}
-        reset_after = float(headers.get("x-ratelimit-reset", 0))
+        reset_after = float(headers.get("retry-after") or headers.get("x-ratelimit-reset", 0))
     except (TypeError, ValueError):
         reset_after = 0
-    config.mark_openalex_exhausted(key, reset_after)
+    keys = set(config.OPENALEX_API_KEYS if shared else ()) | ({key} if key else set())
+    for spent in keys:
+        config.mark_openalex_exhausted(spent, reset_after)
+        pacing.defer('openalex', reset_after, key=spent)
+    return shared
 
 
 def _get(url: str, params: dict, timeout: int = 30) -> httpx.Response:

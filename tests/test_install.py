@@ -21,7 +21,8 @@ def home(tmp_path, monkeypatch):
     monkeypatch.delenv("CODEX_HOME", raising=False)
     monkeypatch.delenv("DSH_HOME", raising=False)
     for variable in ("QWEN_HOME", "KIMI_CODE_HOME", "CODEBUDDY_CONFIG_DIR", "QODER_CONFIG_DIR", "MINIMAX_DATA_DIR",
-                     "MAVIS_DATA_DIR", "TRAE_HOME", "MIMOCODE_HOME", "MIMOCODE_CONFIG", "MIMOCODE_CONFIG_DIR"):
+                     "MAVIS_DATA_DIR", "TRAE_HOME", "MIMOCODE_HOME", "MIMOCODE_CONFIG", "MIMOCODE_CONFIG_DIR",
+                     "PI_CODING_AGENT_DIR"):
         monkeypatch.delenv(variable, raising=False)
     monkeypatch.setattr(config, "DATA_DIR", str(tmp_path / ".scholar-mcp"))
     return tmp_path
@@ -118,6 +119,7 @@ def test_qwen_home_override_selects_the_actual_client_directory(home, monkeypatc
 
 
 @pytest.mark.parametrize("name, variable, filename", [
+    ("pi", "PI_CODING_AGENT_DIR", "mcp.json"),
     ("codebuddy", "CODEBUDDY_CONFIG_DIR", ".mcp.json"),
     ("qoder-cli", "QODER_CONFIG_DIR", "settings.json"),
     ("minimax", "MAVIS_DATA_DIR", "mcp.json"),
@@ -358,8 +360,14 @@ def test_pi_and_antigravity_use_mcp_servers(home):
     assert json.loads(current.read_text())["mcpServers"]["scholar"]["command"] == SPEC.command
     assert json.loads(legacy.read_text())["mcpServers"]["existing"]["command"] == "old"
     assert install.CLIENTS["antigravity"].project_path == ".agents/mcp_config.json"
+    legacy_pi = home / ".config/mcp/mcp.json"
+    legacy_pi.parent.mkdir(parents=True)
+    legacy_pi.write_text('{"mcpServers":{"other":{"command":"other-tool"}}}')
+    original = legacy_pi.read_bytes()
     assert install.install("pi", SPEC)["status"] == "installed"
-    assert json.loads((home / ".config/mcp/mcp.json").read_text())["mcpServers"]["scholar"]["command"] == SPEC.command
+    entry = json.loads((home / ".pi/agent/mcp.json").read_text())["mcpServers"]["scholar"]
+    assert entry['command'] == SPEC.command and entry['timeout'] == 600 and entry['requestTimeoutMs'] == 600_000
+    assert legacy_pi.read_bytes() == original
 
 
 def test_reinstall_keeps_keys_the_user_added(home):

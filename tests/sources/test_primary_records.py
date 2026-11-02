@@ -58,6 +58,15 @@ def test_court_questions_use_the_native_semantic_engine_and_relevant_excerpts(mo
     assert sources.get('courtlistener').query_style == sources.QUERY_RAW
 
 
+def test_courtlistener_uses_configured_token(monkeypatch):
+    from scholar_mcp import config
+    monkeypatch.setattr(config, 'COURTLISTENER_API_TOKEN', 'fixture-token')
+    def inspect(kwargs):
+        assert kwargs['headers'] == {'Authorization': 'Token fixture-token'}
+    reply(monkeypatch, {'results': [{'cluster_id': 1, 'caseName': 'State v. Example'}]}, inspect)
+    assert courtlistener.search_papers('cluster_id:1', 1)[0]['paper_id'] == 'CourtListener:1'
+
+
 @pytest.mark.parametrize('failure', [httpx.ReadTimeout('semantic backend slow'),
                                    access.AccessError('TIMEOUT'), access.AccessError('NETWORK')])
 def test_court_semantic_outage_recovers_through_its_native_keyword_search(monkeypatch, failure):

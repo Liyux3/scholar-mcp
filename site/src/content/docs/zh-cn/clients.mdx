@@ -258,13 +258,9 @@ Zed 把 MCP 服务器叫作 context server。写入设置文件（**zed: open se
 </TabItem>
 <TabItem label="Pi">
 
-Pi 通过 [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter) 连接 MCP 服务器。先装好它并重启 Pi，再把 Scholar 写入项目里的 `.mcp.json`，或对所有项目生效的 `~/.config/mcp/mcp.json`。
+Pi 已有原生 MCP 支持。全局配置使用 `~/.pi/agent/mcp.json`，已信任项目使用 `.pi/mcp.json`；`PI_CODING_AGENT_DIR` 可以指定用户目录。参见 [Pi 官方文档](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md)。
 
-```bash
-pi install npm:pi-mcp-adapter
-```
-
-```json title=".mcp.json"
+```json title="~/.pi/agent/mcp.json"
 {
   "mcpServers": {
     "scholar": {
@@ -274,13 +270,15 @@ pi install npm:pi-mcp-adapter
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
         "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@1e7094ffc473231322478584aa561ccc5687ac42", "scholar-mcp"
       ],
+      "timeout": 600,
+      "requestTimeoutMs": 600000,
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
   }
 }
 ```
 
-仓库里的插件目录符合 Agent Plugins 标准，Pi 和兼容的环境可以直接加载。
+原生 Pi 的 `timeout` 单位是秒；如果你已有 [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter)，它也能读取这份配置，并使用毫秒单位的 `requestTimeoutMs`。
 
 </TabItem>
 <TabItem label="其他">

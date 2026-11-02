@@ -43,7 +43,7 @@ LIMITS: dict[str, tuple[Limits, Limits]] = {
     "cinii": (((1, 1.0),), ((1, 1.0),)),                  # bursts "may be blocked without notice"
     "core": (((10, 60), (100, 86400)), ((25, 60),)),      # tokens; personal key 25 a minute
     "eric": (((1, 1.0),), ((1, 1.0),)),                  # conservative while no published limit is specified
-    "courtlistener": (((1, 1.0),), ((1, 1.0),)),
+    "courtlistener": (((5, 60), (50, 3600), (125, 86400)),) * 2,
     "clinicaltrials": (((1, 1.0),), ((1, 1.0),)),
     "openedition": (((1, 1.0),), ((1, 1.0),)),
     "crossref": (((1, 1.0),), ((3, 1.0),)),               # list queries; the key is the polite-pool email

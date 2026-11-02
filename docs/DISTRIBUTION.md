@@ -39,7 +39,7 @@ HTTP deployment; a cloud agent cannot use your laptop's localhost address.
 | [TRAE CLI 2.0](https://docs.trae.cn/cli_config-file) | `scholar-mcp install trae-cli`; user-level TOML configuration |
 | [MiMo Code](https://mimo.xiaomi.com/mimocode/mcp-servers) | `scholar-mcp install mimocode`; local command array under `mcp` |
 | [ZCode](https://github.com/zai-org/ZCode) | `scholar-mcp install zcode`; nested `mcp.servers` configuration |
-| [Kimi Code](https://moonshotai.github.io/kimi-cli/en/reference/kimi-mcp.html) | `scholar-mcp install kimi-code`; native MCP configuration file |
+| [Kimi Code](https://moonshotai.github.io/kimi-code/en/customization/mcp) | `scholar-mcp install kimi-code`; native MCP configuration file |
 | [Gemini CLI](https://geminicli.com/docs/tools/mcp-server/) | MCP server configuration or `gemini mcp` |
 | [VS Code](https://code.visualstudio.com/docs/agent-customization/mcp-servers) | Agent-mode MCP servers |
 | [Cline](https://docs.cline.bot/mcp/mcp-overview) | Local or hosted MCP server configuration |
@@ -47,7 +47,7 @@ HTTP deployment; a cloud agent cannot use your laptop's localhost address.
 | [OpenCode](https://opencode.ai/docs/mcp-servers/) | Local or remote MCP configuration |
 | [Qwen Code](https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/) | MCP server configuration or `qwen mcp` |
 | [Trae](https://docs.trae.ai/ide/model-context-protocol?_lang=en) | Local stdio or remote HTTP |
-| [Pi](https://github.com/nicobailon/pi-mcp-adapter) | Via an MCP adapter |
+| [Pi](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md) | Native MCP configuration; current pi-mcp-adapter also reads the same file |
 | [Kilo Code](https://kilo.ai/docs/automate/mcp/server-transports) | MCP transport configuration |
 | [CodeBuddy](https://www.codebuddy.ai/docs/cli/mcp) | MCP server configuration or `codebuddy mcp` |
 | [Qoder](https://docs.qoder.com/cli/mcp-servers) | MCP configuration or `qoder mcp` |

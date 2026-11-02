@@ -5,7 +5,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 import httpx
-from .. import access, relevance
+from .. import access, config, relevance
 from . import pacing
 
 BASE = 'https://www.courtlistener.com'
@@ -46,8 +46,10 @@ def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
         params['semantic'] = 'true'
     while url and len(papers) < limit:
         try:
-            pacing.wait("courtlistener")
-            response = access.get(url, params=params, timeout=15)
+            token = config.COURTLISTENER_API_TOKEN
+            pacing.wait("courtlistener", key=token)
+            response = access.get(url, params=params,
+                                  headers={'Authorization': f'Token {token}'} if token else {}, timeout=15)
             response.raise_for_status()
             page = response.json()
         except Exception as error:

@@ -262,13 +262,9 @@ Zed calls MCP servers context servers. Add one to your settings file (**zed: ope
 </TabItem>
 <TabItem label="Pi">
 
-Pi reaches MCP servers through [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter). Install it, restart Pi, then add Scholar to `.mcp.json` in a project or `~/.config/mcp/mcp.json` for every project:
+Pi has native MCP support. Add Scholar to `~/.pi/agent/mcp.json` for every project, or `.pi/mcp.json` in a trusted project. `PI_CODING_AGENT_DIR` overrides the user directory. [Pi MCP documentation](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md).
 
-```bash
-pi install npm:pi-mcp-adapter
-```
-
-```json title=".mcp.json"
+```json title="~/.pi/agent/mcp.json"
 {
   "mcpServers": {
     "scholar": {
@@ -278,13 +274,15 @@ pi install npm:pi-mcp-adapter
         "--find-links", "https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html",
         "--from", "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@1e7094ffc473231322478584aa561ccc5687ac42", "scholar-mcp"
       ],
+      "timeout": 600,
+      "requestTimeoutMs": 600000,
       "env": { "SCHOLAR_MCP_EXTENSIONS": "research" }
     }
   }
 }
 ```
 
-The repository's plugin directory also follows the Agent Plugins standard, which Pi and compatible harnesses can load directly.
+Native Pi reads `timeout` in seconds. If you already use [pi-mcp-adapter](https://github.com/nicobailon/pi-mcp-adapter), it reads the same file and uses `requestTimeoutMs` in milliseconds.
 
 </TabItem>
 <TabItem label="Other">

@@ -182,8 +182,9 @@ class Client:
 
 
 CLIENTS: dict[str, Client] = {c.name: c for c in [
-    # Pi reads MCP servers through pi-mcp-adapter's shared mcp.json.
-    Client("pi", "Pi", lambda: _xdg("mcp", "mcp.json"), project_path=".pi/mcp.json", binary="pi"),
+    # Native Pi and current pi-mcp-adapter both read the agent's mcp.json.
+    Client("pi", "Pi", lambda: _client_home(_home() / ".pi/agent", "PI_CODING_AGENT_DIR") / "mcp.json",
+           render=_with(timeout=600, requestTimeoutMs=600_000), project_path=".pi/mcp.json", binary="pi"),
     Client("claude-code", "Claude Code", lambda: _home() / ".claude.json", project_path=".mcp.json",
            binary="claude", kind="claude"),
     Client("claude-desktop", "Claude Desktop", lambda: _appdata("Claude", "claude_desktop_config.json"),

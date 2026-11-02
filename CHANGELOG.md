@@ -2,6 +2,11 @@
 
 ## 0.9.0
 
+- Use Pi's native MCP configuration and agent-directory override, with the
+  appropriate timeout units for native Pi and pi-mcp-adapter.
+- Support CourtListener Token authentication and its default rolling quotas.
+  Honor OpenAlex's explicit shared daily-budget reset across processes,
+  avoiding sibling-key retries when the provider's client budget is exhausted.
 - Register DeepSeek Harness through its native Cordis MCP plugin, preserving
   existing YAML and expressions. Add TRAE CLI 2.0 and MiMo Code through the
   shared TOML and OpenCode renderers, including their config-path overrides.

@@ -40,6 +40,7 @@ CORE_API_KEY: str | None = os.environ.get("CORE_API_KEY") or None
 OPENAIRE_CLIENT_ID: str | None = os.environ.get("OPENAIRE_CLIENT_ID") or None
 OPENAIRE_CLIENT_SECRET: str | None = os.environ.get("OPENAIRE_CLIENT_SECRET") or None
 NCBI_API_KEY: str | None = os.environ.get("NCBI_API_KEY") or None
+COURTLISTENER_API_TOKEN: str | None = os.environ.get("COURTLISTENER_API_TOKEN") or None
 OPENALEX_API_KEY: str | None = os.environ.get("OPENALEX_API_KEY") or None
 OPENALEX_API_KEYS: list[str] = [k.strip() for k in (os.environ.get("OPENALEX_API_KEYS") or "").split(",") if k.strip()]
 OPENALEX_EMAIL: str | None = os.environ.get("OPENALEX_EMAIL") or None
@@ -107,9 +108,9 @@ def get_openalex_email() -> str | None:
     return OPENALEX_EMAIL
 
 
-# Keys observed to be out of credit, with the time their quota resets.
-# OpenAlex bills per request against a per-key daily allowance that refills on
-# a rolling window, so an exhausted key is temporary, not dead.
+# Keys observed to be out of credit, with the provider's quota reset time.
+# The adapter also persists actual Retry-After hints across processes, and
+# honors an explicitly shared client budget rather than rotating sibling keys.
 _openalex_exhausted: dict[str, float] = {}
 
 
@@ -131,6 +132,6 @@ def get_openalex_api_key() -> str | None:
     import time
     now = time.time()
     usable = [k for k in OPENALEX_API_KEYS if _openalex_exhausted.get(k, 0) <= now]
-    # If everything is exhausted, try anyway: the reset estimate may be stale
-    # and a 429 is no worse than refusing to make the request.
+    # Retain a configured identity when all keys are parked. Shared pacing
+    # enforces actual provider Retry-After hints before the request starts.
     return random.choice(usable or OPENALEX_API_KEYS)

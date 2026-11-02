@@ -355,6 +355,9 @@ class TestExhaustedKeyAvoidance:
             status_code = 429
             headers = {"x-ratelimit-reset": "7200"}
 
+            def json(self):
+                return {}
+
             def raise_for_status(self):
                 pass
 
@@ -373,6 +376,9 @@ class TestExhaustedKeyAvoidance:
         class Spent:
             status_code = 429
             headers = {"x-ratelimit-reset": "not-a-number"}
+
+            def json(self):
+                return {}
 
             def raise_for_status(self):
                 pass
@@ -453,3 +459,24 @@ def test_semantic_key_rotation_keeps_the_replacement_keys_own_gate(monkeypatch):
     assert openalex._request("https://api.openalex.org/works", {"search.semantic": "question", "api_key": "first"}).status_code == 200
     assert gates == [("openalex-semantic", "first"), ("openalex", "first"),
                      ("openalex-semantic", "second"), ("openalex", "second")]
+
+
+def test_shared_daily_budget_stops_rotation_and_persists_the_provider_reset(monkeypatch):
+    from scholar_mcp import config
+    from scholar_mcp.sources import pacing
+    import time
+    monkeypatch.setattr(config, 'OPENALEX_API_KEYS', ['first', 'second'])
+    monkeypatch.setattr(config, '_openalex_exhausted', {})
+    seen = []
+    def get(url, **kwargs):
+        seen.append(kwargs['params']['api_key'])
+        return httpx.Response(429, json={'error': 'Rate limit exceeded',
+            'message': 'These keys share one free daily budget, and it is used up.'},
+            headers={'Retry-After': '7200'}, request=httpx.Request('GET', url))
+    monkeypatch.setattr(openalex.httpx, 'get', get)
+    assert openalex._request('https://api.openalex.org/works', {'api_key': 'first'}).status_code == 429
+    assert seen == ['first']
+    for key in config.OPENALEX_API_KEYS:
+        assert 7000 < config._openalex_exhausted[key] - time.time() <= 7200
+        with pytest.raises(pacing.Paced, match='Retry-After'):
+            pacing.wait('openalex', key=key)
