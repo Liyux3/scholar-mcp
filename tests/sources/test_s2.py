@@ -1,0 +1,447 @@
+"""Tests for Semantic Scholar API client."""
+
+import httpx
+import pytest
+
+from scholar_mcp.sources import s2
+
+
+@pytest.fixture(autouse=True)
+def reset_s2_health(monkeypatch):
+    monkeypatch.setattr(s2, "_s2_cooldown_until", 0.0)
+    monkeypatch.setattr(s2, "_s2_probe_in_flight", False)
+
+
+def _response(
+    status_code: int,
+    payload: dict,
+    url: str,
+    headers: dict | None = None,
+) -> httpx.Response:
+    request = httpx.Request("GET", url)
+    return httpx.Response(status_code, json=payload, request=request, headers=headers)
+
+
+def test_get_retries_rate_limit_before_success(monkeypatch):
+    calls = {"count": 0}
+    sleeps = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return _response(429, {"error": "rate limited"}, url)
+        return _response(200, {"data": []}, url)
+
+    monkeypatch.setattr(s2.httpx, "get", fake_get)
+    monkeypatch.setattr(s2.time, "sleep", sleeps.append)
+
+    result = s2._get(f"{s2.BASE_URL}/paper/search", params={"query": "test"})
+
+    assert result == {"data": []}
+    assert calls["count"] == 2
+    # One backoff after the 429, plus the shared gate spacing the retry a
+    # second behind the first attempt. Both are intended; assert the backoff
+    # specifically rather than the exact list, since gate delays are timing
+    # dependent.
+    assert 2 in sleeps
+    assert len(sleeps) <= 2
+
+
+def test_final_overload_opens_shared_cooldown(monkeypatch):
+    monkeypatch.setattr(s2, "_wait_for_turn", lambda *a, **k: True)
+    monkeypatch.setattr(
+        s2.httpx,
+        "get",
+        lambda url, **kwargs: _response(429, {"error": "busy"}, url),
+    )
+
+    with pytest.raises(httpx.HTTPStatusError):
+        s2._get("https://example.test/s2", retries=1)
+
+    assert s2.is_healthy() is False
+
+
+def test_local_gate_contention_reports_pacing_without_marking_the_provider_down(monkeypatch):
+    from scholar_mcp import sources
+    monkeypatch.setattr(s2, '_wait_for_turn', lambda *a, **kw: False)
+    result = sources._timed_call('semantic_scholar', s2._get, f'{s2.BASE_URL}/paper/search')
+    assert result.status == 'paced' and result.results == []
+    assert s2.is_healthy()
+
+
+def test_retry_after_controls_cooldown(monkeypatch):
+    monkeypatch.setattr(s2, "_wait_for_turn", lambda *a, **k: True)
+    monkeypatch.setattr(
+        s2.httpx,
+        "get",
+        lambda url, **kwargs: _response(
+            429,
+            {"error": "busy"},
+            url,
+            headers={"Retry-After": "1"},
+        ),
+    )
+
+    with pytest.raises(httpx.HTTPStatusError):
+        s2._get("https://example.test/s2", retries=1)
+
+    remaining = s2._s2_cooldown_until - s2.time.monotonic()
+    assert 0 < remaining <= 1
+
+
+def test_cooldown_skips_network_until_one_probe(monkeypatch):
+    monkeypatch.setattr(
+        s2,
+        "_s2_cooldown_until",
+        s2.time.monotonic() + 30,
+    )
+    monkeypatch.setattr(
+        s2.httpx,
+        "get",
+        lambda *args, **kwargs: pytest.fail("cooldown should bypass the network"),
+    )
+
+    with pytest.raises(s2.S2CooldownError):
+        s2._get("https://example.test/s2")
+
+
+def test_successful_probe_restores_s2(monkeypatch):
+    monkeypatch.setattr(
+        s2,
+        "_s2_cooldown_until",
+        s2.time.monotonic() - 1,
+    )
+    monkeypatch.setattr(s2, "_wait_for_turn", lambda *a, **k: True)
+    monkeypatch.setattr(
+        s2.httpx,
+        "get",
+        lambda url, **kwargs: _response(200, {"data": []}, url),
+    )
+
+    assert s2._get("https://example.test/s2") == {"data": []}
+    assert s2.is_healthy() is True
+
+
+def test_metadata_batch_is_low_priority(monkeypatch):
+    captured = {}
+
+    def fake_post(url, **kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(s2, "_post", fake_post)
+    assert s2.get_papers_batch(["CorpusId:1"]) == []
+    assert captured["gate_timeout"] == s2.S2_METADATA_GATE_TIMEOUT
+    assert captured["allow_probe"] is False
+
+
+def test_metadata_batches_preserve_tail_and_partial_progress(monkeypatch):
+    seen = []
+    def post(url, **kwargs):
+        ids = kwargs["json_data"]["ids"]
+        seen.append(len(ids))
+        return [{"paperId": identifier} for identifier in ids]
+    monkeypatch.setattr(s2, "_post", post)
+    ids = [f"CorpusId:{i}" for i in range(501)]
+    results = s2.get_papers_batch(ids)
+    assert seen == [500, 1] and len(results) == 501
+    assert results[-1]["paperId"] == "CorpusId:500"
+
+    def overload(url, **kwargs):
+        if len(kwargs["json_data"]["ids"]) == 1:
+            raise s2.S2CooldownError()
+        return post(url, **kwargs)
+    monkeypatch.setattr(s2, "_post", overload)
+    assert len(s2.get_papers_batch(ids)) == 500
+
+
+def test_search_papers(monkeypatch):
+    captured = {}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured["url"] = url
+        captured["params"] = params
+        return _response(
+            200,
+            {
+                "data": [
+                    {
+                        "paperId": "p1",
+                        "title": "Attention is All you Need",
+                        "authors": [{"name": "Ashish Vaswani"}, {"name": "Noam Shazeer"}],
+                        "year": 2017,
+                        "citationCount": 12345,
+                        "influentialCitationCount": 1200,
+                        "isOpenAccess": True,
+                        "openAccessPdf": {"url": "https://example.com/paper.pdf"},
+                        "fieldsOfStudy": ["Computer Science"],
+                        "publicationDate": "2017-06-12",
+                        "externalIds": {"ArXiv": "1706.03762"},
+                        "tldr": {"text": "Transformers replace recurrence."},
+                    }
+                ]
+            },
+            url,
+        )
+
+    monkeypatch.setattr(s2.httpx, "get", fake_get)
+
+    results = s2.search_papers("attention is all you need", limit=3)
+
+    assert captured["url"] == f"{s2.BASE_URL}/paper/search"
+    assert captured["params"]["query"] == "attention is all you need"
+    assert captured["params"]["limit"] == 3
+    assert captured["params"]["fields"] == s2.SEARCH_FIELDS
+    assert len(results) == 1
+    assert results[0]["paper_id"] == "p1"
+    assert results[0]["authors"] == ["Ashish Vaswani", "Noam Shazeer"]
+    assert results[0]["source"] == "semantic_scholar"
+
+
+def test_search_papers_with_filters(monkeypatch):
+    captured = {}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured["params"] = params
+        return _response(200, {"data": []}, url)
+
+    monkeypatch.setattr(s2.httpx, "get", fake_get)
+
+    results = s2.search_papers(
+        "neural network",
+        limit=5,
+        year="2023",
+        venue=["NeurIPS", "ICML"],
+        fields_of_study=["Computer Science", "Mathematics"],
+        min_citations=10,
+        open_access_only=True,
+    )
+
+    assert results == []
+    assert captured["params"]["year"] == "2023"
+    assert captured["params"]["venue"] == "NeurIPS,ICML"
+    assert captured["params"]["fieldsOfStudy"] == "Computer Science,Mathematics"
+    assert captured["params"]["minCitationCount"] == 10
+    assert captured["params"]["openAccessPdf"] == ""
+
+
+def test_get_paper_by_s2_id(monkeypatch):
+    def fake_get(url, params=None, headers=None, timeout=None):
+        return _response(
+            200,
+            {
+                "paperId": "204e3073870fae3d05bcbc2f6a8e263d9b72e776",
+                "title": "Attention is All you Need",
+                "year": 2017,
+                "citationCount": 999,
+                "publicationVenue": {"type": "conference", "url": "https://example.com/venue"},
+                "publicationTypes": ["JournalArticle"],
+                "referenceCount": 48,
+                "citationStyles": {"bibtex": "@inproceedings{attention}"},
+            },
+            url,
+        )
+
+    monkeypatch.setattr(s2.httpx, "get", fake_get)
+
+    paper = s2.get_paper("204e3073870fae3d05bcbc2f6a8e263d9b72e776")
+
+    assert paper["title"] == "Attention is All you Need"
+    assert paper["year"] == 2017
+    assert paper["citation_count"] == 999
+    assert paper["bibtex"] == "@inproceedings{attention}"
+    assert paper["venue_type"] == "conference"
+
+
+def test_get_paper_by_arxiv_id(monkeypatch):
+    captured = {}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured["url"] = url
+        return _response(200, {"paperId": "p1", "title": "Attention is All you Need"}, url)
+
+    monkeypatch.setattr(s2.httpx, "get", fake_get)
+
+    paper = s2.get_paper("ArXiv:1706.03762")
+
+    assert captured["url"].endswith("/paper/ArXiv:1706.03762")
+    assert "attention" in paper["title"].lower()
+
+
+def test_get_paper_by_doi(monkeypatch):
+    captured = {}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        captured["url"] = url
+        return _response(200, {"paperId": "p2", "title": "BERT", "year": 2019}, url)
+
+    monkeypatch.setattr(s2.httpx, "get", fake_get)
+
+    paper = s2.get_paper("DOI:10.18653/v1/N19-1423")
+
+    assert captured["url"].endswith("/paper/DOI:10.18653/v1/N19-1423")
+    assert paper["year"] == 2019
+
+
+def test_get_citations(monkeypatch):
+    def fake_get(url, params=None, headers=None, timeout=None):
+        return _response(
+            200,
+            {
+                "data": [
+                    {"citingPaper": {"paperId": "c1", "title": "Citation 1"}},
+                    {"citingPaper": {"paperId": "c2", "title": "Citation 2"}},
+                    {"citingPaper": {"title": "Missing ID should be skipped"}},
+                ]
+            },
+            url,
+        )
+
+    monkeypatch.setattr(s2.httpx, "get", fake_get)
+
+    results = s2.get_citations("paper-id", limit=5)
+
+    assert [paper["paper_id"] for paper in results] == ["c1", "c2"]
+
+
+def test_get_references(monkeypatch):
+    def fake_get(url, params=None, headers=None, timeout=None):
+        return _response(
+            200,
+            {
+                "data": [
+                    {"citedPaper": {"paperId": "r1", "title": "Reference 1"}},
+                    {"citedPaper": {"paperId": "r2", "title": "Reference 2"}},
+                ]
+            },
+            url,
+        )
+
+    monkeypatch.setattr(s2.httpx, "get", fake_get)
+
+    results = s2.get_references("paper-id", limit=5)
+
+    assert [paper["paper_id"] for paper in results] == ["r1", "r2"]
+
+
+def test_get_recommendations(monkeypatch):
+    def fake_get(url, params=None, headers=None, timeout=None):
+        return _response(
+            200,
+            {"recommendedPapers": [{"paperId": "rec1", "title": "Recommended Paper"}]},
+            url,
+        )
+
+    monkeypatch.setattr(s2.httpx, "get", fake_get)
+
+    results = s2.get_recommendations("paper-id", limit=5)
+
+    assert len(results) == 1
+    assert results[0]["paper_id"] == "rec1"
+
+
+def test_search_authors(monkeypatch):
+    def fake_get(url, params=None, headers=None, timeout=None):
+        return _response(
+            200,
+            {
+                "data": [
+                    {
+                        "authorId": "a1",
+                        "name": "Yoshua Bengio",
+                        "affiliations": ["Mila"],
+                        "paperCount": 1000,
+                        "citationCount": 500000,
+                        "hIndex": 250,
+                    }
+                ]
+            },
+            url,
+        )
+
+    monkeypatch.setattr(s2.httpx, "get", fake_get)
+
+    results = s2.search_authors("Yoshua Bengio", limit=3)
+
+    assert len(results) == 1
+    assert results[0]["author_id"] == "a1"
+    assert results[0]["name"] == "Yoshua Bengio"
+    assert results[0]["h_index"] == 250
+
+
+def test_format_paper_handles_missing_fields():
+    """format_paper should not crash on sparse data."""
+    minimal = {"paperId": "abc123", "title": "Test"}
+    result = s2.format_paper(minimal)
+    assert result["paper_id"] == "abc123"
+    assert result["title"] == "Test"
+    assert result["authors"] == []
+    assert result["citation_count"] == 0
+    assert result["open_access_url"] is None
+
+
+class TestRecommendations:
+    """recommend_papers returned nothing for any paper older than 60 days,
+    which is nearly every paper worth asking about.
+    """
+
+    def test_normalizes_bare_arxiv_id(self, monkeypatch):
+        """The recommendations endpoint interpolated paper_id directly,
+        skipping the normalizer every other S2 call uses, so a bare arXiv id
+        404'd.
+        """
+        seen = {}
+
+        def fake_get(url, params=None):
+            seen["url"] = url
+            return {"recommendedPapers": []}
+
+        monkeypatch.setattr(s2, "_get", fake_get)
+        s2.get_recommendations("1706.03762")
+        assert "ArXiv:1706.03762" in seen["url"]
+
+    def test_leaves_prefixed_ids_alone(self, monkeypatch):
+        seen = {}
+        monkeypatch.setattr(s2, "_get",
+                            lambda url, params=None: seen.update(url=url) or {})
+        s2.get_recommendations("DOI:10.1234/abc")
+        assert "DOI:10.1234/abc" in seen["url"]
+
+    def test_default_pool_is_not_recent(self):
+        """'recent' limits candidates to the last 60 days, so a 2017 seed gets
+        zero recommendations. Measured: pool=recent returns 0 for Attention Is
+        All You Need, pool=all-cs returns results.
+        """
+        from scholar_mcp import config
+        assert config.S2_RECOMMEND_POOL != "recent"
+
+    def test_pool_is_overridable(self, monkeypatch):
+        seen = {}
+        monkeypatch.setattr(s2, "_get",
+                            lambda url, params=None: seen.update(params=params) or {})
+        s2.get_recommendations("ArXiv:1706.03762", pool_from="recent")
+        assert seen["params"]["from"] == "recent"
+
+
+def test_long_retry_after_returns_to_the_circuit_without_an_early_retry(monkeypatch):
+    calls, sleeps = [], []
+    monkeypatch.setattr(s2.time, "monotonic", lambda: 100.0)
+    monkeypatch.setattr(s2.time, "sleep", sleeps.append)
+    monkeypatch.setattr(s2, "_wait_for_turn", lambda *args, **kwargs: True)
+
+    def get(url, **kwargs):
+        calls.append(url)
+        return httpx.Response(429, headers={"Retry-After": "90"}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(s2.httpx, "get", get)
+    with pytest.raises(httpx.HTTPStatusError):
+        s2._request_json("GET", s2.BASE_URL + "/paper/test", retries=2)
+    assert len(calls) == 1 and sleeps == [] and s2._s2_cooldown_until == 190.0
+
+
+def test_retry_after_accepts_http_dates_and_rejects_nonfinite_values():
+    response = httpx.Response(429, headers={"Date": "Mon, 19 Oct 2026 00:00:00 GMT",
+                                           "Retry-After": "Mon, 19 Oct 2026 00:01:30 GMT"})
+    assert s2._retry_after_seconds(response) == 90
+    for value in ("nan", "inf", "invalid"):
+        assert s2._retry_after_seconds(httpx.Response(429, headers={"Retry-After": value})) is None

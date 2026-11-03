@@ -1,0 +1,54 @@
+---
+slug: research-workflows
+title: Research workflows
+description: How an agent gets from a first question to a saved, annotated reading list with Scholar.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The agent picks the tools itself. Whether the result holds up depends on a few habits: search widely, screen quickly, read closely, and keep what survives.
+
+## Search with the question itself
+
+`search_papers` is built for whole questions. Give it the question as you would ask a colleague, a sentence you remember, or a title. Semantic sources receive the sentence and keyword sources receive keywords drawn from it, so rewriting it into keywords first usually loses information.
+
+Narrow the search with parameters, not with wording.
+
+- `year="2024-2026"` or `year="2023"` sets the years, and `venue="NeurIPS"` the venue.
+- `min_citations`, `paper_types` and `open_access_only` make the shortlist stricter.
+- `intent="survey"`, `"foundational"`, `"recent"`, `"method"` or `"dataset"` leans the ranking toward one kind of need while relevance still counts.
+- `sort="citations"` or `sort="date"` replaces the ranking outright, so use it only when you want a hard order.
+
+Ask in the language of the literature you want. For computer science and AI that is usually English.
+
+## Screen, then read
+
+Each result has a title, authors, venue, citation count, a short abstract and an `id` for follow-up calls. Any identifier Scholar returns, a paper link or an exact title works in every tool. Screen with this first, then open the papers that matter with `read_paper`.
+
+- The default `pages="1-10"` usually reaches the conclusion of an AI conference paper.
+- Use `pages="11-20"` for references and appendices, up to 20 pages per call. A long range stops at a page boundary after 100,000 characters, and `next_pages` gives the next range.
+- Every read lists the figures and tables by name. Read again with one of them, such as `visual="Figure 3"`, and the agent sees that figure with the text around it.
+
+`read_paper` can reuse a retained PDF; a new temporary copy is removed after reading. Use `download_paper` to keep one.
+
+## Follow citations
+
+`paper_info` returns detail, citations and references in one call with `include="detail,citations,references"`. Citations are later papers that cite it, references are the papers it cites, and both lists are ordered by citation count.
+
+`recommend_papers` looks sideways. `relation="similar"` finds papers with similar content, `"peers"` finds papers often cited together with it, and `"kin"` finds papers that cite the same works, which often crosses fields.
+
+## Keep what matters
+
+`download_paper` stores a checked PDF in your papers folder and records it in a library collection (`downloads` unless you name another). With the research profile, `paper_library` saves papers, keeps notes and tags, searches what you saved and exports a collection to Obsidian. Saved work lasts across sessions, so the next conversation can start from the library. See [Paper library](/scholar-mcp/paper-library/).
+
+## Map a field
+
+`build_paper_graph` starts from one or a few seed papers, follows citations outward and returns nodes, edges, PageRank, bridge papers and a Mermaid diagram. Start with one hop and about 30 papers. When the shape looks right, raise `max_hops` (up to 3) or `max_papers` (up to 100) and give a `topic_filter` so a large graph stays on topic.
+
+<Aside type="tip" title="Deep Research skill">
+The Claude Code and Codex plugins include a Deep Research skill. It chains searching, reading papers, walking the citation graph and saving chosen papers to the library into one loop that keeps a map of the field up to date.
+</Aside>
+
+## When results look thin
+
+If a source did not answer and that affected the results, the response carries a short warning. Add `debug=true` to see each source's status, count and time and the ranking model that ran, or read `scholar://status`. The [FAQ](/scholar-mcp/faq/) covers slow searches and missing sources.

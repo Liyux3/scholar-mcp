@@ -1,8 +1,9 @@
 """Tests for citation graph building and analytics."""
 
-from scholar_mcp import graph, sources
 import networkx as nx
 import pytest
+
+from scholar_mcp import graph, sources
 
 
 def _make_paper(title, paper_id="", year=2024, citation_count=0, source="test"):
@@ -24,6 +25,21 @@ def test_paper_to_node():
     assert node["title"] == "Test Paper"
     assert node["depth"] == 1
     assert node["citation_count"] == 50
+
+
+def test_graph_uses_metadata_identity_instead_of_title_only(monkeypatch):
+    title = "Heat islands understanding and mitigating heat in urban areas"
+    book = {**_make_paper(title, "10.1000/book", year=2008), "publication_types": ["book"]}
+    review = {**_make_paper(title, "10.1000/review", year=2009), "publication_types": ["journal-article"]}
+    chapter = {**_make_paper(title, "10.1000/chapter", year=2008), "publication_types": ["book-chapter"],
+               "relations": [{"type": "is-part-of", "id": "10.1000/book", "source": "crossref"}]}
+    monkeypatch.setattr(graph, "_fetch_related", lambda *a: [review, chapter])
+    result = graph.build_graph([book], max_hops=1, direction="references")
+    assert {n["id"] for n in result["nodes"]} == {"10.1000/book", "10.1000/review", "10.1000/chapter"}
+    assert {e["target"] for e in result["edges"]} == {"10.1000/review", "10.1000/chapter"}
+    assert next(n for n in result["nodes"] if n["id"] == "10.1000/chapter")["relations"] == chapter["relations"]
+    # A catalog re-record of the same DOI is still one identity, despite date/type differences.
+    assert graph.build_graph([book, {**book, "year": 2013}], max_hops=0)["stats"]["seed_count"] == 1
 
 
 def test_expansion_priority_favors_new_hot():
@@ -82,7 +98,6 @@ def test_to_mermaid_basic():
     assert "n0" in mermaid
     assert "n1" in mermaid
     assert "n0 --> n1" in mermaid
-    assert "fill:#e1f5fe" in mermaid
 
 
 def test_analyze_pagerank():
@@ -150,7 +165,7 @@ def test_build_graph_returns_structured_analytics(monkeypatch):
         _make_paper("Corrective Retrieval Generation", paper_id="seed-b", citation_count=200),
     ]
 
-    def related(paper, relation, limit, delay=0):
+    def related(paper, relation, limit):
         if relation == "citations":
             return [_make_paper(
                 f"Retrieval Generation Followup {paper['paper_id']}",

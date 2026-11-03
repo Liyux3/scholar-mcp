@@ -1,0 +1,63 @@
+---
+slug: scientific-data
+title: Scientific data
+description: Find and inspect scientific records and their database-declared links to papers.
+---
+
+Scholar can find the data and biological objects you need to investigate a paper: a deposited dataset, a sequencing experiment, a research project, a gene, a protein or a compound. Each keeps its own native identity and fields.
+
+## Start from a paper
+
+Ask the agent to use the existing `paper_info` tool with `include="data"`:
+
+```python
+paper_info("PMID:26826244", include="detail,data")
+```
+
+This returns the paper and its explicitly recorded database associations. It works with the usual paper tools and needs no extra MCP profile. The core tool count stays at six, or eight with the research profile.
+
+## Independent queries from CLI or Python
+
+For a dataset or biological object that you want to look up directly, the CLI and Python API use the same backend:
+
+```bash
+scholar-mcp data 'TP53[Gene Name] AND human[Organism]' --kind gene
+scholar-mcp data-info NCBIGene:7157
+scholar-mcp data-info UniProt:P04637
+scholar-mcp data-info PubChem:2244
+scholar-mcp info PMID:26826244 --data
+```
+
+The first call searches for genes using NCBI's query syntax. The next calls read the human TP53 gene, its UniProt protein record and aspirin's PubChem properties. The final call asks NCBI for a paper's explicit associations, including its GEO record. A database association says that two records are linked; the paper's methods and data-availability statement explain how the data was used.
+
+| Kind | Sources | Native identifiers |
+|---|---|---|
+| `dataset` | GEO and Zenodo | `GEO:GSE68849`, `Zenodo:ID` or a Zenodo DOI |
+| `sequence` | NCBI SRA | `SRA:SRX1165323` or a run accession |
+| `project` | NCBI BioProject | `BioProject:PRJNA293818` |
+| `gene` | NCBI Gene | `NCBIGene:7157` |
+| `protein` | UniProtKB | `UniProt:P04637` |
+| `compound` | PubChem | `PubChem:2244` |
+
+The Python function `api.search_data(query, kind="dataset", source="", limit=10)` returns at most 50 records from a bounded first page. `source` selects one listed source. Results preserve each database's ordering, interleaved across sources; they have no invented common relevance score. `api.data_info(data_id, limit=20)` accepts native identifiers and official record URLs, and returns at most 100 declared relations. These are Python functions, rather than additional MCP tools.
+
+Search returns compact identity cards, with a description of up to 1,200 characters and counts of declared files and relations. `description_truncated` marks a shortened description. Use `api.data_info` for the native `properties`, declared `files`, `relations` and source `provenance`. A returned relation includes its evidence URL. A run accession may resolve to its experiment, with the run retained as a confirmed alias. Objects from different namespaces are kept distinct even when their names match.
+
+## Reuse the same backend
+
+```python
+from scholar_mcp import api
+
+hits = api.search_data("gene_exact:TP53 AND organism_id:9606", kind="protein")
+for hit in hits["objects"]:
+    record = api.data_info(hit["id"])
+    print(record["object"]["id"], record["object"]["properties"])
+
+linked = api.info("PMID:26826244", include="detail,data")
+```
+
+Batch jobs can call these same functions and keep their own progress using returned native IDs. Scientific objects stay separate from paper-library entries. Search, record lookup and paper association reuse the shared request transport, cross-process provider pacing, bounded source workers and persistent cache. A failed source is reported while completed results remain usable.
+
+File entries are pointers with any supplied size, checksum and format. These tools read metadata; they do not download raw sequencing runs or claim access to restricted files. `paper_info` only contacts scientific databases when `data` is explicitly requested. Paper associations currently use verified PubMed identities and NCBI links to GEO, SRA, BioProject and Gene. The source reports distinguish failed retrieval from an empty response.
+
+API contracts: [NCBI E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/), [UniProt](https://www.uniprot.org/help/api_queries), [PubChem PUG REST](https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest) and [Zenodo](https://developers.zenodo.org/).

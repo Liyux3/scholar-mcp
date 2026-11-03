@@ -1,0 +1,63 @@
+---
+slug: zh-cn/scientific-data
+title: 科学数据
+description: 检索科学数据记录，并查看数据库明确给出的论文关联。
+---
+
+读论文时，Agent 还可以查找研究涉及的数据集、测序实验、研究项目、基因、蛋白质和化合物。每类对象保留原生标识和字段，供后续查看方法、规划实验或使用领域工具分析。
+
+## 从论文取得关联数据
+
+让 Agent 使用已有的 `paper_info`，显式请求 `data`：
+
+```python
+paper_info("PMID:26826244", include="detail,data")
+```
+
+响应包含论文及数据库明确记录的关联。使用通常的论文工具即可，无需额外配置。核心 MCP 保持六个工具，启用 `research` 时仍为八个。
+
+## 通过 CLI 或 Python 独立查询
+
+直接查找数据集、基因或蛋白质时，CLI 和 Python API 复用同一后端：
+
+```bash
+scholar-mcp data 'TP53[Gene Name] AND human[Organism]' --kind gene
+scholar-mcp data-info NCBIGene:7157
+scholar-mcp data-info UniProt:P04637
+scholar-mcp data-info PubChem:2244
+scholar-mcp info PMID:26826244 --data
+```
+
+第一条使用 NCBI 查询语法检索基因，随后读取人类 TP53 基因、对应的 UniProt 蛋白记录和阿司匹林的 PubChem 属性。最后一条取得数据库对论文声明的关联，包括 GEO 数据记录。数据库关联提供继续调查的入口；具体如何使用数据，应结合论文的方法和数据可用性说明判断。
+
+| `kind` | 数据源 | 原生标识示例 |
+|---|---|---|
+| `dataset` | GEO、Zenodo | `GEO:GSE68849`、`Zenodo:ID` 或 Zenodo DOI |
+| `sequence` | NCBI SRA | `SRA:SRX1165323` 或 run accession |
+| `project` | NCBI BioProject | `BioProject:PRJNA293818` |
+| `gene` | NCBI Gene | `NCBIGene:7157` |
+| `protein` | UniProtKB | `UniProt:P04637` |
+| `compound` | PubChem | `PubChem:2244` |
+
+Python 函数 `api.search_data(query, kind="dataset", source="", limit=10)` 返回有界的第一页，最多 50 条，`source` 可指定其中一个来源。各数据库内部保留原有顺序，多来源交替呈现。`api.data_info(data_id, limit=20)` 接受原生标识和官方记录链接，最多返回 100 条已声明关系。这两个入口只作为 Python 函数和 CLI 命令提供。
+
+检索返回简洁的身份卡片、最多 1,200 字符的描述及文件和关系数量；`description_truncated` 标记被缩短的描述。使用 `api.data_info` 再取得原生 `properties`、文件指针 `files`、关系 `relations` 和来源 `provenance`。关系带证据链接。SRA run 可以解析到所属实验，同时保留经过来源确认的 run 别名。同名的不同类型对象继续保持各自身份。
+
+## 与已有管线共用底层能力
+
+```python
+from scholar_mcp import api
+
+hits = api.search_data("gene_exact:TP53 AND organism_id:9606", kind="protein")
+for hit in hits["objects"]:
+    record = api.data_info(hit["id"])
+    print(record["object"]["id"], record["object"]["properties"])
+
+linked = api.info("PMID:26826244", include="detail,data")
+```
+
+批量任务可以复用这些函数，并以返回的原生 ID 保存进度。科学对象保持自己的类型和标识，不会自动进入个人论文库。请求、跨进程来源节流、有界并行和持久缓存都沿用现有基础设施；部分来源失败时，已得到的有效结果仍会返回。
+
+文件指针保留来源提供的大小、校验值和格式。这些接口读取元数据，不自动下载原始测序数据，也不将元数据可见性等同于文件访问权限。普通 `paper_info` 只有显式请求 `data` 才查询科学数据库。目前论文关联使用已核实的 PubMed 身份，以及 NCBI 到 GEO、SRA、BioProject、Gene 的原生链接。响应会区分来源失败和有效的空结果。
+
+接口依据：[NCBI E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK25501/)、[UniProt](https://www.uniprot.org/help/api_queries)、[PubChem PUG REST](https://pubchem.ncbi.nlm.nih.gov/docs/pug-rest)、[Zenodo](https://developers.zenodo.org/)。

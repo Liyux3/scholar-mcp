@@ -69,10 +69,32 @@ async def smoke(bundle: Path) -> dict:
         command = Path(expand(launch["command"]))
         if not command.is_relative_to(unpacked) or not command.is_file():
             raise RuntimeError("MCPB must launch its bundled interpreter")
-        # Prove both relocation and native PDF/reranker imports, without
-        # downloading or loading any model weights.
-        subprocess.run([str(command), "-c", "import sys,onnxruntime,pypdfium2; from cryptography.hazmat.primitives.ciphers.aead import AESGCM; cipher=AESGCM(bytes(32)); token=cipher.encrypt(bytes(12),b'runtime probe',None); assert cipher.decrypt(bytes(12),token,None)==b'runtime probe'; print(sys.prefix)"],
-                       cwd=root, env=environment, check=True, capture_output=True, timeout=60)
+        # Prove relocation, native imports and the bundled reader on a fresh,
+        # disconnected home; optional acceleration must not trigger a download.
+        probe = """import socket,sys,onnxruntime,pypdfium2
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+attempts = []
+def denied(*args, **kwargs):
+    attempts.append(True)
+    raise AssertionError('bundle attempted a network connection')
+socket.socket.connect = denied
+cipher = AESGCM(bytes(32))
+token = cipher.encrypt(bytes(12), b'runtime probe', None)
+assert cipher.decrypt(bytes(12), token, None) == b'runtime probe'
+from scholar_mcp import relevance
+from scholar_mcp.model_assets import cached_cpu_model_directory
+assert cached_cpu_model_directory() is not None
+scores = relevance._flashrank_scores('Memory retrieval for autonomous agents', [
+    {'title': 'Memory retrieval in autonomous language agents'},
+    {'title': 'Chemical synthesis of metal powders'}], 128)
+assert len(scores) == 2 and scores[0]['relevance_score'] > scores[1]['relevance_score']
+assert not attempts
+print(sys.prefix)
+"""
+        checked = subprocess.run([str(command), "-c", probe], cwd=root, env=environment,
+                                 capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=90)
+        if checked.returncode:
+            raise RuntimeError(f'Bundled runtime probe failed:\n{checked.stdout}\n{checked.stderr}')
         protocol = await inspect_server(
             command,
             environment,
@@ -80,7 +102,8 @@ async def smoke(bundle: Path) -> dict:
         )
         if protocol["server_version"] != manifest["version"]:
             raise RuntimeError("MCPB manifest and server versions differ")
-        return {"bundle": bundle.name, "manifest": manifest["version"], **protocol}
+        return {"bundle": bundle.name, "manifest": manifest["version"],
+                "bundled_reader_offline": True, **protocol}
 
 
 def main() -> None:

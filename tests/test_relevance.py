@@ -2,48 +2,119 @@
 
 import pytest
 
+from scholar_mcp import records as record_ops
 from scholar_mcp import relevance
 
 
-@pytest.mark.parametrize("authors, expected", [
-    ([{"name": " Alice Author ", "authorId": "123"}, "Bob Writer"],
-     ["Alice Author", "Bob Writer"]),
-    ([{"full_name": "Author, Alice"}, {"fullName": "Bob Writer"},
-      {"display_name": "Carol Reader"}, {"text": "Dan Editor"},
-      {"given": "Eve", "family": "Researcher"}],
-     ["Author, Alice", "Bob Writer", "Carol Reader", "Dan Editor", "Eve Researcher"]),
-    ("Alice Author", ["Alice Author"]),
-    ({"name": "Alice Author"}, ["Alice Author"]),
-    ([None, {}, {"name": None}, {"name": {"bad": "value"}}, 42, " "], []),
-    (None, []),
-    (42, []),
-])
-def test_deduplicate_normalizes_authors_even_without_duplicates(authors, expected):
-    result = relevance.deduplicate([{"title": "A paper", "authors": authors}])
-    assert result[0]["authors"] == expected
+def test_declared_preprint_relation_joins_renamed_publication_and_retains_both_versions():
+    from itertools import permutations
+    preprint = {'title': 'The original manuscript title', 'year': 2023, 'authors': ['Ada Example'],
+                'publication_types': ['Preprint'], 'external_ids': {'DOI': '10.1000/preprint'},
+                'relations': [{'type': 'is-preprint-of', 'id': '10.1000/published', 'id_type': 'doi'}]}
+    published = {'title': 'The revised published article title', 'year': 2024, 'authors': ['Ada Example'],
+                 'venue': 'Research Journal', 'publication_types': ['JournalArticle'],
+                 'external_ids': {'DOI': '10.1000/published'}}
+    for records in permutations([preprint, published]):
+        merged = record_ops.deduplicate(list(records))
+        assert len(merged) == 1
+        paper = merged[0]
+        assert paper['title'] == published['title'] and paper['year'] == 2024
+        assert paper['external_ids']['DOI'] == '10.1000/published' and paper['version'] == 'published'
+        assert {v['id'] for v in paper['versions']} == {'10.1000/preprint', '10.1000/published'}
+        assert {'doi:10.1000/preprint', 'doi:10.1000/published'} <= record_ops.paper_identity_keys(paper)
 
 
-def test_merge_structured_authors_preserves_quality_in_either_order():
-    snippet = {"title": "A research paper", "authors": ["A Author", "B Writer …"]}
-    complete = {"title": "A research paper", "authors": [
-        {"name": "Alice Author", "authorId": "1"}, {"name": "Bob Writer"},
-    ]}
-    for first, second in ((snippet, complete), (complete, snippet)):
-        assert relevance._merge_two(first, second)["authors"] == ["Alice Author", "Bob Writer"]
-        result = relevance.deduplicate([first, second])
-        assert len(result) == 1
-        assert result[0]["authors"] == ["Alice Author", "Bob Writer"]
-    assert isinstance(complete["authors"][0], dict)
+def test_citations_and_general_editions_do_not_supply_equivalent_work_aliases():
+    first = {'title': 'One work', 'external_ids': {'DOI': '10.1000/original'},
+             'relations': [{'type': kind, 'id': '10.1000/other', 'id_type': 'doi'}
+                           for kind in ['references', 'is-review-of', 'is-version-of', 'is-supplement-to']]}
+    other = {'title': 'Another work', 'external_ids': {'DOI': '10.1000/other'}}
+    assert len(record_ops.deduplicate([first, other])) == 2
 
 
-def test_deduplicate_uses_names_from_structured_authors_for_title_variants():
-    first = {"title": "Learning from a large data set", "year": 2024,
-             "authors": [{"name": "Alice Author", "authorId": "1"},
-                         {"name": "Bob Writer", "authorId": "2"}]}
-    second = {"title": "Learning from a large dataset", "year": 2024,
-              "authors": ["A Author", "B Writer"]}
-    for papers in ([first, second], [second, first]):
-        assert len(relevance.deduplicate(papers)) == 1
+def test_publication_resolution_follows_declared_identifiers_without_title_guessing(monkeypatch):
+    from scholar_mcp import metadata
+    paper = {'title': 'A preprint title', 'publication_types': ['Preprint'],
+             'external_ids': {'DOI': '10.1000/pre'},
+             'relations': [{'type': 'is-preprint-of', 'id': '10.1000/pub', 'id_type': 'doi'}]}
+    seen = []
+    def exact(doi):
+        seen.append(doi)
+        return {'title': 'Published title', 'year': 2024, 'publication_types': ['JournalArticle'],
+                'external_ids': {'DOI': doi}}
+    monkeypatch.setattr(metadata, '_doi', exact)
+    result = metadata.published_record(paper)
+    assert seen == ['10.1000/pub'] and result['external_ids']['DOI'] == '10.1000/pub'
+    assert len(result['versions']) == 2
+
+ORIGINAL_KEYWORD_LOADER = relevance._load_keybert
+
+
+@pytest.mark.integration
+def test_cached_keyword_model_runs_without_network_connections(monkeypatch):
+    import socket
+    pytest.importorskip('keybert')
+    pytest.importorskip('model2vec')
+    from model2vec.persistence.hf import maybe_get_cached_model_path
+    if not maybe_get_cached_model_path('minishlab/potion-base-8M'):
+        pytest.skip('requires the already-installed keyword checkpoint; never downloads it')
+    attempts = []
+    def denied(*a, **kw):
+        attempts.append(True)
+        raise AssertionError('cached keyword extraction attempted a connection')
+    monkeypatch.setattr(socket.socket, 'connect', denied)
+    monkeypatch.setattr(relevance, '_keybert_model', None)
+    monkeypatch.setattr(relevance, '_keybert_retry_at', 0)
+    model = ORIGINAL_KEYWORD_LOADER()
+    assert model is not None
+    assert model.extract_keywords('Memory retrieval and autonomous language agents', top_n=2)
+    assert not attempts
+
+
+def test_keyword_model_initialization_is_shared_and_uses_cached_assets(monkeypatch):
+    import sys
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from types import SimpleNamespace
+    entered, release = Event(), Event()
+    calls = []
+    instance = object()
+    def load(name, **kwargs):
+        calls.append((name, kwargs))
+        entered.set()
+        assert release.wait(3)
+        return instance
+    monkeypatch.setattr(relevance, '_keybert_model', None)
+    monkeypatch.setattr(relevance, '_keybert_retry_at', 0)
+    monkeypatch.setitem(sys.modules, 'keybert', SimpleNamespace(KeyBERT=lambda model: model))
+    monkeypatch.setitem(sys.modules, 'model2vec', SimpleNamespace(StaticModel=SimpleNamespace(from_pretrained=load)))
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(ORIGINAL_KEYWORD_LOADER)
+        assert entered.wait(2)
+        second = pool.submit(ORIGINAL_KEYWORD_LOADER)
+        release.set()
+        assert first.result() is second.result() is instance
+    assert calls == [('minishlab/potion-base-8M', {'force_download': False})]
+
+
+def test_unavailable_keyword_assets_do_not_break_or_repeat_optional_loading(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    calls = []
+    def failed(*args, **kwargs):
+        calls.append(True)
+        raise OSError('model cache unavailable and no network')
+    monkeypatch.setattr(relevance, '_keybert_model', None)
+    monkeypatch.setattr(relevance, '_keybert_retry_at', 0)
+    monkeypatch.setattr(relevance, '_load_keybert', ORIGINAL_KEYWORD_LOADER)
+    monkeypatch.setitem(sys.modules, 'keybert', SimpleNamespace(KeyBERT=lambda model: model))
+    monkeypatch.setitem(sys.modules, 'model2vec', SimpleNamespace(StaticModel=SimpleNamespace(from_pretrained=failed)))
+    assert relevance._keybert_extract('first research question') is None
+    assert relevance._keybert_extract('a different research question') is None
+    assert len(calls) == 1
+    monkeypatch.setattr(relevance.time, 'monotonic', lambda: relevance._keybert_retry_at + 1)
+    assert relevance._keybert_extract('retry after access recovers') is None
+    assert len(calls) == 2
 
 
 def test_extract_keywords_removes_stopwords():
@@ -140,7 +211,7 @@ def test_deduplicate_by_doi():
         {"title": "Paper A copy", "external_ids": {"DOI": "10.1234/abc"}, "source": "arxiv"},
         {"title": "Paper B", "external_ids": {"DOI": "10.1234/def"}, "source": "s2"},
     ]
-    result = relevance.deduplicate(papers)
+    result = record_ops.deduplicate(papers)
     assert len(result) == 2
     assert result[0]["title"] == "Paper A"
     assert result[1]["title"] == "Paper B"
@@ -152,7 +223,7 @@ def test_deduplicate_by_title():
         {"title": "Attention is all you need", "external_ids": {}},
         {"title": "Different Paper", "external_ids": {}},
     ]
-    result = relevance.deduplicate(papers)
+    result = record_ops.deduplicate(papers)
     assert len(result) == 2
 
 
@@ -162,10 +233,43 @@ def test_merge_prefers_unabridged_metadata_without_extra_requests():
     complete = {"title": "A paper", "venue": "NeurIPS", "abstract": "Complete abstract.",
                 "authors": ["Alice Author", "Bob Writer"]}
     for first, second in ((snippet, complete), (complete, snippet)):
-        merged = relevance._merge_two(first, second)
+        merged = record_ops.merge_records(first, second)
         assert merged["venue"] == "NeurIPS"
         assert merged["abstract"] == "Complete abstract."
         assert merged["authors"] == ["Alice Author", "Bob Writer"]
+
+
+def test_merge_accepts_structured_author_metadata_in_either_order():
+    from copy import deepcopy
+
+    structured = {"title": "Attention Is All You Need", "authors": [
+        {"authorId": "1", "name": "Ashish Vaswani"},
+        {"given": "Noam", "family": "Shazeer"}, None, {"authorId": "unknown"},
+    ]}
+    plain = {"title": "Attention Is All You Need", "authors": ["A. Vaswani"]}
+    original = deepcopy([structured, plain])
+    for first, second in ((structured, plain), (plain, structured)):
+        result = record_ops.deduplicate([first, second])
+        assert len(result) == 1
+        assert result[0]["authors"] == ["Ashish Vaswani", "Noam Shazeer"]
+    assert [structured, plain] == original
+
+
+def test_deduplicate_normalizes_single_record_author_shapes():
+    from copy import deepcopy
+
+    for raw, expected in (
+        ("Smith, Alice", ["Smith, Alice"]),
+        ([{"display_name": "Alice Smith"}, {"text": "Bob Jones"},
+          {"fullName": " Alice  Smith "}, 42], ["Alice Smith", "Bob Jones"]),
+        (None, []),
+        ({"id": "unresolved"}, []),
+    ):
+        paper = {"title": "A unique paper", "authors": raw}
+        original = deepcopy(paper)
+        result = record_ops.deduplicate([paper])
+        assert result[0]["authors"] == expected
+        assert paper == original
 
 
 def test_deduplicate_merges_cross_source_identity_and_metadata():
@@ -194,7 +298,7 @@ def test_deduplicate_merges_cross_source_identity_and_metadata():
         },
     ]
 
-    merged = relevance.deduplicate(papers)
+    merged = record_ops.deduplicate(papers)
 
     assert len(merged) == 1
     paper = merged[0]
@@ -212,7 +316,7 @@ def test_deduplicate_uses_identifier_aliases_when_titles_differ():
         {"title": "Short conference title", "external_ids": {"DOI": "https://doi.org/10.1234/ABC"}},
         {"title": "A longer publisher title", "paper_id": "doi:10.1234/abc", "external_ids": {}},
     ]
-    assert len(relevance.deduplicate(papers)) == 1
+    assert len(record_ops.deduplicate(papers)) == 1
 
 
 def test_deduplicate_keeps_same_title_from_different_years_separate():
@@ -220,7 +324,7 @@ def test_deduplicate_keeps_same_title_from_different_years_separate():
         {"title": "Annual Review of Robotics", "year": 2019, "external_ids": {}},
         {"title": "Annual Review of Robotics", "year": 2025, "external_ids": {}},
     ]
-    assert len(relevance.deduplicate(papers)) == 2
+    assert len(record_ops.deduplicate(papers)) == 2
 
 
 def test_deduplicate_word_join_variants_requires_author_evidence():
@@ -231,26 +335,26 @@ def test_deduplicate_word_join_variants_requires_author_evidence():
          "year": 2023, "authors": ["K. Black", "M. Nakamoto", "P. Atreya"],
          "external_ids": {"ArXiv": "2310.10639"}}
     for papers in ([a, b], [b, a]):
-        merged = relevance.deduplicate(papers)
+        merged = record_ops.deduplicate(papers)
         assert len(merged) == 1
         assert merged[0]["external_ids"]["OpenReview"] == "DaFZHuSgnG"
         assert merged[0]["external_ids"]["ArXiv"] == "2310.10639"
         assert not merged[0].get("_title_conflict")
-    assert len(relevance.deduplicate([a, {**b, "authors": []}])) == 2
-    assert len(relevance.deduplicate([a, {**b, "authors": ["Alice Other", "Bob Someone"]}])) == 2
+    assert len(record_ops.deduplicate([a, {**b, "authors": []}])) == 2
+    assert len(record_ops.deduplicate([a, {**b, "authors": ["Alice Other", "Bob Someone"]}])) == 2
 
 
 def test_deduplicate_does_not_join_generic_titles_by_author_alone():
     a = {"title": "Data set review", "year": 2024, "authors": ["A Smith", "B Jones"]}
     b = {**a, "title": "Dataset review"}
-    assert len(relevance.deduplicate([a, b])) == 2
+    assert len(record_ops.deduplicate([a, b])) == 2
 
 
 def test_best_paper_id_normalizes_common_identifiers():
-    assert relevance.best_paper_id({
+    assert record_ops.best_paper_id({
         "external_ids": {"DOI": "https://doi.org/10.1000/XYZ"}
     }) == "10.1000/xyz"
-    assert relevance.best_paper_id({
+    assert record_ops.best_paper_id({
         "external_ids": {"ArXiv": "2401.15884v3"}
     }) == "ARXIV:2401.15884"
 
@@ -328,7 +432,7 @@ def test_deduplicate_tracks_source_count():
         {"title": "Different Paper", "abstract": "Other", "source": "arxiv",
          "external_ids": {}},
     ]
-    deduped = relevance.deduplicate(papers)
+    deduped = record_ops.deduplicate(papers)
     merged = [p for p in deduped if "same" in p["title"].lower()]
     assert len(merged) == 1
     assert merged[0].get("_source_count", 1) == 2
@@ -337,7 +441,7 @@ def test_deduplicate_tracks_source_count():
 def test_tag_source_ranks():
     """tag_source_ranks should annotate each paper with its position."""
     papers = [{"title": "A"}, {"title": "B"}, {"title": "C"}]
-    relevance.tag_source_ranks(papers, "s2")
+    record_ops.tag_source_ranks(papers, "s2")
     assert papers[0]["_source_ranks"] == {"s2": 0}
     assert papers[1]["_source_ranks"] == {"s2": 1}
     assert papers[2]["_source_ranks"] == {"s2": 2}
@@ -507,7 +611,7 @@ def test_merge_preserves_source_ranks():
          "source": "openalex", "external_ids": {"DOI": "10.1234/test"},
          "citation_count": 50, "_source_ranks": {"openalex": 3}, "_source_count": 1},
     ]
-    deduped = relevance.deduplicate(papers)
+    deduped = record_ops.deduplicate(papers)
     assert len(deduped) == 1
     ranks = deduped[0].get("_source_ranks", {})
     assert "s2" in ranks and "openalex" in ranks
@@ -656,33 +760,62 @@ class TestChannelVsPhysicalSources:
     def test_facets_do_not_inflate_source_count(self):
         paper = {"title": "X", "external_ids": {}}
         for facet in ("pruning", "dedup", "quality"):
-            relevance.tag_source_ranks([paper], "arxiv", facet=facet)
-        assert relevance.physical_source_count(paper) == 1
+            record_ops.tag_source_ranks([paper], "arxiv", facet=facet)
+        assert record_ops.physical_source_count(paper) == 1
         assert len(paper["_source_ranks"]) == 3, "each facet keeps its own rank"
 
     def test_distinct_sources_still_count(self):
         paper = {"title": "Y", "external_ids": {}}
-        relevance.tag_source_ranks([paper], "arxiv", facet="pruning")
-        relevance.tag_source_ranks([paper], "openalex")
-        assert relevance.physical_source_count(paper) == 2
+        record_ops.tag_source_ranks([paper], "arxiv", facet="pruning")
+        record_ops.tag_source_ranks([paper], "openalex")
+        assert record_ops.physical_source_count(paper) == 2
 
     def test_facet_ranks_are_not_overwritten(self):
         paper = {"title": "Z", "external_ids": {}}
-        relevance.tag_source_ranks([paper, {}], "arxiv", facet="a")
-        relevance.tag_source_ranks([{}, paper], "arxiv", facet="b")
+        record_ops.tag_source_ranks([paper, {}], "arxiv", facet="a")
+        record_ops.tag_source_ranks([{}, paper], "arxiv", facet="b")
         assert paper["_source_ranks"]["arxiv::a"] == 0
         assert paper["_source_ranks"]["arxiv::b"] == 1
 
     def test_falls_back_for_records_without_the_field(self):
         """Cached results predate _physical_sources and must still score."""
-        assert relevance.physical_source_count(
+        assert record_ops.physical_source_count(
             {"_source_ranks": {"arxiv": 0, "openalex": 1}}) == 2
 
     def test_merge_unions_physical_sources(self):
         a = {"title": "Same Paper", "external_ids": {"DOI": "10.1/x"}}
         b = {"title": "Same Paper", "external_ids": {"DOI": "10.1/x"}}
-        relevance.tag_source_ranks([a], "arxiv", facet="pruning")
-        relevance.tag_source_ranks([b], "crossref")
-        merged = relevance.deduplicate([a, b])
+        record_ops.tag_source_ranks([a], "arxiv", facet="pruning")
+        record_ops.tag_source_ranks([b], "crossref")
+        merged = record_ops.deduplicate([a, b])
         assert len(merged) == 1
-        assert relevance.physical_source_count(merged[0]) == 2
+        assert record_ops.physical_source_count(merged[0]) == 2
+
+
+def test_paper_and_same_title_conference_media_keep_their_own_metadata():
+    from itertools import permutations
+    title = "Evaluating Very Long-Term Conversational Memory of LLM Agents"
+    paper = {"title": title, "authors": ["Adyasha Maharana", "Dong-Ho Lee"],
+             "publication_types": ["Conference"], "external_ids": {"DOI": "10.18653/v1/2024.acl-long.747"}}
+    # Some archive adapters have no explicit type. That weak record must not
+    # bridge a typed conference paper and a separately identified media record.
+    preprint = {**paper, "publication_types": [],
+                "external_ids": {"ArXiv": "2402.17753"}}
+    talk = {"title": title, "authors": ["Association for Computational Linguistics 2024", "Lee, Dong-Ho", "Adyasha Maharana"],
+            "publication_types": ["other"], "external_ids": {"DOI": "10.48448/qmev-j447"}}
+    for records in permutations([paper, preprint, talk]):
+        merged = record_ops.deduplicate(list(records))
+        assert len(merged) == 2
+        article = next(p for p in merged if p["external_ids"].get("DOI") == paper["external_ids"]["DOI"])
+        assert article["authors"] == paper["authors"]
+def test_formal_version_keeps_its_revised_authors_and_abstract():
+    preprint = {'title': 'Original', 'publication_types': ['Preprint'], 'authors': ['Ada Example', 'Removed Author'],
+                'abstract': 'A longer original abstract with provisional claims.', 'external_ids': {'DOI': '10.1234/preprint'},
+                'relations': [{'type': 'is-preprint-of', 'id_type': 'doi', 'id': '10.1234/final'}]}
+    formal = {'title': 'Final', 'publication_types': ['JournalArticle'], 'authors': ['Ada Example'], 'year': 2024,
+              'abstract': 'The revised finding.', 'external_ids': {'DOI': '10.1234/final'}}
+    merged = record_ops.deduplicate([preprint, formal])[0]
+    assert merged['authors'] == ['Ada Example'] and merged['abstract'] == 'The revised finding.'
+    assert next(v for v in merged['versions'] if v['version'] == 'preprint')['authors'] == preprint['authors']
+    later = record_ops.merge_records(merged, {'external_ids': formal['external_ids'], 'authors': preprint['authors'], 'year': 2023})
+    assert later['authors'] == formal['authors'] and later['year'] == 2024

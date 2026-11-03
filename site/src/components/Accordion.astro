@@ -1,0 +1,16 @@
+---
+// Styled <details>; the chevron is Starlight's own summary marker.
+interface Props {
+	title: string;
+	open?: boolean;
+}
+
+const { title, open = false } = Astro.props;
+---
+
+<details class="sc-accordion" open={open}>
+	<summary>{title}</summary>
+	<div class="sc-accordion-body">
+		<slot />
+	</div>
+</details>

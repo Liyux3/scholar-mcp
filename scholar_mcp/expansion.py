@@ -20,10 +20,28 @@ the same code that runs in production.
 """
 
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from functools import partial
 
-from . import relevance, s2_client, sources, traversal
+from . import config, records, relevance, sources, traversal
+from .sources import s2
+
+
+_channel_pool = ThreadPoolExecutor(max_workers=15, thread_name_prefix='scholar-expansion')
+
+
+class Expanded(dict):
+    def __init__(self, rows, reports):
+        super().__init__(rows)
+        self.reports = reports
+
+
+def _combine(answers: list) -> list[dict]:
+    papers = [p for answer in answers for p in answer.results]
+    if any(a.status not in {'ok', 'empty'} for a in answers):
+        return sources.PartialResults(papers, 'some expansion providers or identities remain unavailable')
+    return papers
 
 
 @dataclass
@@ -34,6 +52,7 @@ class ExpansionContext:
     per_seed_limit: int = 20
     seeds: list[dict] = field(default_factory=list)
     metadata_fields: set[str] = field(default_factory=set)
+    search_filters: dict = field(default_factory=dict)
 
 
 def _seed_id(paper: dict) -> str:
@@ -54,8 +73,7 @@ def references(seed: dict, ctx: ExpansionContext) -> list[dict]:
     pid = _seed_id(seed)
     if not pid:
         return []
-    return [p for sr in sources.parallel_references(pid, limit=ctx.per_seed_limit, metadata_fields=ctx.metadata_fields)
-            for p in sr.results]
+    return _combine(sources.parallel_references(pid, limit=ctx.per_seed_limit, metadata_fields=ctx.metadata_fields))
 
 
 def citations(seed: dict, ctx: ExpansionContext) -> list[dict]:
@@ -68,46 +86,41 @@ def citations(seed: dict, ctx: ExpansionContext) -> list[dict]:
     pid = _seed_id(seed)
     if not pid:
         return []
-    out = []
-    for sr in sources.parallel_citations(pid, limit=ctx.per_seed_limit,
-                                         title=seed.get("title", ""), metadata_fields=ctx.metadata_fields):
-        # Intent is a ranking preference, not an implicit pre-rerank citation
-        # filter. New or sparsely indexed descendants deserve semantic scoring.
-        out.extend(sr.results)
-    return out
+    native = (seed.get('external_ids') or {}).get('OpenAlex')
+    return _combine(sources.parallel_citations(pid, limit=ctx.per_seed_limit,
+        title=seed.get('title', ''), metadata_fields=ctx.metadata_fields,
+        **({'openalex_id': native} if native else {})))
 
 
-def title_search(seed: dict, ctx: ExpansionContext) -> list[dict]:
-    """Re-search using the seed's title as the query.
-
-    By far the most expensive channel: a full fan-out across every source, per
-    seed. A title is natural language, so it is routed like any other query,
+def _title_query(title: str) -> tuple[str, str, str]:
+    """A title is natural language, so it is routed like any other query,
     verbatim to semantic sources and compressed for keyword ones. Handing every
     source one string gives most of them the wrong form.
     """
-    title = seed.get("title", "")
-    if not title:
-        return []
-    return [p for sr in sources.parallel_search(
-        relevance.optimize_query(title),
-        limit=ctx.per_seed_limit,
-        raw_query=title,
-        short_query=relevance.optimize_query_short(title),
-        metadata_fields=ctx.metadata_fields,
-    ) for p in sr.results]
+    return title, title, relevance.optimize_query_short(title)
 
 
 def title_search_all(ctx: ExpansionContext) -> list[dict]:
-    """Search every seed title without bursting every source at once.
+    """Search every seed title in one flow.
 
-    Source fan-out remains parallel for each title. Seeds run in sequence so
-    arXiv, Semantic Scholar, and OpenAlex see one expansion request at a time
-    instead of three concurrent full-fleet requests.
+    Each source still answers one title at a time, so it sees the same
+    requests at the same pace as when titles ran one after another. Sources
+    no longer wait for each other between titles, so the channel takes as long
+    as its slowest source's titles, not the sum of each title's slowest source.
     """
-    papers = []
-    for seed in ctx.seeds:
-        papers.extend(title_search(seed, ctx))
-    return papers
+    queries = [_title_query(seed["title"]) for seed in ctx.seeds if seed.get("title")]
+    if not queries:
+        return []
+    # One expansion round has one wall-clock budget. Multiplying the whole
+    # round by the number of seeds made a stalled web lane block all channels
+    # for 90+ seconds even after the other providers had finished.
+    flow = sources.search_flow(queries, limit=ctx.per_seed_limit,
+                               budget_s=config.SOURCE_BUDGET_S / len(queries), metadata_fields=ctx.metadata_fields,
+                               intent=ctx.intent, operation='title', **ctx.search_filters)
+    try:
+        return _combine(flow.take())
+    finally:
+        flow.close()
 
 
 def recommendations(seed: dict, ctx: ExpansionContext) -> list[dict]:
@@ -116,9 +129,9 @@ def recommendations(seed: dict, ctx: ExpansionContext) -> list[dict]:
     if not pid:
         return []
     try:
-        return s2_client.get_recommendations(pid, limit=ctx.per_seed_limit)
-    except Exception:
-        return []
+        return s2.get_recommendations(pid, limit=ctx.per_seed_limit)
+    except Exception as error:
+        return sources.PartialResults([], f'recommendation provider unavailable ({type(error).__name__})')
 
 
 def peers(seed: dict, ctx: ExpansionContext) -> list[dict]:
@@ -128,7 +141,7 @@ def peers(seed: dict, ctx: ExpansionContext) -> list[dict]:
     asks what the community treats as belonging together, which surfaces
     canonical work the seed itself never cites.
     """
-    pid = _seed_id(seed)
+    pid = (seed.get('external_ids') or {}).get('OpenAlex') or _seed_id(seed)
     if not pid:
         return []
     return traversal.co_citation(pid, title=seed.get("title", ""),
@@ -170,17 +183,9 @@ def frequent_terms(ctx: ExpansionContext) -> list[dict]:
             for p in sr.results]
 
 
-# Per-seed channels, run once for each seed paper. Measured over 25 LitSearch
-# queries against the 17 ground-truth papers the initial search missed:
-#
-#   channel          recovered   requests   per 100 requests
-#   references           7          150          4.67
-#   kin                  7         1575          0.44
-#   peers                6          150          4.00
-#   title_search         4         1050          0.38
-#   citations            3          150          2.00
-#   recommendations      1           75          1.33
-#
+# Per-seed channels, run once for each seed paper. References and peers
+# recover the most missed papers per request; citations and recommendations
+# add fewer but cheap ones.
 CHANNELS = {
     "references": references,
     "citations": citations,
@@ -198,9 +203,9 @@ GLOBAL_CHANNELS = {
 }
 
 # kin recovers as much as any channel but issues a query per sampled
-# reference, which is 1575 requests against peers' 150 for one more paper. The
-# relation is worth having and crosses field boundaries better than anything
-# else; the implementation is what makes it too expensive to run by default.
+# reference, about ten times the requests of peers for one more paper. The
+# relation crosses field boundaries better than anything else; its cost is
+# what keeps it off by default.
 OPTIONAL_CHANNELS = {
     "kin": kin,
 }
@@ -208,7 +213,8 @@ OPTIONAL_CHANNELS = {
 
 def expand(seeds: list[dict], intent: str = "", per_seed_limit: int = 20,
            channels: list[str] | None = None,
-           max_workers: int = 15, metadata_fields: set[str] | None = None) -> dict[str, list[dict]]:
+           max_workers: int = 15, metadata_fields: set[str] | None = None,
+           search_filters: dict | None = None) -> dict[str, list[dict]]:
     """Run the expansion channels over the seeds, returning results per channel.
 
     Keyed by channel so callers can attribute what each contributed; the
@@ -218,7 +224,7 @@ def expand(seeds: list[dict], intent: str = "", per_seed_limit: int = 20,
         return {}
 
     ctx = ExpansionContext(intent=intent, per_seed_limit=per_seed_limit, seeds=seeds,
-                           metadata_fields=set(metadata_fields or ()))
+                           metadata_fields=set(metadata_fields or ()), search_filters=dict(search_filters or {}))
     available = {**CHANNELS, **OPTIONAL_CHANNELS}
     if channels is not None:
         names = channels
@@ -242,14 +248,31 @@ def expand(seeds: list[dict], intent: str = "", per_seed_limit: int = 20,
 
     def run(job):
         name, fn, seed = job
-        try:
-            return name, (fn(ctx) if seed is None else fn(seed, ctx))
-        except Exception:
-            return name, []
+        papers = fn(ctx) if seed is None else fn(seed, ctx)
+        for rank, paper in enumerate(papers):
+            paper.setdefault('_retrieval_ranks', {})[f'expansion/{name}'] = rank
+        return papers
 
-    with ThreadPoolExecutor(max_workers=min(len(jobs), max_workers)) as pool:
-        for future in as_completed([pool.submit(run, job) for job in jobs]):
-            name, papers = future.result()
-            results.setdefault(name, []).extend(papers)
-
-    return results
+    # Source I/O and channel orchestration use different bounded pools. Nested
+    # source flows publish ready rows into these channel lanes before a slow
+    # provider or metadata lookup completes.
+    calls = {f'{job[0]}/{index}': [partial(run, job)] for index, job in enumerate(jobs)}
+    flow = sources.SourceFlow(calls, config.SOURCE_BUDGET_S, hydrate=False, op='expansion',
+                              executor=_channel_pool, max_workers=max_workers)
+    answers = flow.collect()
+    for answer in answers:
+        name = answer.source.split('/', 1)[0]
+        facet = 'title' if name == 'title_search' else name
+        records.tag_source_ranks(answer.results, 'expansion', facet=facet, positions=answer.positions)
+        if name == 'title_search':
+            # Nested flows retain API and query index even when only a partial
+            # snapshot reached this channel's deadline. Keep all attribution
+            # under the existing expansion source so agreement is unchanged.
+            for paper in answer.results:
+                for path, rank in (paper.get('_retrieval_ranks') or {}).items():
+                    if path.startswith('title/'):
+                        _, api, index = path.split('/', 2)
+                        records.tag_source_ranks([paper], 'expansion', facet=f'title::{api}::{index}',
+                                                 positions=[rank])
+        results.setdefault(name, []).extend(answer.results)
+    return Expanded(results, answers)

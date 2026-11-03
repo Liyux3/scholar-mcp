@@ -1,0 +1,27 @@
+---
+// Single icon button in place of Starlight's three-way select. The stored
+// value uses Starlight's own key, so its inline provider still prevents FOUC.
+import { Icon } from '@astrojs/starlight/components';
+---
+
+<sc-theme-toggle>
+	<button type="button" class="sc-theme-toggle" aria-label="Toggle light and dark theme">
+		<Icon name="moon" class="sc-theme-moon" />
+		<Icon name="sun" class="sc-theme-sun" />
+	</button>
+</sc-theme-toggle>
+
+<script>
+	class ScThemeToggle extends HTMLElement {
+		connectedCallback() {
+			this.querySelector('button')?.addEventListener('click', () => {
+				const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+				document.documentElement.dataset.theme = next;
+				try {
+					localStorage.setItem('starlight-theme', next);
+				} catch {}
+			});
+		}
+	}
+	if (!customElements.get('sc-theme-toggle')) customElements.define('sc-theme-toggle', ScThemeToggle);
+</script>

@@ -1,0 +1,53 @@
+---
+slug: faq
+title: FAQ
+description: Common questions about keys, ranking, speed, storage, paywalls and updates.
+---
+
+import Accordion from '../../../components/Accordion.astro';
+
+## Setup
+
+<Accordion title="Do I need API keys?">
+No. Every key is optional, and without one Scholar still searches Semantic Scholar, OpenAlex, arXiv, Crossref, PubMed and the other open sources. Semantic Scholar and OpenAlex keys raise limits and widen coverage, a DashScope key enables the cloud ranking model, and Exa, Scopus and CORE join only when their keys are set. When fewer sources are available, Scholar asks the rest for more results so the pool stays wide. Once you have a key, `scholar-mcp keys set NAME` saves it for every client, see [Configuration](/scholar-mcp/configuration/).
+</Accordion>
+
+<Accordion title="Which tools will my agent see?">
+The core profile has six tools, `search_papers`, `paper_info`, `recommend_papers`, `search_authors`, `read_paper` and `download_paper`. `SCHOLAR_MCP_EXTENSIONS=research` adds `build_paper_graph` and `paper_library`. The plugins and desktop bundles enable it by default, and `scholar-mcp install --profile research` writes it for you.
+</Accordion>
+
+<Accordion title="Does it run on Intel Macs and Windows on ARM?">
+Yes. The release index passed with `--find-links` has ready-made `cryptography` packages for those platforms, so no Rust or OpenSSL is needed. The desktop bundles support Apple silicon and Intel Macs and include their own Python. The launch scripts are tested on macOS, Linux and Windows, on x64 and ARM64.
+</Accordion>
+
+<Accordion title="How do I update?">
+Run `scholar-mcp update`, or `scholar-mcp update --check` to see whether a new version exists. It upgrades the way you installed. Because `scholar-mcp install` registers the installed command, every client uses the new version after a restart. Configurations that pin a version with uvx need the version in the command changed. For the Claude Desktop bundle, open the newer `.mcpb` from [GitHub Releases](https://github.com/Liyux3/scholar-mcp/releases). The [changelog](/scholar-mcp/changelog/) lists what changed.
+</Accordion>
+
+## Search and reading
+
+<Accordion title="Which ranking model is used?">
+DashScope `qwen3-rerank` when `DASHSCOPE_API_KEY` is set, or your own service when `SCHOLAR_RERANK_URL` is set. Without either, or when the remote call fails, the local FlashRank model from the `rerank` extra takes over, and the recommended uvx command, the container and the desktop bundles include it. `scholar://status` and `debug=true` show the service and model that actually ran, and the reason when the local model stepped in.
+</Accordion>
+
+<Accordion title="Why is a search slow?">
+A search asks a dozen or more sources at once, follows citations from the most relevant papers, then ranks every candidate again, which is much more than one API call. Scholar waits up to 30 seconds before choosing seed papers (`SCHOLAR_SOURCE_BUDGET_S`). Sources that miss it are not dropped, they join before the final ranking. Retrieval, expansion and metadata share a 40-second acquisition window; final ranking follows. The first use of the local ranking model also downloads it once. `debug=true` shows each source's time and count, and Semantic Scholar or OpenAlex keys help when limits are the cause.
+</Accordion>
+
+<Accordion title="Can Scholar read paywalled papers?">
+Scholar looks for open copies first, in archives, open repositories, preprint servers and Unpaywall. For papers your university subscribes to, it can fetch through your library's EZproxy with a session from your own sign-in, one requested paper at a time. Scholar never asks for or stores a password. See [Institutional access](/scholar-mcp/institutional-access/).
+</Accordion>
+
+<Accordion title="Google Scholar asks for verification. What can I do?">
+Install the optional `google` extra, for example `scholar-mcp[google,rerank]` in your server command, with Chrome, Edge or Chromium and ffmpeg available. A separate worker reuses a private browser profile and reads verified pages directly, while HTTP keeps its own cookies. Set `SCHOLAR_GOOGLE_RECOVERY=off` to turn it off. Details are in [Sources](/scholar-mcp/sources/#google-scholar-session-recovery).
+</Accordion>
+
+## Data and deployment
+
+<Accordion title="Where are papers and notes stored?">
+Under `~/.scholar-mcp` by default, with PDFs in `papers/`, the SQLite library and JSONL snapshots in `kb/`, and Markdown exports in `vault/`. `SCHOLAR_DATA_DIR`, `SCHOLAR_KB_DIR` and `SCHOLAR_DOWNLOAD_DIR` change the locations. `read_paper` reuses a retained copy or removes its new temporary download after reading. `download_paper` keeps a PDF.
+</Accordion>
+
+<Accordion title="Can I run Scholar over HTTP?">
+Yes. Normally a client starts Scholar on your machine and talks to it through standard input and output (stdio). When a client cannot start a program, such as an agent in a web page or a server several people share, Scholar runs as a network service instead. Run `scholar-mcp serve --http`, or set `SCHOLAR_MCP_TRANSPORT=http`, to serve at `http://127.0.0.1:8000/mcp`. `SCHOLAR_MCP_HOST`, `SCHOLAR_MCP_PORT` and `SCHOLAR_MCP_PATH` change the address. A cloud agent cannot reach localhost on your computer, so remote clients need a reachable, protected deployment.
+</Accordion>

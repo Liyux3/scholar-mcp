@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scholar-mcp"
-version = "0.8.5"
+version = "0.9.0"
 description = "Scholar MCP: multi-source academic search, citation traversal, and deep research"
 authors = [{ name = "Yuxian Li" }]
 readme = "README.md"
@@ -34,6 +34,7 @@ dependencies = [
     "pypdf>=4.0.0",
     "httpx>=0.27.0",
     "filelock>=3.17",
+    "keyring>=25.6",
     "beautifulsoup4>=4.12.0",
     "lxml>=4.9.0",
     "networkx>=3.4.2",
@@ -41,9 +42,11 @@ dependencies = [
     # Compatibility wheels are built from this patched upstream release for
     # platforms no longer receiving upstream binaries.
     "cryptography==50.0.1",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
+access = ["DrissionPage>=4.1.1.4,<5"]
 # Optional browser verification; requires an installed Chrome and ffmpeg.
 google = ["DrissionPage>=4.1.1.4,<5", "SpeechRecognition>=3.14,<4"]
 # Query compression. optimize_query degrades to plain keyword extraction
@@ -54,10 +57,16 @@ compression = [
 ]
 # Reranker fallback, used whenever the DashScope API is unavailable.
 rerank = [
-    "flashrank>=0.2.10",
+    "flashrank==0.2.10",
     # 1.24+ no longer publishes macOS Intel wheels.
     "onnxruntime<1.24; python_version < '3.11' or (sys_platform == 'darwin' and platform_machine == 'x86_64')",
     "onnxruntime>=1.24; python_version >= '3.11' and (sys_platform != 'darwin' or platform_machine != 'x86_64')",
+    # On Apple silicon the same model runs on the GPU about ten times faster
+    # (one batch of 150 at 384 tokens: 1.0 s against 12.3 s on an M5), for a
+    # 127 MB download. Elsewhere torch brings gigabytes of CUDA libraries, so a
+    # GPU server adds it itself and the ranker finds it.
+    "torch>=2.5; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "transformers>=4.45; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
 dev = ["pytest>=8.0.0", "pillow>=11.0", "ruff>=0.12.0"]
 
@@ -71,6 +80,9 @@ scholar-mcp = "scholar_mcp.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["scholar_mcp*"]
+
+[tool.setuptools.package-data]
+scholar_mcp = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

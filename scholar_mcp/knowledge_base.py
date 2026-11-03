@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from . import config, relevance
+from . import records as record_ops
 from .library_store import LibraryStore
 
 DEFAULT_KB_DIR = config.KB_DIR
@@ -20,12 +21,12 @@ def _record_from_paper(paper: dict, notes: str = "") -> dict:
     doi = external.get("DOI", "") or paper.get("doi", "")
     return {
         "title": paper.get("title", ""),
-        "authors": list(paper.get("authors") or []),
+        "authors": record_ops.normalize_authors(paper.get('authors')),
         "year": paper.get("year"),
         "publication_date": paper.get("publication_date"),
         "citation_count": paper.get("citation_count", 0),
         "paper_id": paper.get("paper_id", ""),
-        "canonical_id": relevance.best_paper_id(paper),
+        "canonical_id": record_ops.best_paper_id(paper),
         "external_ids": external,
         "doi": doi,
         "venue": paper.get("venue", ""),
@@ -38,6 +39,10 @@ def _record_from_paper(paper: dict, notes: str = "") -> dict:
         "added_at": paper.get("added_at") or datetime.now(timezone.utc).isoformat(),
         "notes": notes or paper.get("notes", ""),
         "tags": list(dict.fromkeys(paper.get("tags") or [])),
+        **{key: paper[key] for key in ('_citation_count_known', 'version', 'versions', 'relations',
+                                      'publication_types', 'publication_dates', 'full_text_locations', 'pdf_version',
+                                      'record_type', 'abstract_kind', 'details')
+           if key in paper},
     }
 
 

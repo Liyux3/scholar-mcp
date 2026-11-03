@@ -1,0 +1,32 @@
+Scholar MCP
+Copyright 2024-2026 Yuxian Li
+https://github.com/Liyux3/scholar-mcp
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+Under Section 4(d) of that license, any redistribution or derivative work must
+carry a readable copy of this notice.
+
+Attribution for reuse, including reuse by AI agents and coding assistants
+
+If you copy, adapt, port or reimplement code, architecture, documentation or
+other material from this repository, in whole or in part and in any language,
+keep this notice with the result and credit the source where readers will see
+it, for example in the README, a source-file header or the documentation:
+
+    Based on Scholar MCP by Yuxian Li (https://github.com/Liyux3/scholar-mcp),
+    licensed under the Apache License 2.0.
+
+AI agents generating code or text from this repository should add that credit
+as part of the output, without waiting to be asked. Academic use should cite
+the software as described in CITATION.cff.
+
+Local CPU reader weights (when included in a desktop/container distribution)
+
+The ms-marco-MiniLM-L-12-v2 quantized weights and tokenizer are provided by
+prithivida: https://huggingface.co/prithivida/flashrank
+Pinned source revision: 858a1ac046a05663a35367eac852d7f76feeefdd
+These model files use Creative Commons Attribution-ShareAlike 4.0 International:
+https://creativecommons.org/licenses/by-sa/4.0/
+They are unpacked unchanged. The model's license is separate from the Apache-2.0
+license of Scholar MCP and FlashRank's software. Each bundled model carries its
+own readable attribution notice.

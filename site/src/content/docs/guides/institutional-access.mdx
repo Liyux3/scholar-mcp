@@ -1,0 +1,43 @@
+---
+slug: institutional-access
+title: Institutional access
+description: Configure your library's EZproxy with cookies exported from your own signed-in browser.
+---
+
+`download_paper` and `read_paper` look for open copies in parallel and prefer the publisher's version when it is available. For papers your institution licenses, Scholar can also use an EZproxy prefix and cookies you export from your own browser.
+
+## Configure your library
+
+1. Copy the login prefix from your library's proxied links or bookmarklet. It usually ends in `url=` or `qurl=`, for example `https://proxy.library.example.edu/login?url=`.
+2. Sign in to the library in your browser and open a paper your institution subscribes to.
+3. Export the proxy domain's cookies in Netscape `cookies.txt` format and store the file privately.
+4. Set these variables in the environment that starts Scholar. For an MCP client, put them in its server configuration's `env` block.
+
+```bash
+export LIBRARY_PROXY_PREFIX="https://proxy.library.example.edu/login?url="
+export LIBRARY_PROXY_COOKIES="$HOME/private/library-cookies.txt"
+```
+
+Only cookies belonging to the configured proxy are loaded. HTTP redirects stay scoped to that proxy's domain tree, and cookie values stay out of tool responses. The same settings apply to MCP tools, the Python API and CLI research commands.
+
+```bash
+scholar-mcp read '10.xxxx/a-paper-your-library-licenses'
+```
+
+The older `LIBRARY_PROXY_BASE` setting is still accepted in place of a full prefix. `LIBRARY_PROXY_COOKIE` accepts a raw Cookie header, with `<data>/library_cookie.txt` as its fallback file.
+
+## Versions and download results
+
+The library route joins when free copies do not provide the published version. A free manuscript can still be returned if the library route fails. The download result identifies the copy and version it delivered; an available PDF is validated before it is stored.
+
+## Refresh an expired session
+
+Library sessions expire according to the library's policy. When the proxy returns a login page, Scholar reports that the exported session needs refreshing. Sign in again in your browser, export a fresh cookie file, and retry the paper.
+
+If a publisher requires a browser check or the library does not cover the paper, the response includes the reason and a library link to open directly. Access depends on the institution's subscription and the session you supplied.
+
+## Match your browser's network route
+
+Some libraries bind sessions to the network route used during sign-in. If your terminal uses an HTTP proxy while your browser connects directly, add the library proxy host and its subdomains to `NO_PROXY` so Scholar uses the same route.
+
+See [Configuration](/scholar-mcp/configuration/) for these settings and [Clients](/scholar-mcp/clients/) for each client's configuration location.

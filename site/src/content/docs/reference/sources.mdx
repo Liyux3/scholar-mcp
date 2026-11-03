@@ -1,0 +1,63 @@
+---
+slug: sources
+title: Sources
+description: The scholarly sources Scholar searches, how each one is queried, and how to check them from your machine.
+---
+
+A question goes to the available sources suited to its task, and their results join one candidate pool. Keys enable additional indexes or raise provider limits. Regional, specialist and dataset sources join when the question or its filters call for them. A slow source keeps its own lane while completed results remain usable.
+
+| Group | Sources | Used for |
+|---|---|---|
+| General index `index` | OpenAlex, Semantic Scholar, Crossref, Scopus (key) | The widest coverage, also used to recognise the same paper and fill in citations and filter fields |
+| Semantic `semantic` | OpenAlex semantic search, arxiv.gg, Exa (key) | The whole question as written, matched by meaning rather than wording |
+| Full text `fulltext` | Semantic Scholar snippet search | Matching passages inside open papers |
+| Preprint `preprint` | arXiv, OpenReview | Recent work and conference submissions |
+| Discipline `discipline` | PubMed, Europe PMC, DBLP, INSPIRE-HEP, zbMATH Open, ERIC, CourtListener, ClinicalTrials.gov, OpenEdition | Biomedicine, computing, physics, mathematics, education, US case law, trial registrations and humanities |
+| Repository `repository` | OpenAIRE, HAL, DOAJ, CORE (key) | Institutional repositories and open journals |
+| Web `web` | Google Scholar | Plain HTTP search, optional session recovery |
+| Regional `regional` | CiNii Research | Joins questions written in Japanese (kana), covering J-STAGE, KAKEN and National Diet Library records |
+| Dataset `dataset` | Zenodo | Joins only `intent="dataset"` searches |
+| Opt-in, by key | NASA ADS, Springer Nature, Web of Science Starter, Lens | Join every search once you set their key, see [Configuration](/scholar-mcp/configuration/) |
+
+Keyword sources receive keywords cut to the length each one handles best, and semantic sources receive the original sentence. Semantic Scholar and OpenAlex work without keys, and their keys raise the limits.
+
+For citations, Semantic Scholar, OpenAlex, references deposited with Crossref, Europe PMC citation links and INSPIRE-HEP feed one graph.
+
+Zenodo is the largest general data repository, but its paper records add more noise than value, so it normally only supplies PDFs and joins searches only for datasets.
+
+## Check sources on your machine
+
+```bash
+scholar-mcp sources
+```
+
+lists, for each source, whether it is available with your configuration, how it is asked, which fields it covers, and whether it supports search, paper lookup, citations, references and PDFs.
+
+```bash
+scholar-mcp sources --check
+scholar-mcp sources --check --source arxiv --query "retrieval augmented generation"
+```
+
+`--check` sends a small live search to each configured source and reports status, count and time, without showing credentials. `--source` checks one. A failed request is reported separately from a search that worked and found nothing. To probe every link at once, citations, references, the ranking model and PDFs included, run [`scholar-mcp doctor --network`](/scholar-mcp/cli/#doctor).
+
+## How requests queue
+
+Each source has its own queue. When several queries go to the same source, it takes them one at a time, in order, at the pace it allows (arXiv asks for three seconds between requests). Sources run side by side, so a slow one only holds up its own queue. Citation and reference lookups and PDF resolution use the same queues and stop at the same deadline, so a stuck provider cannot hold them either. Each provider's published limits sit in one table and apply to every request Scholar sends it, searches, citation lookups and metadata completion alike, from every agent on your machine. Limits are counted the way providers count them, per address without a key and per key with one, so a key raises a source's limits wherever the provider offers that. When a source's hourly or daily allowance is spent, a search skips it rather than waiting, and `scholar-mcp doctor` says so. Several machines behind one address, as in a lab, are best served by one shared Scholar server (`scholar-mcp serve --http`).
+
+A first ranking picks the most relevant papers as starting points (seeds) for following citations. Scholar waits up to 30 seconds before choosing them, adjustable with `SCHOLAR_SOURCE_BUDGET_S`. A source still out at that point is marked as timed out, but its request stands. If it answers while citations are being followed, its papers join the pool before the final ranking and its report is updated. Retrieval, expansion and metadata share a 40-second acquisition window, leaving time for final ranking. Completed pages survive an interrupted request.
+
+## Google Scholar session recovery
+
+Google Scholar is reached over plain HTTP. When it asks for verification, the optional `google` extra recovers a session automatically. With Chrome, Edge or Chromium and ffmpeg installed, use `scholar-mcp[google,rerank]` in your server command.
+
+A separate worker reuses a private profile bound to the route, browser and mode. Verified browser pages are read directly; ordinary HTTP keeps its own cookies. Recovery starts headless, with a hidden-page alternative on macOS. Chromium may require a temporary minimized bootstrap window, closed as soon as the hidden page is ready. The acquisition window bounds recovery, and a failed challenge leaves no artificial retry freeze. A host adapter can repair access through its configured routes.
+
+`SCHOLAR_GOOGLE_RECOVERY=off` turns recovery off, `headless` allows only windowless runs, and `headed` allows a visible verification window. `SCHOLAR_GOOGLE_BROWSER` points to a browser installed somewhere unusual. No browser is downloaded at startup, and pages already fetched stay usable if pagination stops.
+
+ERIC supplies education records with native author, year, venue and DOI fields. CourtListener keeps courts, case numbers, dates and legal citations. ClinicalTrials.gov distinguishes registrations and planned outcomes from published result papers, and links to protocols and associated papers. OpenEdition searches journals and books, excluding blogs and event notices; chapters keep their own identity rather than inheriting the container ISBN.
+
+Use `paper_types="CourtDecision"` for case law or `"ClinicalTrialRegistration"` for registrations. These explicit scopes query their native sources and preserve document types. Citation relations remain available where the provider exposes them.
+
+## Adding a source
+
+Every source is registered in one table with what it can do. A new source can add search, paper lookup, citations or PDFs without a new MCP tool. The [contributing guide](https://github.com/Liyux3/scholar-mcp/blob/main/CONTRIBUTING.md) lists what a connector should include.

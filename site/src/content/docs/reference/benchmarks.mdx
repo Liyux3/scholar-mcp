@@ -1,0 +1,42 @@
+---
+slug: benchmarks
+title: Benchmarks
+description: Retrieval quality on LitSearch, measured against Exa research-paper search and a BM25 baseline under one matched protocol.
+---
+
+import Figure from '../../../components/Figure.astro';
+import quality from '../../../../../docs/assets/litsearch-quality.svg';
+
+In a matched, frozen LitSearch run, Scholar's top-five hit rate is ten points above Exa's paper search, and six points above at top twenty.
+
+<Figure src={quality} alt="LitSearch hit rates for Scholar, Exa and BM25 at k = 5, 10 and 20" />
+
+| System | Hit@5 | Hit@10 | Hit@20 | MRR |
+|---|---:|---:|---:|---:|
+| **Scholar** | **0.62** | **0.68** | **0.70** | **0.442** |
+| Exa `research paper` | 0.52 | 0.58 | 0.64 | 0.435 |
+| BM25 `title + abstract` | 0.46 | 0.46 | 0.56 | 0.335 |
+
+In the top five, Scholar hit nine queries that Exa missed, and Exa hit four that Scholar missed.
+
+## Metrics
+
+Hit@k is the share of queries with at least one ground-truth paper in the top k. Recall@k is different, it measures how much of all relevant papers each query recovers. MRR averages the reciprocal rank of the first match, with a miss counted as zero. The frozen summary still uses the old field name `R@k` for hit rates.
+
+## Protocol
+
+All three systems use the same 50 LitSearch inline-ACL queries, ground-truth titles, title matcher and top-20 cutoff.
+
+- **Exa** ran with category `research paper`.
+- **Scholar** used its standard retrieval pipeline with Qwen reranking.
+- **BM25** follows the official LitSearch title and abstract implementation: lowercase tokenization, English stopword removal, Porter stemming and `BM25Okapi` over the 64K-paper corpus.
+
+The Scholar and Exa runs were collected on 12 May 2026; BM25 was reproduced on 25 August 2026.
+
+## Data
+
+The frozen summary, the raw BM25 results and their hash manifest live in the repository:
+
+- [`litsearch-inline-acl-50.json`](https://github.com/Liyux3/scholar-mcp/blob/main/docs/benchmarks/litsearch-inline-acl-50.json)
+- [`bm25_title_abstract_inline_acl_50.jsonl`](https://github.com/Liyux3/scholar-mcp/blob/main/docs/benchmarks/bm25_title_abstract_inline_acl_50.jsonl)
+- [`bm25_title_abstract_inline_acl_50.summary.json`](https://github.com/Liyux3/scholar-mcp/blob/main/docs/benchmarks/bm25_title_abstract_inline_acl_50.summary.json)

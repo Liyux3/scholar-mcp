@@ -19,11 +19,15 @@ uv run ruff check .
 ```
 
 Live API tests carry the `integration` marker and are excluded from the default suite.
-Run only the relevant integration tests when changing a source client.
+Run only the relevant integration tests when changing a source client, and
+`scholar-mcp doctor --network` to probe every source, the ranking model and the
+PDF chain at once. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how the parts fit.
 
 ## Source connector contributions
 
-A useful source contribution includes:
+Each provider is one module in `scholar_mcp/sources/`, registered at the end of
+`scholar_mcp/sources/__init__.py`, with its tests in `tests/sources/`. A useful
+source contribution includes:
 
 - normalized paper identities and metadata;
 - declared query style and capabilities;

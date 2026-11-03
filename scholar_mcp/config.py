@@ -1,9 +1,46 @@
 import os
 import random
+from pathlib import Path
+
+
+def key_file() -> Path:
+    return Path(os.path.expanduser(os.environ.get("SCHOLAR_DATA_DIR", "~/.scholar-mcp"))) / "keys.env"
+
+
+def _load_key_file() -> None:
+    """Keys saved with `scholar-mcp keys set` apply to every client that starts Scholar.
+
+    Desktop clients do not inherit the shell, and each client has its own env
+    block, so one file read here is the single global place. A variable already
+    set in the process environment wins.
+    """
+    try:
+        text = key_file().read_text(encoding="utf-8")
+    except OSError:
+        return
+    for line in text.splitlines():
+        value = line.partition("=")[2].strip().strip("\"'")
+        if (name := key_name(line)) and value:
+            os.environ.setdefault(name, value)
+
+
+def key_name(line: str) -> str:
+    """The variable one key-file line sets (`NAME=value` or `export NAME=value`), or ""."""
+    name, sep, _ = line.strip().removeprefix("export ").partition("=")
+    name = name.strip()
+    return name if sep and name and not name.startswith("#") else ""
+
+
+_load_key_file()
 
 S2_API_KEY: str | None = os.environ.get("S2_API_KEY") or None
 S2_API_KEYS: list[str] = [k.strip() for k in (os.environ.get("S2_API_KEYS") or "").split(",") if k.strip()]
 CORE_API_KEY: str | None = os.environ.get("CORE_API_KEY") or None
+# A registered OpenAIRE service: its token raises OpenAIRE from 60 to 7,200 requests an hour.
+OPENAIRE_CLIENT_ID: str | None = os.environ.get("OPENAIRE_CLIENT_ID") or None
+OPENAIRE_CLIENT_SECRET: str | None = os.environ.get("OPENAIRE_CLIENT_SECRET") or None
+NCBI_API_KEY: str | None = os.environ.get("NCBI_API_KEY") or None
+COURTLISTENER_API_TOKEN: str | None = os.environ.get("COURTLISTENER_API_TOKEN") or None
 OPENALEX_API_KEY: str | None = os.environ.get("OPENALEX_API_KEY") or None
 OPENALEX_API_KEYS: list[str] = [k.strip() for k in (os.environ.get("OPENALEX_API_KEYS") or "").split(",") if k.strip()]
 OPENALEX_EMAIL: str | None = os.environ.get("OPENALEX_EMAIL") or None
@@ -24,6 +61,11 @@ RERANK_BATCH_SIZE: int = max(1, int(os.environ.get("SCHOLAR_RERANK_BATCH_SIZE", 
 GOOGLE_SCHOLAR_PROXY: str | None = os.environ.get("SCHOLAR_GOOGLE_PROXY") or None
 EXA_API_KEY: str | None = os.environ.get("EXA_API_KEY") or None
 SCOPUS_API_KEY: str | None = os.environ.get("SCOPUS_API_KEY") or None
+# Opt-in sources: each joins every search once its user sets the key.
+ADS_API_TOKEN: str | None = os.environ.get("ADS_API_TOKEN") or None
+SPRINGER_API_KEY: str | None = os.environ.get("SPRINGER_API_KEY") or None
+WOS_API_KEY: str | None = os.environ.get("WOS_API_KEY") or None
+LENS_API_TOKEN: str | None = os.environ.get("LENS_API_TOKEN") or None
 DATA_DIR: str = os.path.expanduser(
     os.environ.get("SCHOLAR_DATA_DIR", "~/.scholar-mcp")
 )
@@ -41,6 +83,9 @@ S2_TIMEOUT: int = int(os.environ.get("S2_TIMEOUT", "30"))
 # provider requests to finish before discarding their candidates. The same
 # bounded budget applies to each seed-title search during expansion.
 SOURCE_BUDGET_S: float = float(os.environ.get("SCHOLAR_SOURCE_BUDGET_S", "30"))
+# Ceiling on paper text per read_paper response, cut at a page boundary with
+# next_pages. Ten-page reads (35-55k characters) stay whole; 0 disables it.
+READ_CHAR_BUDGET: int = int(os.environ.get("SCHOLAR_READ_CHAR_BUDGET", "100000"))
 SCIHUB_ENABLED: bool = os.environ.get("SCIHUB_ENABLED", "").lower() in ("1", "true", "yes")
 RANK_PARAMS_PATH: str = os.path.expanduser("~/.scholar-mcp/rank_params.json")
 # S2 recommendation candidate pool. "recent" restricts to papers from the last
@@ -63,9 +108,9 @@ def get_openalex_email() -> str | None:
     return OPENALEX_EMAIL
 
 
-# Keys observed to be out of credit, with the time their quota resets.
-# OpenAlex bills per request against a per-key daily allowance that refills on
-# a rolling window, so an exhausted key is temporary, not dead.
+# Keys observed to be out of credit, with the provider's quota reset time.
+# The adapter also persists actual Retry-After hints across processes, and
+# honors an explicitly shared client budget rather than rotating sibling keys.
 _openalex_exhausted: dict[str, float] = {}
 
 
@@ -87,6 +132,6 @@ def get_openalex_api_key() -> str | None:
     import time
     now = time.time()
     usable = [k for k in OPENALEX_API_KEYS if _openalex_exhausted.get(k, 0) <= now]
-    # If everything is exhausted, try anyway: the reset estimate may be stale
-    # and a 429 is no worse than refusing to make the request.
+    # Retain a configured identity when all keys are parked. Shared pacing
+    # enforces actual provider Retry-After hints before the request starts.
     return random.choice(usable or OPENALEX_API_KEYS)

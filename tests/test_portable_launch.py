@@ -17,10 +17,10 @@ def test_launcher_preserves_arguments_and_uses_managed_python(tmp_path):
     stub.write_text(f'#!{sys.executable}\nimport sys,json\nprint(json.dumps(sys.argv[1:]))\n')
     stub.chmod(0o700)
     result = subprocess.run(["sh", str(ROOT / "scripts/launch.sh"), "sources", "--query", "a query with spaces"],
-                            env={**os.environ, "SCHOLAR_UV": str(stub), "SCHOLAR_PACKAGE": "scholar-mcp[rerank]==0.8.5"},
+                            env={**os.environ, "SCHOLAR_UV": str(stub), "SCHOLAR_PACKAGE": "scholar-mcp[rerank]==0.9.0"},
                             text=True, capture_output=True, check=True)
     assert json.loads(result.stdout) == ["tool", "run", "--no-config", "--managed-python", "--python", "3.12",
-                                       "--from", "scholar-mcp[rerank]==0.8.5", "scholar-mcp", "sources", "--query", "a query with spaces"]
+                                       "--from", "scholar-mcp[rerank]==0.9.0", "scholar-mcp", "sources", "--query", "a query with spaces"]
 
 
 def test_windows_launcher_uses_the_same_runtime_contract():
