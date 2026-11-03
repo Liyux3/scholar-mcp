@@ -28,7 +28,7 @@ Scholar MCP 给你的 AI 智能体配上一座研究图书馆。不用密钥时�
 
 ## 📰 动态
 
-- 2026 年 10 月，0.9.0。`scholar-mcp install` 一条命令装进 27 个智能体，一份密钥文件所有客户端共用，每个数据源在自己的车道上并行搜索，`scholar-mcp doctor --network` 检查每条链路。
+- 2026 年 11 月，0.9.0。`scholar-mcp install` 一条命令装进 32 个智能体，一份密钥文件所有客户端共用，每个数据源在自己的车道上并行搜索，`scholar-mcp doctor --network` 检查每条链路。
 - 2026 年 10 月，0.8.5。Google Scholar 会话可以自动恢复，arXiv 接口不可用时改用它自己的网页搜索。
 
 ## 🚀 开始使用
