@@ -10,8 +10,8 @@ import { Aside } from '@astrojs/starlight/components';
 
 ```bash
 uv tool install --python 3.12 \
-  --find-links https://github.com/Liyux3/scholar-mcp/releases/latest/download/wheel-index.html \
-  "scholar-mcp[rerank] @ git+https://github.com/Liyux3/scholar-mcp.git@1e7094ffc473231322478584aa561ccc5687ac42"
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.9.0/wheel-index.html \
+  "scholar-mcp[rerank]==0.9.0"
 ```
 
 研究和设置命令默认输出易读的 YAML，加 `--json` 输出 JSON，便于接入 `jq` 或脚本，`library` 和 `sources` 则直接输出 JSON。每个命令都支持 `--help`。

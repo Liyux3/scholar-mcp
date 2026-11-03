@@ -30,7 +30,7 @@ Scholar MCP gives your AI agent a research library. It searches scholarly source
 
 ## 📰 News
 
-- October 2026, 0.9.0. `scholar-mcp install` sets Scholar up in 27 agents, one key file serves all of them, every source searches in its own lane, and `scholar-mcp doctor --network` checks every link.
+- November 2026, 0.9.0. `scholar-mcp install` sets Scholar up in 32 agents, one key file serves all of them, every source searches in its own lane, and `scholar-mcp doctor --network` checks every link.
 - October 2026, 0.8.5. Google Scholar sessions recover on their own, and arXiv falls back to its own search when its API is down.
 
 ## 🚀 Get started
