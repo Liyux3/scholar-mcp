@@ -655,6 +655,21 @@ def _cpu_threads() -> int:
     return max(1, available) if constrained else 0
 
 
+class _ShrinkingSession:
+    """ONNX Runtime's CPU arena keeps the largest batch's activations for the session's life (one search pool of 400
+    at 128 tokens, then its leaders at 384, held 3.7 GB). The arena stays, being the fast path, and hands its memory
+    back after every run through its own run option; FlashRank calls session.run(names, feed), so this adds it.
+    With batches sized in tokens (FLASHRANK_BATCH_TOKENS), measured 11/02 on that pool: peak 3.7 GB to about 0.45 GB,
+    and 7 to 11 s to 6 to 9 s, since one padded batch was also the slowest."""
+
+    def __init__(self, session, ort):
+        self.session, self.options = session, ort.RunOptions()
+        self.options.add_run_config_entry("memory.enable_memory_arena_shrinkage", "cpu:0")
+
+    def run(self, names, feed):
+        return self.session.run(names, feed, self.options)
+
+
 def _new_cpu_ranker(max_length: int):
     """Keep FlashRank's tokenizer/scoring, constructing one configured ORT session.
 
@@ -678,10 +693,10 @@ def _new_cpu_ranker(max_length: int):
                                  and getattr(reader, '_thread_count', None) == self._thread_count), None)
             if self.session is None:
                 options = ort.SessionOptions()
-                options.enable_cpu_mem_arena = False
                 options.intra_op_num_threads = self._thread_count
-                self.session = ort.InferenceSession(str(self.model_dir / model_file_map[FLASHRANK_MODEL]),
-                                                    sess_options=options, providers=['CPUExecutionProvider'])
+                self.session = _ShrinkingSession(ort.InferenceSession(
+                    str(self.model_dir / model_file_map[FLASHRANK_MODEL]), sess_options=options,
+                    providers=['CPUExecutionProvider']), ort)
             self.tokenizer = self._get_tokenizer(max_length)
             _note_reranker(cpu_threads=self._thread_count or 'auto')
     return CpuRanker()

@@ -128,8 +128,13 @@ def test_local_model_runs_on_the_gpu_and_falls_back_to_the_cpu_for_good(monkeypa
     monkeypatch.setitem(sys.modules, "flashrank", SimpleNamespace(
         Ranker=Ranker, RerankRequest=lambda query, passages: SimpleNamespace(query=query, passages=passages)))
     monkeypatch.setitem(sys.modules, "flashrank.Config", SimpleNamespace(model_file_map={relevance.FLASHRANK_MODEL: "model.onnx"}))
+    run_entries = []
+
+    class RunOptions:
+        def add_run_config_entry(self, key, value):
+            run_entries.append((key, value))
     monkeypatch.setitem(sys.modules, "onnxruntime", SimpleNamespace(
-        SessionOptions=lambda: SimpleNamespace(enable_cpu_mem_arena=True),
+        SessionOptions=lambda: SimpleNamespace(enable_cpu_mem_arena=True), RunOptions=RunOptions,
         InferenceSession=lambda path, sess_options, providers: sessions.append((path, sess_options.enable_cpu_mem_arena,
                                                                               sess_options.intra_op_num_threads, providers))))
     monkeypatch.setattr(relevance, '_cpu_threads', lambda: 2)
@@ -138,8 +143,9 @@ def test_local_model_runs_on_the_gpu_and_falls_back_to_the_cpu_for_good(monkeypa
     assert [item["relevance_score"] for item in ORIGINAL_FLASHRANK_SCORES("q", papers, 128)] == [.4, .4]
     assert relevance._gpu_device == "" and relevance._reranker_state["device"] == "cpu"
     assert relevance._reranker_state["gpu_error"].startswith("ZeroDivisionError")
-    # The CPU session runs without ONNX Runtime's arena, in batches sized in tokens.
-    assert sessions == [(str(Path('/models') / relevance.FLASHRANK_MODEL / 'model.onnx'), False, 2, ["CPUExecutionProvider"])]
+    # The CPU session keeps ONNX Runtime's arena and shrinks it after every run, in batches sized in tokens.
+    assert sessions == [(str(Path('/models') / relevance.FLASHRANK_MODEL / 'model.onnx'), True, 2, ["CPUExecutionProvider"])]
+    assert run_entries == [("memory.enable_memory_arena_shrinkage", "cpu:0")]
     monkeypatch.setattr(relevance, "FLASHRANK_BATCH_TOKENS", 256)
     batches.clear()
     ORIGINAL_FLASHRANK_SCORES("q", [{"title": str(i)} for i in range(5)], 128)

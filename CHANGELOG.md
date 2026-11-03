@@ -10,13 +10,14 @@
 - Register DeepSeek Harness through its native Cordis MCP plugin, preserving
   existing YAML and expressions. Add TRAE CLI 2.0 and MiMo Code through the
   shared TOML and OpenCode renderers, including their config-path overrides.
-- The CPU reranker no longer holds gigabytes after a search: its ONNX session runs
-  without ONNX Runtime's memory arena, and passages go in batches sized in tokens
-  (4096 per run: 32 at 128 tokens, 10 at 384), because attention grows with batch
-  times length squared. A pool of 400 read at 128 and then 384 tokens fell from
-  2.5 GB to about 0.45 GB, about a fifth slower; the order moves less than the
-  quantized model's own noise from batch composition (Spearman 0.9987 and 9 of the
-  top 10 against one batch of 200).
+- The CPU reranker no longer holds gigabytes after a search: ONNX Runtime's memory
+  arena shrinks after every run (its own run option), and passages go in batches
+  sized in tokens (4096 per run: 32 at 128 tokens, 10 at 384), because attention
+  grows with batch times length squared. A pool of 400 read at 128 tokens and then
+  its leaders at 384 peaked at 3.7 GB and now at about 0.45 GB, and it got faster
+  (7 to 11 s to 6 to 9 s; one padded batch was also the slowest). The order moves
+  less than the quantized model's own noise from batch composition (Spearman 0.9987
+  and 9 of the top 10 against one batch of 200).
 - Add a command line for research and setup: `search`, `info`, `related`,
   `authors`, `read`, `download` and `graph` call the same functions as the MCP
   tools; `install` registers Scholar in Pi, Claude Code, Claude Desktop, Codex,
