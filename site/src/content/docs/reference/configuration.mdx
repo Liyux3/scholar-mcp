@@ -46,6 +46,7 @@ The simplest place for keys is the global key file. `scholar-mcp keys set OPENAL
 | `SCHOLAR_GOOGLE_PROXY` | Dedicated Google Scholar proxy, other sources keep their existing route |
 | `SCHOLAR_GOOGLE_RECOVERY` | Google Scholar session recovery: `off`, `headless` or `headed` |
 | `SCHOLAR_GOOGLE_BROWSER` | Browser executable for recovery outside standard install locations |
+| `SCHOLAR_ACCESS_COMMAND` | Optional host access backend, a JSON command array, see [Host access](#host-access) |
 
 OpenReview's public submissions need no account.
 
@@ -72,7 +73,7 @@ OpenReview's public submissions need no account.
 
 ## Reranker
 
-Search ranks the first results, follows citations from the most relevant papers, then ranks every candidate again. With `DASHSCOPE_API_KEY` set, DashScope `qwen3-rerank` is used first. The `rerank` extra adds a local FlashRank model as the fallback. The recommended uvx configuration, the container and the desktop bundles include it, and it downloads on first use. It is a MiniLM model of about 30 MB, quick on an ordinary CPU, and on Apple silicon the same model runs on the GPU, about ten times faster (a GPU server that has torch installed uses CUDA the same way). It reads in two passes, the title and the start of each abstract for the whole pool, then the whole abstract for the leaders. On a GPU the leaders are read by a stronger model, GTE-ModernBERT (149M parameters, about 600 MB downloaded on first use), 300 of them instead of 100, which raised ranking quality (nDCG@10) on real Scholar searches by about a third. On a CPU alone MiniLM reads both passes and tells fine distinctions apart less well. Large pools are scored in batches within the service's document and token limits, never cut off at the batch size.
+With `DASHSCOPE_API_KEY` set, DashScope `qwen3-rerank` ranks every search. The `rerank` extra adds a local model that ranks when no cloud service is set or reachable. The recommended uvx configuration, the container and the desktop bundles include it, and it downloads on first use (about 30 MB) and runs quickly on an ordinary CPU. On Apple silicon, or a GPU server with torch and CUDA, it runs on the GPU and a stronger local model, about 600 MB on first use, reads the leading candidates, which ranks noticeably better than the CPU alone. Large pools are scored in batches within each service's limits, never cut off.
 
 ### Alibaba workspaces and regions
 
@@ -101,3 +102,13 @@ Scores must lie within `[0, 1]` and be comparable across batches, so raw logits 
 When the remote service cannot be reached, Scholar gives up after 10 seconds, ranks with the local model and does not retry the remote one for five minutes, so a dead service does not slow every search.
 
 To see which ranking model actually ran, read `scholar://status` or search once with `debug=true`. Both show the service, the model and the reason for any fallback.
+
+## Host access
+
+`SCHOLAR_ACCESS_COMMAND` names a program on your machine, as a JSON array such as `["/usr/local/bin/my-fetcher", "--quiet"]`, that fetches pages and files on Scholar's behalf through a browser or account you already use. Scholar starts it without a shell, writes one JSON request to its standard input and reads one JSON receipt from its standard output.
+
+```json
+{"op":"fetch","url":"https://example.org/resource","kind":"json","anonymous":true,"out":"/private/temp/response","timeout":30}
+```
+
+`kind` is `json`, `xml`, `html` or `pdf`. Write the response bytes to the absolute path in `out`. A success returns `ok: true` and may add `status`, `content_type` and `final_url`. A failure returns `ok: false` with an `error` object holding `code` and `detail`: `AUTH_REQUIRED` or `CHALLENGE` when access is blocked, `RATE_LIMITED` when the site asks to slow down (with an optional `retry_after` in seconds) and `TIMEOUT`. The program keeps its own browser and credentials; it does not grant subscriptions you do not have.

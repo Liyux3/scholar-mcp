@@ -17,6 +17,11 @@ export default defineConfig({
 				alt: '',
 			},
 			favicon: '/favicon.svg',
+			// W3C TDMRep: text and data mining is reserved under the license (EU 2019/790 Art. 4(3)).
+			head: [
+				{ tag: 'meta', attrs: { name: 'tdm-reservation', content: '1' } },
+				{ tag: 'meta', attrs: { name: 'tdm-policy', content: 'https://github.com/Liyux3/scholar-mcp/blob/main/LICENSE-ADDITIONAL.md' } },
+			],
 			disable404Route: true,
 			defaultLocale: 'root',
 			locales: {

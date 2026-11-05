@@ -46,6 +46,7 @@ description: 数据位置、数据源密钥、排序模型、连接方式和文�
 | `SCHOLAR_GOOGLE_PROXY` | 只给 Google Scholar 用的代理，其他数据源不受影响 |
 | `SCHOLAR_GOOGLE_RECOVERY` | Google Scholar 会话恢复：`off`、`headless` 或 `headed`（由你自己完成验证） |
 | `SCHOLAR_GOOGLE_BROWSER` | 浏览器装在非标准位置时，指定它的路径 |
+| `SCHOLAR_ACCESS_COMMAND` | 可选的主机访问程序，写成 JSON 命令数组，见[主机访问](#主机访问) |
 
 OpenReview 的公开投稿无需账号即可搜索。
 
@@ -72,7 +73,7 @@ OpenReview 的公开投稿无需账号即可搜索。
 
 ## 排序模型
 
-搜索先为第一轮结果排序，从最相关的几篇沿引用再找一轮，最后对全部候选重新排序。设置了 `DASHSCOPE_API_KEY` 时，首选 DashScope 的 `qwen3-rerank`。`rerank` 扩展附带一个本地 FlashRank 模型作为备选，推荐的 uvx 配置、容器镜像和桌面安装包均已包含，首次使用时下载。它是约 30 MB 的 MiniLM 模型，在普通 CPU 上很快；在 Apple 芯片上同一个模型会改用 GPU 运行，快约十倍（装了 torch 的 GPU 服务器也会这样用 CUDA）。它分两遍读，先只看标题和摘要开头给全部候选粗排，再把排在前面的论文连同完整摘要细读一遍重新排序。有 GPU 时，细读换成更强的 GTE-ModernBERT（1.49 亿参数，首次使用下载约 600 MB），细读前 300 篇而不是 100 篇，在真实的 Scholar 搜索上把排序质量（nDCG@10）提高了约三分之一。只有 CPU 时两遍都由 MiniLM 完成，区分细微差别的能力弱一些。候选较多时分批打分，每批都在服务允许的篇数和 token 之内，不会直接截断多余部分。
+设置了 `DASHSCOPE_API_KEY` 时，每次搜索都由 DashScope 的 `qwen3-rerank` 排序。`rerank` 扩展附带一个本地模型，在没有设置或连不上云端服务时排序。推荐的 uvx 配置、容器镜像和桌面安装包均已包含，首次使用时下载（约 30 MB），在普通 CPU 上也很快。在 Apple 芯片上，或装有 torch 和 CUDA 的 GPU 服务器上，它会改用 GPU 运行，并由一个更强的本地模型（首次使用下载约 600 MB）细读排在前面的候选，排序明显好于只用 CPU。候选较多时在服务允许的范围内分批打分，不会被截断。
 
 ### 阿里云业务空间和地域
 
@@ -101,3 +102,13 @@ Response: results: [{index, relevance_score}]
 远程服务无法连接时，Scholar 等待 10 秒即放弃，改用本地模型排序，五分钟内不再尝试远程，以免一个失效的服务拖慢每次搜索。
 
 要确认实际使用的排序模型，可读取 `scholar://status` 或加 `debug=true` 搜索一次，两者都会显示服务、模型，以及改用本地模型的原因。
+
+## 主机访问
+
+`SCHOLAR_ACCESS_COMMAND` 指定你本机上的一个程序，写成 JSON 数组，例如 `["/usr/local/bin/my-fetcher", "--quiet"]`。它借你已经在用的浏览器或账号替 Scholar 获取网页和文件。Scholar 不经过 shell 直接启动它，向它的标准输入写一条 JSON 请求，再从标准输出读回一条 JSON 回执。
+
+```json
+{"op":"fetch","url":"https://example.org/resource","kind":"json","anonymous":true,"out":"/private/temp/response","timeout":30}
+```
+
+`kind` 取 `json`、`xml`、`html` 或 `pdf`，响应内容写到 `out` 给出的绝对路径。成功时返回 `ok: true`，可附带 `status`、`content_type` 和 `final_url`。失败时返回 `ok: false` 和一个含 `code`、`detail` 的 `error` 对象：访问被拦用 `AUTH_REQUIRED` 或 `CHALLENGE`，对方要求放慢用 `RATE_LIMITED`（可附 `retry_after` 秒数），超时用 `TIMEOUT`。浏览器和凭据始终由这个程序自己保管，它也不会让你获得本来没有的订阅权限。
