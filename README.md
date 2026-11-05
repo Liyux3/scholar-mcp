@@ -14,7 +14,7 @@
   <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
   <a href="https://pypi.org/project/scholar-mcp"><img src="https://img.shields.io/pypi/v/scholar-mcp.svg?style=flat-square" alt="PyPI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-3D5946.svg?style=flat-square" alt="Apache 2.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-3D5946.svg?style=flat-square" alt="PolyForm Noncommercial 1.0.0 with additional terms"></a>
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@ Scholar MCP gives your AI agent a research library. It searches scholarly source
 
 ## 📰 News
 
-- November 2026, 0.9.0. `scholar-mcp install` sets Scholar up in 32 agents, one key file serves all of them, every source searches in its own lane, and `scholar-mcp doctor --network` checks every link.
+- November 2026, 0.9.0. `scholar-mcp install` sets Scholar up in 32 agents, one key file serves all of them, a slow source no longer holds up the others, and `scholar-mcp doctor --network` checks every link.
 - October 2026, 0.8.5. Google Scholar sessions recover on their own, and arXiv falls back to its own search when its API is down.
 
 ## 🚀 Get started
@@ -107,7 +107,7 @@ Every identifier Scholar returns, a paper URL, or an exact title can be passed b
   <img alt="Scholar MCP retrieval pipeline" src="docs/assets/retrieval-pipeline.svg">
 </picture>
 
-Semantic sources receive the whole question and keyword sources a compact query tuned per source. Each source answers in its own lane at the pace it allows, and a source that misses the first ranking still joins the final one. Records from OpenAlex, Semantic Scholar, arXiv, Crossref, OpenReview, PubMed, Europe PMC, DBLP, zbMATH, CORE, OpenAIRE, Google Scholar and others merge on shared DOIs, arXiv ids and titles, so each paper appears once with complementary metadata. A reranker (Qwen3 Rerank in the cloud, or a local model) orders the pool, the strongest matches pull in their citations and references, and the combined pool is ranked once more. The [architecture page](https://liyux3.github.io/scholar-mcp/architecture/) walks through each stage and the [backend film](https://liyux3.github.io/scholar-mcp/architecture/#film) follows one question through it in two and a half minutes.
+Your question goes to every source at once, in the form each one searches best, and no source holds up the others. Records from OpenAlex, Semantic Scholar, arXiv, Crossref, OpenReview, PubMed, Europe PMC, DBLP, zbMATH, CORE, OpenAIRE, Google Scholar and others merge on shared DOIs, arXiv ids and titles, so each paper appears once with complementary metadata. A ranking model, in the cloud or on your machine, orders the pool, the strongest papers bring in their citations and references, and everything is ranked together. The [architecture page](https://liyux3.github.io/scholar-mcp/architecture/) shows what each stage does for you and the [backend film](https://liyux3.github.io/scholar-mcp/architecture/#film) follows one question through it in two and a half minutes.
 
 <details>
 <summary>Runtime architecture</summary>
@@ -192,7 +192,7 @@ Scholar works without any keys. Optional keys add coverage and throughput. `scho
 | `S2_API_KEYS`, `OPENALEX_API_KEYS` | Comma-separated key pools |
 | `NCBI_API_KEY` | Higher PubMed E-utilities throughput for a configured NCBI account |
 | `SCHOLAR_GOOGLE_PROXY` | A dedicated Google Scholar proxy, or `direct` to bypass inherited proxies for this source |
-| `SCHOLAR_ACCESS_COMMAND` | Optional host access backend, a JSON command array; see [architecture](docs/ARCHITECTURE.md#host-access) |
+| `SCHOLAR_ACCESS_COMMAND` | Optional host access backend, a JSON command array; see [host access](https://liyux3.github.io/scholar-mcp/configuration/#host-access) |
 | `SCOPUS_API_KEY`, `CORE_API_KEY`, `EXA_API_KEY` | Optional Scopus, CORE and Exa sources |
 | `OPENAIRE_CLIENT_ID`, `OPENAIRE_CLIENT_SECRET` | A free registered OpenAIRE service: 7,200 requests an hour instead of 60 |
 | `ADS_API_TOKEN`, `SPRINGER_API_KEY`, `WOS_API_KEY`, `LENS_API_TOKEN` | Opt-in NASA ADS, Springer Nature, Web of Science Starter and Lens sources, each joining once its key is set |
@@ -244,7 +244,7 @@ uv sync --extra dev
 uv run pytest            # unit tests; live API tests run with -m integration
 ```
 
-A new source is one module in `scholar_mcp/sources/` plus one registry entry, and needs no new tool. `scholar-mcp doctor --network` probes every source, the ranking model and the PDF chain, and runs daily in CI. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the parts fit and [CONTRIBUTING.md](CONTRIBUTING.md) for changes, and report security issues through [SECURITY.md](SECURITY.md).
+A new source is one module in `scholar_mcp/sources/` plus one registry entry, and needs no new tool. `scholar-mcp doctor --network` probes every source, the ranking model and the PDF chain, and runs daily in CI. See [CONTRIBUTING.md](CONTRIBUTING.md) for changes, and report security issues through [SECURITY.md](SECURITY.md).
 
 ## 📝 Citation
 
@@ -257,12 +257,12 @@ If Scholar MCP supports your research, please cite it.
   year    = {2026},
   version = {0.9.0},
   url     = {https://github.com/Liyux3/scholar-mcp},
-  license = {Apache-2.0}
+  license = {PolyForm Noncommercial 1.0.0 with additional terms}
 }
 ```
 
 ## 📄 License
 
-Apache License 2.0. Reuse is welcome; keep the [NOTICE](NOTICE) file and credit Scholar MCP in what you build, whether a person or an AI agent did the copying.
+[PolyForm Noncommercial 1.0.0](LICENSE) with [additional terms](LICENSE-ADDITIONAL.md), source-available. Free for personal research, universities, research institutes, government and nonprofits; companies using Scholar in their work, products or services need a commercial license, write to liyuxian1358@gmail.com. Copying or porting its code into a competing project, and training models on its code or documentation, are not licensed; [AGENTS.md](AGENTS.md) tells coding agents the same and what to offer instead. If Scholar's ideas or results inform your work, please cite it. Releases 0.9.0 and earlier remain under Apache-2.0. See also [NOTICE](NOTICE).
 
 Bundled CPU reader weights are provided unchanged by [prithivida/FlashRank](https://huggingface.co/prithivida/flashrank) under CC-BY-SA-4.0, with their own attribution notice.

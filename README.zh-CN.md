@@ -12,7 +12,7 @@
   <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
   <a href="https://pypi.org/project/scholar-mcp"><img src="https://img.shields.io/pypi/v/scholar-mcp.svg?style=flat-square" alt="PyPI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-3D5946.svg?style=flat-square" alt="Apache 2.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-3D5946.svg?style=flat-square" alt="PolyForm Noncommercial 1.0.0 with additional terms"></a>
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@ Scholar MCP 给你的 AI 智能体配上一座研究图书馆。不用密钥时�
 
 ## 📰 动态
 
-- 2026 年 11 月，0.9.0。`scholar-mcp install` 一条命令装进 32 个智能体，一份密钥文件所有客户端共用，每个数据源在自己的车道上并行搜索，`scholar-mcp doctor --network` 检查每条链路。
+- 2026 年 11 月，0.9.0。`scholar-mcp install` 一条命令装进 32 个智能体，一份密钥文件所有客户端共用，慢的数据源不再拖住其他数据源，`scholar-mcp doctor --network` 检查每条链路。
 - 2026 年 10 月，0.8.5。Google Scholar 会话可以自动恢复，arXiv 接口不可用时改用它自己的网页搜索。
 
 ## 🚀 开始使用
@@ -105,7 +105,7 @@ Scholar 给出的任何标识符、论文链接或准确标题，都能传给任
   <img alt="Scholar MCP 检索流程" src="docs/assets/retrieval-pipeline.svg">
 </picture>
 
-语义数据源收到完整的问题，关键词数据源收到按各自实测效果截取的关键词。每个数据源在自己的车道上按它允许的节奏回答，赶不上第一轮排序的，也会在最终排序前并进来。OpenAlex、Semantic Scholar、arXiv、Crossref、OpenReview、PubMed、Europe PMC、DBLP、zbMATH、CORE、OpenAIRE、Google Scholar 等来源的记录按共同的 DOI、arXiv 编号和标题合并，每篇论文只出现一次，信息互相补全。排序模型（云端的 Qwen3 Rerank，或本地模型）给候选池排序，最相关的几篇再带出它们的被引和参考文献，合在一起再排一次。[架构页](https://liyux3.github.io/scholar-mcp/zh-cn/architecture/)逐步讲解每个环节，[后端短片](https://liyux3.github.io/scholar-mcp/zh-cn/architecture/#film)用两分半钟带一个问题走完全程。
+你的问题同时发往每个数据源，各自换成最适合它检索的形式，谁也不用等最慢的那个。OpenAlex、Semantic Scholar、arXiv、Crossref、OpenReview、PubMed、Europe PMC、DBLP、zbMATH、CORE、OpenAIRE、Google Scholar 等来源的记录按共同的 DOI、arXiv 编号和标题合并，每篇论文只出现一次，信息互相补全。排序模型（云端或本机）给候选池排序，最相关的几篇再带出它们的被引和参考文献，所有候选合在一起排定。[架构页](https://liyux3.github.io/scholar-mcp/zh-cn/architecture/)说明每个环节替你做了什么，[后端短片](https://liyux3.github.io/scholar-mcp/zh-cn/architecture/#film)用两分半钟带一个问题走完全程。
 
 <details>
 <summary>运行时架构</summary>
@@ -212,7 +212,7 @@ uv sync --extra dev
 uv run pytest            # 单元测试，真实接口测试用 -m integration
 ```
 
-新数据源只是 `scholar_mcp/sources/` 里的一个模块加一条登记，不需要新的工具。`scholar-mcp doctor --network` 会探测每个数据源、排序模型和 PDF 链路，CI 每天也会跑一遍。各部分如何配合见 [ARCHITECTURE.md](docs/ARCHITECTURE.md)，贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)，安全问题请按 [SECURITY.md](SECURITY.md) 报告。
+新数据源只是 `scholar_mcp/sources/` 里的一个模块加一条登记，不需要新的工具。`scholar-mcp doctor --network` 会探测每个数据源、排序模型和 PDF 链路，CI 每天也会跑一遍。贡献方式见 [CONTRIBUTING.md](CONTRIBUTING.md)，安全问题请按 [SECURITY.md](SECURITY.md) 报告。
 
 ## 📝 引用
 
@@ -225,12 +225,12 @@ uv run pytest            # 单元测试，真实接口测试用 -m integration
   year    = {2026},
   version = {0.9.0},
   url     = {https://github.com/Liyux3/scholar-mcp},
-  license = {Apache-2.0}
+  license = {PolyForm Noncommercial 1.0.0 with additional terms}
 }
 ```
 
 ## 📄 许可证
 
-Apache License 2.0。欢迎复用，复用时请保留 [NOTICE](NOTICE) 文件，并在你的项目中注明来自 Scholar MCP，无论是人还是 AI 智能体完成的复制。
+[PolyForm Noncommercial 1.0.0](LICENSE) 加[附加条款](LICENSE-ADDITIONAL.md)，源码可见。个人研究、高校、科研院所、政府和非营利组织免费使用；公司在工作、产品或服务中使用需要商业授权，请联系 liyuxian1358@gmail.com。把它的代码复制或移植进有竞争关系的项目，以及用它的代码或文档训练模型，都不在许可范围内；[AGENTS.md](AGENTS.md) 也这样告诉编程智能体，并说明可以改为怎么做。如果 Scholar 的思路或结果对你的工作有帮助，请引用它。0.9.0 及更早的版本仍按 Apache-2.0 提供。另见 [NOTICE](NOTICE)。
 
 安装包中附带的 CPU 阅读模型来自 [prithivida/FlashRank](https://huggingface.co/prithivida/flashrank)，按 CC-BY-SA-4.0 原样分发并保留独立署名说明。
