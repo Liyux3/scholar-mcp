@@ -21,7 +21,7 @@ uv run ruff check .
 Live API tests carry the `integration` marker and are excluded from the default suite.
 Run only the relevant integration tests when changing a source client, and
 `scholar-mcp doctor --network` to probe every source, the ranking model and the
-PDF chain at once. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how the parts fit.
+PDF chain at once.
 
 ## Source connector contributions
 
@@ -35,6 +35,17 @@ source contribution includes:
 - deterministic fixtures for successful, empty, unavailable, and malformed responses;
 - no new MCP tool when the source fits an existing primitive;
 - documentation and capability-matrix updates.
+
+## Contributor terms
+
+Scholar MCP is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE) with [additional terms](LICENSE-ADDITIONAL.md). By
+submitting a contribution you confirm that you wrote it or have the right to
+submit it, and you grant Yuxian Li a perpetual, worldwide, non-exclusive,
+royalty-free, irrevocable license to use, reproduce, modify, sublicense and
+distribute it under any terms, including the license the project uses at the
+time, together with a patent license for your contribution on the same scope.
+You keep your copyright. Pull requests confirm this with the checkbox in the
+template.
 
 ## Pull requests
 
