@@ -545,7 +545,7 @@ def _search_candidates(query: str, limit: int, year: str = "", venue: str = "", 
                        paper_types: str = "", min_citations: int = 0, open_access_only: bool = False,
                        intent: str = "balanced") -> tuple[list[dict], list[dict]]:
     """Every eligible candidate of a search, ranked, before the result list is cut:
-    what search_papers shows the top of, and what the scenario benchmark freezes."""
+    what search_papers shows the top of."""
     fos_list = [f.strip() for f in fields_of_study.split(",") if f.strip()] if fields_of_study else None
     type_list = [t.strip() for t in paper_types.split(",") if t.strip()] if paper_types else None
     # Keyword compression runs inside its source lanes. Semantic sources can

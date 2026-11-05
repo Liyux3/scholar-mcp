@@ -105,9 +105,8 @@ class Source:
     # Optional probe for sources whose semantic mode can degrade at runtime.
     # Returning False makes the registry route compressed queries instead.
     semantic_available: Callable | None = None
-    # Some keyword endpoints have a measured source-specific optimum. When
-    # set, derive that many terms from the original question instead of using
-    # the shared six-word compromise.
+    # Some keyword endpoints want a source-specific number of terms, derived from
+    # the original question instead of the shared default.
     keyword_words: int | None = None
     # Sources that serve only some searches say which: called with the search
     # intent and the query text, False keeps the source out at no cost.
