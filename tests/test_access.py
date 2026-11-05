@@ -393,3 +393,50 @@ def test_google_browser_output_rejects_other_origins_and_existing_paths(tmp_path
     existing.touch()
     with pytest.raises(ValueError, match="new absolute"):
         scholar_session._bootstrap("query", None, target=google_scholar.SCHOLAR_URL, out=str(existing))
+
+
+def test_a_failed_connection_is_reported_unreachable_instead_of_waited_on(monkeypatch):
+    attempts = []
+    def dead(url, **kw):
+        attempts.append(kw['timeout'])
+        raise httpx.ConnectTimeout('no route', request=httpx.Request('GET', url))
+    monkeypatch.setattr(httpx, 'get', dead)
+    with pytest.raises(httpx.ConnectTimeout):
+        access.get('https://down.test/search', timeout=30)
+    assert attempts[0].connect == access.CONNECT_TIMEOUT and attempts[0].read == 30
+    with pytest.raises(httpx.ConnectError, match='unreachable'):
+        access.get('https://down.test/other')
+    assert len(attempts) == 1 and access.unreachable('down.test') > 0
+    access._mark_unreachable('down.test')
+    assert access._down_state('down.test')[1] == 1
+    assert access.unreachable('other.test') == 0
+
+
+def test_an_unreachable_host_is_tried_again_after_its_window(monkeypatch):
+    monkeypatch.setattr(httpx, 'get', lambda url, **kw: (_ for _ in ()).throw(httpx.ConnectTimeout('no route')))
+    with pytest.raises(httpx.ConnectTimeout):
+        access.get('https://down.test/search')
+    first = access.unreachable('down.test')
+    access._down_file('down.test').write_text(f"{time.time() - 1} 1")
+    with pytest.raises(httpx.ConnectTimeout):
+        access.get('https://down.test/search')
+    assert first <= access.UNREACHABLE_S < access.unreachable('down.test') <= 2 * access.UNREACHABLE_S
+    access._down_file('down.test').write_text(f"{time.time() - 1} 2")
+    monkeypatch.setattr(httpx, 'get', lambda url, **kw: httpx.Response(200, json={'back': True}, request=httpx.Request('GET', url)))
+    assert access.get('https://down.test/search').json() == {'back': True}
+    assert not access._down_file('down.test').exists()
+
+
+def test_a_slow_server_and_a_working_host_route_are_never_marked(monkeypatch):
+    monkeypatch.setattr(httpx, 'get', lambda url, **kw: (_ for _ in ()).throw(httpx.ReadTimeout('slow')))
+    with pytest.raises(httpx.ReadTimeout):
+        access.get('https://slow.test/search')
+    monkeypatch.setattr(httpx, 'get', lambda url, **kw: (_ for _ in ()).throw(httpx.ConnectError('refused')))
+    with pytest.raises(httpx.ConnectError):
+        access.get('https://refused.test/search')
+    assert access.unreachable('slow.test') == 0 and access.unreachable('refused.test') == 0
+    monkeypatch.setenv('SCHOLAR_ACCESS_COMMAND', '["host"]')
+    calls = host(monkeypatch, body=b'{"records": [1]}')
+    monkeypatch.setattr(httpx, 'get', lambda url, **kw: (_ for _ in ()).throw(httpx.ConnectTimeout('no route')))
+    assert access.get('https://routed.test/search').json()['records'] == [1]
+    assert len(calls) == 1 and access.unreachable('routed.test') == 0

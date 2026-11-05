@@ -45,6 +45,63 @@ def _native_get(url, **kwargs):
     return client.get(url, **kwargs)
 
 
+# A reachable API finishes TCP and TLS well within CONNECT_TIMEOUT. A host whose
+# connection timed out, natively and through the host route, is reported
+# unreachable across processes instead of holding every search for its full
+# timeout. The first request after the window tries again; the window starts at
+# UNREACHABLE_S and doubles with each consecutive failure up to UNREACHABLE_MAX_S,
+# and a successful connection clears it. A refused
+# connection already fails at once, and slow but connected servers keep their read
+# timeout; neither is marked.
+CONNECT_TIMEOUT = 10.0
+UNREACHABLE_S = 120.0
+UNREACHABLE_MAX_S = 1800.0
+
+
+def _down_file(host: str) -> Path:
+    from .sources import pacing
+    return pacing.state_dir() / f"host-{host}.down"
+
+
+def _down_state(host: str) -> tuple[float, int]:
+    try:
+        until, failures = _down_file(host).read_text().split()
+        return float(until), int(failures)
+    except (OSError, ValueError):
+        return 0.0, 0
+
+
+def unreachable(host: str) -> float:
+    """Seconds until a host whose connection recently timed out is tried again."""
+    return max(0.0, _down_state(host)[0] - time.time())
+
+
+def _mark_unreachable(host: str) -> None:
+    until, failures = _down_state(host)
+    if until > time.time():
+        return  # concurrent requests of one outage count once
+    failures += 1
+    path = _down_file(host)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        window = min(UNREACHABLE_S * 2 ** (failures - 1), UNREACHABLE_MAX_S)
+        path.write_text(f"{time.time() + window} {failures}")
+    except OSError:
+        pass
+
+
+def _mark_reachable(host: str) -> None:
+    _down_file(host).unlink(missing_ok=True)
+
+
+def _connect_capped(timeout):
+    if isinstance(timeout, httpx.Timeout):
+        connect = timeout.connect
+        return timeout if connect is not None and connect <= CONNECT_TIMEOUT else httpx.Timeout(
+            connect=CONNECT_TIMEOUT, read=timeout.read, write=timeout.write, pool=timeout.pool)
+    return httpx.Timeout(timeout, connect=min(float(timeout), CONNECT_TIMEOUT)) if timeout else timeout
+
+
 def preferred(url: str) -> bool:
     """A recently recovered public host can reuse its working route directly."""
     return available() and time.monotonic() < _host_until.get(httpx.URL(url).host, 0)
@@ -67,6 +124,11 @@ def get(url: str, *, kind: str = "json", client=None, host_recovery: bool = True
     can_recover = host_recovery and available() and not credentialed
     timeout = kwargs.get("timeout", getattr(client, "timeout", 30))
     budget = float(timeout.read or 30) if isinstance(timeout, httpx.Timeout) else float(timeout or 30)
+    kwargs["timeout"] = _connect_capped(timeout)
+    host = httpx.URL(target).host
+    if wait := unreachable(host):
+        raise httpx.ConnectError(f"{host} is unreachable: its last connection failed; next try in {wait:.0f} s",
+                                 request=httpx.Request("GET", target))
     def recover():
         try:
             return fetch(target, kind=kind, timeout=budget)
@@ -85,10 +147,21 @@ def get(url: str, *, kind: str = "json", client=None, host_recovery: bool = True
             host_failed = True
     try:
         response = (client.get if client else _native_get)(url, **kwargs)
+    except httpx.ConnectTimeout:
+        if not can_recover or host_failed:
+            _mark_unreachable(host)
+            raise
+        try:
+            return recover()
+        except (AccessError, httpx.HTTPError):
+            _mark_unreachable(host)
+            raise
     except httpx.TransportError:
         if not can_recover or host_failed:
             raise
         return recover()
+    if _down_state(host)[1]:
+        _mark_reachable(host)
     if can_recover and not host_failed:
         html = "text/html" in response.headers.get("content-type", "").casefold() or response.text.lstrip().lower().startswith(("<!doctype html", "<html"))
         challenge = html and is_challenge(response.text)
