@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
-  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZmluZC1saW5rcyIsImh0dHBzOi8vZ2l0aHViLmNvbS9MaXl1eDMvc2Nob2xhci1tY3AvcmVsZWFzZXMvZG93bmxvYWQvdjAuOS4wL3doZWVsLWluZGV4Lmh0bWwiLCItLWZyb20iLCJzY2hvbGFyLW1jcFtyZXJhbmtdPT0wLjkuMCIsInNjaG9sYXItbWNwIl0sImVudiI6eyJTQ0hPTEFSX01DUF9FWFRFTlNJT05TIjoicmVzZWFyY2gifX19"><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
-  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.9.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.9.0%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
+  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.10.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.10.0%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
+  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZmluZC1saW5rcyIsImh0dHBzOi8vZ2l0aHViLmNvbS9MaXl1eDMvc2Nob2xhci1tY3AvcmVsZWFzZXMvZG93bmxvYWQvdjAuMTAuMC93aGVlbC1pbmRleC5odG1sIiwiLS1mcm9tIiwic2Nob2xhci1tY3BbcmVyYW5rXT09MC4xMC4wIiwic2Nob2xhci1tY3AiXSwiZW52Ijp7IlNDSE9MQVJfTUNQX0VYVEVOU0lPTlMiOiJyZXNlYXJjaCJ9fX0="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
+  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.10.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.10.0%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
   <a href="https://pypi.org/project/scholar-mcp"><img src="https://img.shields.io/pypi/v/scholar-mcp.svg?style=flat-square" alt="PyPI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-3D5946.svg?style=flat-square" alt="PolyForm Noncommercial 1.0.0 with additional terms"></a>
@@ -30,6 +30,7 @@ Scholar MCP gives your AI agent a research library. It searches scholarly source
 
 ## 📰 News
 
+- November 2026, 0.10.0. Searches no longer wait on a source whose connection hangs, OpenAlex's daily allowance lasts about four times as long, and Scholar is free for research and education under PolyForm Noncommercial, with commercial licenses for companies.
 - November 2026, 0.9.0. `scholar-mcp install` sets Scholar up in 32 agents, one key file serves all of them, a slow source no longer holds up the others, and `scholar-mcp doctor --network` checks every link.
 - October 2026, 0.8.5. Google Scholar sessions recover on their own, and arXiv falls back to its own search when its API is down.
 
@@ -255,7 +256,7 @@ If Scholar MCP supports your research, please cite it.
   author  = {Li, Yuxian},
   title   = {Scholar MCP},
   year    = {2026},
-  version = {0.9.0},
+  version = {0.10.0},
   url     = {https://github.com/Liyux3/scholar-mcp},
   license = {PolyForm Noncommercial 1.0.0 with additional terms}
 }

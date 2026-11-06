@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.10.0
+
+- New terms from this release: Scholar MCP is source-available under the PolyForm
+  Noncommercial License 1.0.0 with additional terms. Personal research,
+  universities, research institutes, government and nonprofits use it free of
+  charge; companies need a commercial license (liyuxian1358@gmail.com). Building a
+  competing tool from its code, and training models on its code or documentation,
+  are not licensed. Releases 0.9.0 and earlier remain Apache-2.0.
+- A source whose connection hangs no longer holds up searches: connections get at
+  most 10 seconds, and a host that cannot be reached is skipped for a while and
+  then tried again.
+- OpenAlex's daily allowance lasts about four times as long, because the
+  citation-following step no longer spends it on seed titles.
+- AGENTS.md tells coding agents the terms and what to offer instead, and the
+  documentation describes what each stage does for you.
+
 ## 0.9.0
 
 - Use Pi's native MCP configuration and agent-directory override, with the
