@@ -47,6 +47,11 @@ time, together with a patent license for your contribution on the same scope.
 You keep your copyright. Pull requests confirm this with the checkbox in the
 template.
 
+The terms themselves are not open to contribution. Pull requests that change
+LICENSE, LICENSE-ADDITIONAL.md, NOTICE, AGENTS.md, CLAUDE.md, GEMINI.md,
+CITATION.cff, context7.json or a source file's license header are closed by an
+automatic check; open an issue to discuss them instead.
+
 ## Pull requests
 
 Include the problem, the chosen mechanism, user-visible effects, exact validation

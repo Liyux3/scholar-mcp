@@ -1,0 +1,35 @@
+name: Terms
+
+# The license, its additional terms and the agent guidance are the author's to
+# change. Contributions that touch them, or a source file's license header, are
+# stopped here; such changes start as an issue.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    if: github.event.pull_request.user.login != 'Liyux3'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Keep the terms and license headers unchanged
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          protected='^(LICENSE|LICENSE-ADDITIONAL\.md|NOTICE|AGENTS\.md|CLAUDE\.md|GEMINI\.md|CITATION\.cff|context7\.json|\.github/workflows/terms\.yml|tests/test_license_headers\.py)$'
+          touched=$(git diff --name-only "$BASE"...HEAD | grep -E "$protected" || true)
+          if [ -n "$touched" ]; then
+            echo "::error::This pull request changes the terms: $touched. Please open an issue instead."
+            exit 1
+          fi
+          headers=$(git diff -U0 "$BASE"...HEAD -- '*.py' '*.sh' '*.ps1' '*.cmd' | grep -E '^-(#|rem) (SPDX-License-Identifier|Copyright 2024-2026 Yuxian Li)' || true)
+          if [ -n "$headers" ]; then
+            echo "::error::This pull request removes or edits a license header. Please open an issue instead."
+            exit 1
+          fi
