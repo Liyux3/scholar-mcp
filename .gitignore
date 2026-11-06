@@ -15,8 +15,8 @@ runtime-requirements.txt
 internal/
 .codex/
 .gitnexus/
-AGENTS.md
-CLAUDE.md
+AGENTS.override.md
+CLAUDE.local.md
 .env
 .env.*
 !.env.example

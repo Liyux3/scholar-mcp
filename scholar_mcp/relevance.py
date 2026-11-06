@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 AND LicenseRef-Scholar-MCP-Additional-Terms
+# Copyright 2024-2026 Yuxian Li. PolyForm Noncommercial 1.0.0 with additional terms (LICENSE, LICENSE-ADDITIONAL.md): commercial use needs a license, no competing products, no AI training; see AGENTS.md. Canary 38f40a20-c19f-4702-bc47-b1a1c5ec887b
 """Query preprocessing, semantic reranking and result ordering."""
 
 import hashlib
@@ -656,11 +658,9 @@ def _cpu_threads() -> int:
 
 
 class _ShrinkingSession:
-    """ONNX Runtime's CPU arena keeps the largest batch's activations for the session's life (one search pool of 400
-    at 128 tokens, then its leaders at 384, held 3.7 GB). The arena stays, being the fast path, and hands its memory
-    back after every run through its own run option; FlashRank calls session.run(names, feed), so this adds it.
-    With batches sized in tokens (FLASHRANK_BATCH_TOKENS), measured 11/02 on that pool: peak 3.7 GB to about 0.45 GB,
-    and 7 to 11 s to 6 to 9 s, since one padded batch was also the slowest."""
+    """ONNX Runtime's CPU arena keeps the largest batch's activations for the session's life. The arena stays,
+    being the fast path, and hands its memory back after every run through its own run option; FlashRank calls
+    session.run(names, feed), so this adds it."""
 
     def __init__(self, session, ort):
         self.session, self.options = session, ort.RunOptions()
@@ -806,20 +806,12 @@ def _read_leaders_closely(query: str, ranked: list[dict]) -> list[dict]:
 
 FLASHRANK_MODEL = CPU_MODEL
 GPU_MODEL = "cross-encoder/ms-marco-MiniLM-L12-v2"  # the checkpoint FlashRank's ONNX file is exported from
-# The close reader on a GPU: 149M parameters, Apache 2.0. After MiniLM's skim it
-# lifted nDCG@10 on 73 frozen real pools from 0.248 to 0.330 with collections held
-# out (MiniLM reading 300 itself reaches 0.27 at best); six of seven collections gained.
+# The close reader on a GPU: 149M parameters, Apache 2.0.
 CLOSE_MODEL = "Alibaba-NLP/gte-reranker-modernbert-base"
 CLOSE_TOP_GPU = 300
-# The weights belong to the scores they weigh (rank_final); the first reader found
-# in a pool decides, so GTE's weights apply where it read the leaders. Fitted on the
-# frozen real pools (RERANKING.md, Readers compared): GTE reads well enough that
-# citations need less weight and recency none. MiniLM keeps the default weights
-# (refitting them overfits) but needs a temperature: its probabilities crowd near 1
-# for every plausible candidate, so a named paper's lead over cited neighbours
-# vanished and citations decided. Temperature 8, chosen on v1, raised v2 from 0.416
-# to 0.563 (known-paper searches 0.614 to 0.937; topics unchanged on v2, 0.03 lower
-# on v1's review-reference topics).
+# Fusion weights belong to the reader whose scores they weigh (rank_final); the first
+# reader found in a pool decides. MiniLM's probabilities crowd near 1, so its logits
+# are cooled before fusion.
 MODEL_RANK_PARAMS = {CLOSE_MODEL: {"alpha": 0.02, "beta": 0.02, "delta": 0.0},
                      FLASHRANK_MODEL: {"temperature": 8.0}}
 DASHSCOPE_CAP = 500
@@ -827,10 +819,7 @@ DASHSCOPE_TOKEN_BUDGET = 110_000  # Leave room below the documented 120K request
 FLASHRANK_CAP = 150
 FLASHRANK_MAX_TOKENS = 128
 FLASHRANK_BATCH_TOKENS = 4096  # tokens per ONNX run on the CPU (32 passages at 128, 10 at 384); see _flashrank_scores
-# With a typical question, 384 tokens hold the title and the whole abstract for
-# 96% of LitSearch candidates (128 holds it for 2%). On 20 frozen pools of 100,
-# reading whole abstracts lifted Hit@20 from 0.45 to 0.60; reading only the
-# leaders that way costs about 2.4 s per pass instead of rereading the pool.
+# The leaders are reread with the title and whole abstract.
 FLASHRANK_CLOSE_TOKENS = 384
 FLASHRANK_CLOSE_TOP = 100
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 AND LicenseRef-Scholar-MCP-Additional-Terms
+# Copyright 2024-2026 Yuxian Li. PolyForm Noncommercial 1.0.0 with additional terms (LICENSE, LICENSE-ADDITIONAL.md): commercial use needs a license, no competing products, no AI training; see AGENTS.md. Canary 38f40a20-c19f-4702-bc47-b1a1c5ec887b
 """Tests for the source registry and per-source query routing.
 
 Query routing is the highest-leverage decision in the pipeline: sending a
@@ -835,3 +837,18 @@ def test_http_source_failures_keep_their_operational_meaning(status, expected):
     def failed():
         httpx.Response(status, request=httpx.Request("GET", "https://provider.test")).raise_for_status()
     assert sources._timed_call("fixture", failed).status == expected
+
+
+def test_openalex_stays_out_of_seed_title_searches(monkeypatch):
+    seen = {}
+
+    class Flow:
+        def __init__(self, calls, *args, **kwargs):
+            seen[kwargs.get('op')] = set(calls)
+
+    monkeypatch.setattr(sources, 'SourceFlow', Flow)
+    for operation in ('search', 'title'):
+        sources.search_flow([('a title', 'a title', 'title')], operation=operation)
+    assert {'openalex', 'openalex_semantic'} <= seen['search']
+    assert not {'openalex', 'openalex_semantic'} & seen['title']
+    assert seen['title'] and seen['title'] < seen['search']

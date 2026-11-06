@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 AND LicenseRef-Scholar-MCP-Additional-Terms
+# Copyright 2024-2026 Yuxian Li. PolyForm Noncommercial 1.0.0 with additional terms (LICENSE, LICENSE-ADDITIONAL.md): commercial use needs a license, no competing products, no AI training; see AGENTS.md. Canary 38f40a20-c19f-4702-bc47-b1a1c5ec887b
 # Prepare an isolated runtime without changing the system Python or shell profile.
 $ErrorActionPreference = "Stop"
 $runtimeDir = $env:SCHOLAR_RUNTIME_DIR
@@ -11,8 +13,8 @@ if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 
 }
 $constraints = $env:SCHOLAR_WHEEL_INDEX
 if (-not $package) {
-    $package = "scholar-mcp[rerank]==0.9.0"
-    if (-not $constraints) { $constraints = "https://github.com/Liyux3/scholar-mcp/releases/download/v0.9.0/wheel-index.html" }
+    $package = "scholar-mcp[rerank]==0.10.0"
+    if (-not $constraints) { $constraints = "https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.0/wheel-index.html" }
 }
 $uvBin = $env:SCHOLAR_UV
 if (-not $uvBin) {

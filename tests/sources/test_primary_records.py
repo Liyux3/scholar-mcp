@@ -1,10 +1,12 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 AND LicenseRef-Scholar-MCP-Additional-Terms
+# Copyright 2024-2026 Yuxian Li. PolyForm Noncommercial 1.0.0 with additional terms (LICENSE, LICENSE-ADDITIONAL.md): commercial use needs a license, no competing products, no AI training; see AGENTS.md. Canary 38f40a20-c19f-4702-bc47-b1a1c5ec887b
 """Native specialist records keep their meaning through lookup, ranking and storage."""
 
 import httpx
 import pytest
 
 from scholar_mcp import knowledge_base as kb
-from scholar_mcp import access, metadata, pdf_utils, relevance, server, sources
+from scholar_mcp import access, config, metadata, pdf_utils, relevance, server, sources
 from scholar_mcp import records as record_ops
 from scholar_mcp.sources import clinicaltrials, courtlistener, eric, openedition
 
@@ -32,6 +34,7 @@ def test_eric_requests_venue_and_native_doi_fields(monkeypatch):
 
 
 def test_court_cluster_identity_and_judges_are_not_article_authors(monkeypatch):
+    monkeypatch.setattr(config, 'COURTLISTENER_API_TOKEN', 'test-token')
     def inspect(kwargs):
         assert kwargs['params']['q'] == 'cluster_id:5010564'
     reply(monkeypatch, {'results': [{'cluster_id': 5010564, 'caseName': 'Kilgo v. Smith',
@@ -163,6 +166,7 @@ def test_specialist_sources_route_only_to_their_research_task(name, text, unrela
 
 
 def test_native_lookup_failure_is_visible_and_never_queries_unrelated_indexes(monkeypatch):
+    monkeypatch.setattr(config, 'COURTLISTENER_API_TOKEN', 'test-token')
     source = sources.get('courtlistener')
     def unavailable(identifier):
         raise httpx.ConnectError('provider unavailable')
@@ -190,3 +194,9 @@ def test_different_primary_records_do_not_absorb_article_identity_or_human_notes
     assert kb.get_paper('ClinicalTrials:NCT03036124')['notes'] == 'Human trial notes'
     assert kb.get_paper('PMID:31535829')['notes'] == 'Human article notes'
     assert kb.get_paper(trial['title']) is None  # An ambiguous title cannot select whose notes to edit.
+
+
+def test_a_keyed_record_without_its_key_names_the_missing_key(monkeypatch):
+    monkeypatch.setattr(config, 'COURTLISTENER_API_TOKEN', '')
+    out = server.paper_info('CourtListener:5010564')
+    assert 'courtlistener needs an API key' in out['error'] and 'keys set' in out['hint']

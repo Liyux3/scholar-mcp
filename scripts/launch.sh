@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 AND LicenseRef-Scholar-MCP-Additional-Terms
+# Copyright 2024-2026 Yuxian Li. PolyForm Noncommercial 1.0.0 with additional terms (LICENSE, LICENSE-ADDITIONAL.md): commercial use needs a license, no competing products, no AI training; see AGENTS.md. Canary 38f40a20-c19f-4702-bc47-b1a1c5ec887b
 # Prepare an isolated runtime without changing the system Python or shell profile.
 set -eu
 umask 077
@@ -9,10 +11,10 @@ case "$(uname -s)" in
 esac
 
 runtime_dir="${SCHOLAR_RUNTIME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/scholar-mcp/runtime}"
-package="${SCHOLAR_PACKAGE:-scholar-mcp[rerank]==0.9.0}"
+package="${SCHOLAR_PACKAGE:-scholar-mcp[rerank]==0.10.0}"
 constraints="${SCHOLAR_WHEEL_INDEX:-}"
 if [ -z "${SCHOLAR_PACKAGE:-}" ]; then
-  constraints="${constraints:-https://github.com/Liyux3/scholar-mcp/releases/download/v0.9.0/wheel-index.html}"
+  constraints="${constraints:-https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.0/wheel-index.html}"
 fi
 uv_bin="${SCHOLAR_UV:-}"
 if [ -z "$uv_bin" ]; then

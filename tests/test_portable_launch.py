@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 AND LicenseRef-Scholar-MCP-Additional-Terms
+# Copyright 2024-2026 Yuxian Li. PolyForm Noncommercial 1.0.0 with additional terms (LICENSE, LICENSE-ADDITIONAL.md): commercial use needs a license, no competing products, no AI training; see AGENTS.md. Canary 38f40a20-c19f-4702-bc47-b1a1c5ec887b
 """Launcher contracts without changing the developer's Python or uv installation."""
 import json
 import os
@@ -17,10 +19,10 @@ def test_launcher_preserves_arguments_and_uses_managed_python(tmp_path):
     stub.write_text(f'#!{sys.executable}\nimport sys,json\nprint(json.dumps(sys.argv[1:]))\n')
     stub.chmod(0o700)
     result = subprocess.run(["sh", str(ROOT / "scripts/launch.sh"), "sources", "--query", "a query with spaces"],
-                            env={**os.environ, "SCHOLAR_UV": str(stub), "SCHOLAR_PACKAGE": "scholar-mcp[rerank]==0.9.0"},
+                            env={**os.environ, "SCHOLAR_UV": str(stub), "SCHOLAR_PACKAGE": "scholar-mcp[rerank]==0.10.0"},
                             text=True, capture_output=True, check=True)
     assert json.loads(result.stdout) == ["tool", "run", "--no-config", "--managed-python", "--python", "3.12",
-                                       "--from", "scholar-mcp[rerank]==0.9.0", "scholar-mcp", "sources", "--query", "a query with spaces"]
+                                       "--from", "scholar-mcp[rerank]==0.10.0", "scholar-mcp", "sources", "--query", "a query with spaces"]
 
 
 def test_windows_launcher_uses_the_same_runtime_contract():

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 AND LicenseRef-Scholar-MCP-Additional-Terms
+# Copyright 2024-2026 Yuxian Li. PolyForm Noncommercial 1.0.0 with additional terms (LICENSE, LICENSE-ADDITIONAL.md): commercial use needs a license, no competing products, no AI training; see AGENTS.md. Canary 38f40a20-c19f-4702-bc47-b1a1c5ec887b
 """Source registry for academic search APIs.
 
 Each source registers its capabilities (search, citations, references, paper lookup).
@@ -103,13 +105,16 @@ class Source:
     # Optional probe for sources whose semantic mode can degrade at runtime.
     # Returning False makes the registry route compressed queries instead.
     semantic_available: Callable | None = None
-    # Some keyword endpoints have a measured source-specific optimum. When
-    # set, derive that many terms from the original question instead of using
-    # the shared six-word compromise.
+    # Some keyword endpoints want a source-specific number of terms, derived from
+    # the original question instead of the shared default.
     keyword_words: int | None = None
     # Sources that serve only some searches say which: called with the search
     # intent and the query text, False keeps the source out at no cost.
     applies: Callable[[str, str], bool] | None = None
+    # Seed-title searches go to every source that serves them. A source whose
+    # daily budget is spent per search request can stay out of them, keeping
+    # that budget for the first searches of the day's questions.
+    serves_titles: bool = True
     # Native namespaces have one authoritative getter and their own health fixture.
     id_pattern: str = ''
     probe_query: str = ''
@@ -163,6 +168,12 @@ def get(name: str) -> Source | None:
 
 def native_source(identifier: str) -> Source | None:
     return next((source for source in _registry.values() if source.id_pattern and source.available()
+                 and re.fullmatch(source.id_pattern, identifier)), None)
+
+
+def keyed_source(identifier: str) -> Source | None:
+    """The native namespace of a source that needs a key that is not set."""
+    return next((source for source in _registry.values() if source.id_pattern and not source.available()
                  and re.fullmatch(source.id_pattern, identifier)), None)
 
 
@@ -494,7 +505,8 @@ def search_flow(queries: list[tuple[str, str, str]], limit: int = 100, budget_s:
     wanted = set(record_ops.normalize_publication_types(kwargs.get('publication_types')))
     text = ' '.join([*(raw or keyword for keyword, raw, _ in queries), ' '.join(sorted(wanted)),
                      str(kwargs.get('fields_of_study') or '')])
-    registered = [s for s in search_sources() if s.applies is None or s.applies(intent, text)]
+    registered = [s for s in search_sources() if (s.applies is None or s.applies(intent, text))
+                  and (operation != 'title' or s.serves_titles)]
     primary = {kind for source in all_sources() for kind in source.primary_types}
     if wanted and wanted <= primary:
         registered = [source for source in registered if wanted.intersection(source.primary_types)]
@@ -635,6 +647,8 @@ def _register_defaults():
                     id_pattern=eric.ID_PATTERN, probe_query='literacy tutoring', probe_id='ERIC:EJ1489919'))
     register(Source(name='courtlistener', search=courtlistener.search_papers, get_paper=courtlistener.get_paper,
                     priority=35, group='discipline', domains=['US case law'], applies=courtlistener.applies,
+                    # Its API answers 401 without a token, so keyless installs skip it.
+                    requires_key=True, key_available=lambda: bool(config.COURTLISTENER_API_TOKEN),
                     query_style=QUERY_RAW,
                     primary_types=('CourtDecision',),
                     id_pattern=courtlistener.ID_PATTERN, probe_query='algorithmic discrimination', probe_id='CourtListener:5010564'))
@@ -665,6 +679,7 @@ def _register_defaults():
         get_references=openalex.get_references,
         get_paper=openalex.get_paper_by_id,
         priority=80,
+        serves_titles=False,
     ))
 
     register(Source(
@@ -681,6 +696,7 @@ def _register_defaults():
         search=lambda q, limit, **kw: openalex.search_papers_semantic(q, limit=min(limit, 50), **kw),
         priority=75,
         query_style=QUERY_RAW,
+        serves_titles=False,
     ))
 
     register(Source(

@@ -1,7 +1,7 @@
 ---
 name: deep-research
 description: Conduct evidence-grounded literature reviews and technical field investigations with Scholar MCP. Use for iterative academic search, multi-paper claim verification, frontier mapping, benchmark comparison, or citation lineage tracing. Route ordinary paper lookup directly to Scholar MCP.
-license: Apache-2.0
+license: PolyForm-Noncommercial-1.0.0 AND LicenseRef-Scholar-MCP-Additional-Terms
 ---
 
 # Deep Research

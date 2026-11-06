@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.10.0
+
+- New terms from this release: Scholar MCP is source-available under the PolyForm
+  Noncommercial License 1.0.0 with additional terms. Personal research,
+  universities, research institutes, government and nonprofits use it free of
+  charge; companies need a commercial license (liyuxian1358@gmail.com). Building a
+  competing tool from its code, and training models on its code or documentation,
+  are not licensed. Releases 0.9.0 and earlier remain Apache-2.0.
+- A source whose connection hangs no longer holds up searches: connections get at
+  most 10 seconds, and a host that cannot be reached is skipped for a while and
+  then tried again.
+- OpenAlex's daily allowance lasts about four times as long, because the
+  citation-following step no longer spends it on seed titles.
+- AGENTS.md tells coding agents the terms and what to offer instead, and the
+  documentation describes what each stage does for you.
+
 ## 0.9.0
 
 - Use Pi's native MCP configuration and agent-directory override, with the
@@ -10,14 +26,8 @@
 - Register DeepSeek Harness through its native Cordis MCP plugin, preserving
   existing YAML and expressions. Add TRAE CLI 2.0 and MiMo Code through the
   shared TOML and OpenCode renderers, including their config-path overrides.
-- The CPU reranker no longer holds gigabytes after a search: ONNX Runtime's memory
-  arena shrinks after every run (its own run option), and passages go in batches
-  sized in tokens (4096 per run: 32 at 128 tokens, 10 at 384), because attention
-  grows with batch times length squared. A pool of 400 read at 128 tokens and then
-  its leaders at 384 peaked at 3.7 GB and now at about 0.45 GB, and it got faster
-  (7 to 11 s to 6 to 9 s; one padded batch was also the slowest). The order moves
-  less than the quantized model's own noise from batch composition (Spearman 0.9987
-  and 9 of the top 10 against one batch of 200).
+- The local ranking model uses far less memory (about 0.45 GB instead of 3.7 GB
+  on a large search) and runs a little faster.
 - Add a command line for research and setup: `search`, `info`, `related`,
   `authors`, `read`, `download` and `graph` call the same functions as the MCP
   tools; `install` registers Scholar in Pi, Claude Code, Claude Desktop, Codex,
@@ -39,8 +49,8 @@
   output limit (Codex had cut the middle out of a quarter of reads). A
   100,000-character ceiling, cut at a page boundary with `next_pages`, guards
   unusually long ranges (`SCHOLAR_READ_CHAR_BUDGET`).
-- The local ranking model reads the top 100 candidates a second time with their
-  whole abstract, after a quick first pass over the pool.
+- The local ranking model reads the leading candidates' whole abstracts, which
+  ranks them more precisely.
 - Fail fast on an unreachable remote reranker (10 s connect timeout) and rank
   locally for five minutes before retrying, instead of waiting out the full
   timeout on every pass.
@@ -59,15 +69,10 @@
 - Ask Claude Code to load every tool upfront instead of behind tool search
   (about 2,800 tokens for all eight); `"alwaysLoad": false` in the server
   entry still defers them.
-- Search every source in its own lane: several queries share one flow, each
-  source answering them in order at its own pace (arXiv keeps its
-  three-second spacing), and sources run side by side. Seed-title expansion
-  and field discovery no longer wait for the slowest source between queries,
-  and a source that misses the seed deadline still joins the final ranking.
-- Citation and reference lookups and PDF resolution run in the same per-source
-  lanes as searches, with the same deadline, so a stuck provider no longer
-  holds `paper_info` or a read. Each provider's published rate limit lives in
-  its client, so metadata lookups keep the same spacing as searches.
+- A slow source no longer holds up the others: searches, citation and
+  reference lookups and PDF resolution keep to each provider's limits, and a
+  source that answers late still joins the final ranking. A stuck provider no
+  longer holds `paper_info` or a read.
 - Search zbMATH Open, the reference index for mathematics, in every search.
   Its author summaries and expert reviews serve as abstracts for ranking.
 - Add a global key file: `scholar-mcp keys set NAME` saves a source key in
@@ -89,17 +94,11 @@
 - `scholar-mcp doctor --network` probes every search, citation and reference
   source, the ranking model and the PDF chain live, and exits 1 on a problem.
   A daily workflow runs it and opens an issue when a probe fails.
-- Hydrate expansion's citation and reference results eight at a time instead
-  of two; provider gates still bound the lookups (expansion 27 s to 19 s and
-  18 s to 13 s on the two profiled searches).
-- Keep Europe PMC result formatting offline. A PMC dataset lookup ran for
-  each search result and could hold a search for two minutes.
-- Fetch publisher PDFs through the library proxy over plain HTTP first, with
-  the installed browser's user agent (old agents were bounced by IOP's bot
-  wall). Browser checks from Cloudflare, Radware and Elsevier are named in the
-  failure reason alongside a library link to open in your browser. The proxy uses
-  your exported cookies. Elsevier's linkinghub hop maps to the article, and the
-  Elsevier Article API is used when it reports full-text access.
+- Following citations and references is faster (about 27 s to 19 s on a
+  profiled search).
+- Europe PMC results no longer hold a search for up to two minutes.
+- Publisher PDFs through your library proxy work for more publishers, and
+  failures name the publisher's bot check when one blocked the download.
 - `search_authors` returns `{authors: [...]}`.
 
 ## 0.8.5
