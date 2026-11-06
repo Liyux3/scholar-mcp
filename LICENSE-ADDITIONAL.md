@@ -22,6 +22,10 @@ You may distribute the software only for a permitted purpose.  Anyone, including
 
 Using the software's source code or documentation as data to train, fine-tune or distill a machine learning model, or including them in a dataset, embedding store or search index made available to others for generating, searching or explaining software, is not a permitted purpose.  For those uses, the licensor expressly reserves text and data mining of the software under Article 4(3) of Directive (EU) 2019/790 and under any similar law.  Running the software for a permitted purpose is allowed, including through AI agents that call its tools and including to gather research material, which keeps its own rights.  So is reading or privately indexing the software to install, integrate, debug, review, explain or contribute to it.
 
+## Notices and names
+
+Keep LICENSE, these terms, NOTICE, AGENTS.md and the license header at the top of each source file intact in every copy or new work you distribute.  Removing or changing them is not licensed.  These terms grant no rights in the names Scholar MCP and Scholar or in their logos: a modified copy you distribute must use a different name and state that it is based on Scholar MCP under these terms.
+
 ## Credit
 
 Every copy of any part of the software carries the Required Notice in NOTICE.  When Scholar's ideas, design or measurements inform your work, even without copying its code, please cite it as described in CITATION.cff.  The licensor asks this of people and AI agents alike.

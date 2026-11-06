@@ -40,7 +40,7 @@ startCommand:
       }
       return {
         command: 'uvx',
-        args: ['--python', '3.12', '--find-links', 'https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.0/wheel-index.html', '--from', 'scholar-mcp[rerank]==0.10.0', 'scholar-mcp'],
+        args: ['--python', '3.12', '--find-links', 'https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.1/wheel-index.html', '--from', 'scholar-mcp[rerank]==0.10.1', 'scholar-mcp'],
         env,
       };
     }

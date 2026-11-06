@@ -1,11 +1,21 @@
 # Changelog
 
+## 0.10.1
+
+- The additional terms now ask that every copy keep the license, the notices,
+  AGENTS.md and the header at the top of each source file, and that a modified
+  copy you distribute go by its own name. Pull requests that change the terms are
+  closed by an automatic check; such changes start as an issue.
+- The runtime and library figures are redrawn in the style of the retrieval
+  figure, with dark versions. The library figure draws the largest connected
+  group of a real library and names its six most connected papers.
+
 ## 0.10.0
 
 - New terms from this release: Scholar MCP is source-available under the PolyForm
   Noncommercial License 1.0.0 with additional terms. Personal research,
   universities, research institutes, government and nonprofits use it free of
-  charge; companies need a commercial license (liyuxian1358@gmail.com). Building a
+  charge; companies need a commercial license (LICENSE-ADDITIONAL.md). Building a
   competing tool from its code, and training models on its code or documentation,
   are not licensed. Releases 0.9.0 and earlier remain Apache-2.0.
 - A source whose connection hangs no longer holds up searches: connections get at
