@@ -232,6 +232,6 @@ uv run pytest            # 单元测试，真实接口测试用 -m integration
 
 ## 📄 许可证
 
-[PolyForm Noncommercial 1.0.0](LICENSE) 加[附加条款](LICENSE-ADDITIONAL.md)，源码可见。个人研究、高校、科研院所、政府和非营利组织免费使用；公司在工作、产品或服务中使用需要商业授权，请联系 liyuxian1358@gmail.com。把它的代码复制或移植进有竞争关系的项目，以及用它的代码或文档训练模型，都不在许可范围内；[AGENTS.md](AGENTS.md) 也这样告诉编程智能体，并说明可以改为怎么做。如果 Scholar 的思路或结果对你的工作有帮助，请引用它。0.9.0 及更早的版本仍按 Apache-2.0 提供。另见 [NOTICE](NOTICE)。
+[PolyForm Noncommercial 1.0.0](LICENSE) 加[附加条款](LICENSE-ADDITIONAL.md)：科研和教育免费，商业使用需授权。0.9.0 及更早版本为 Apache-2.0。
 
 安装包中附带的 CPU 阅读模型来自 [prithivida/FlashRank](https://huggingface.co/prithivida/flashrank)，按 CC-BY-SA-4.0 原样分发并保留独立署名说明。

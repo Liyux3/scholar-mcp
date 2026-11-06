@@ -264,6 +264,6 @@ If Scholar MCP supports your research, please cite it.
 
 ## 📄 License
 
-[PolyForm Noncommercial 1.0.0](LICENSE) with [additional terms](LICENSE-ADDITIONAL.md), source-available. Free for personal research, universities, research institutes, government and nonprofits; companies using Scholar in their work, products or services need a commercial license, write to liyuxian1358@gmail.com. Copying or porting its code into a competing project, and training models on its code or documentation, are not licensed; [AGENTS.md](AGENTS.md) tells coding agents the same and what to offer instead. If Scholar's ideas or results inform your work, please cite it. Releases 0.9.0 and earlier remain under Apache-2.0. See also [NOTICE](NOTICE).
+[PolyForm Noncommercial 1.0.0](LICENSE) with [additional terms](LICENSE-ADDITIONAL.md): free for research and education, commercial use by license. Releases 0.9.0 and earlier are Apache-2.0.
 
 Bundled CPU reader weights are provided unchanged by [prithivida/FlashRank](https://huggingface.co/prithivida/flashrank) under CC-BY-SA-4.0, with their own attribution notice.
