@@ -103,7 +103,7 @@ Scholar 给出的任何标识符、论文链接或准确标题，都能传给任
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/retrieval-pipeline-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/retrieval-pipeline.svg">
-  <img alt="Scholar MCP 检索流程" src="docs/assets/retrieval-pipeline.svg" width="720">
+  <img alt="Scholar MCP 检索流程" src="docs/assets/retrieval-pipeline.svg">
 </picture>
 
 你的问题同时发往每个数据源，各自换成最适合它检索的形式，谁也不用等最慢的那个。OpenAlex、Semantic Scholar、arXiv、Crossref、OpenReview、PubMed、Europe PMC、DBLP、zbMATH、CORE、OpenAIRE、Google Scholar 等来源的记录按共同的 DOI、arXiv 编号和标题合并，每篇论文只出现一次，信息互相补全。排序模型（云端或本机）给候选池排序，最相关的几篇再带出它们的被引和参考文献，所有候选合在一起排定。[架构页](https://liyux3.github.io/scholar-mcp/zh-cn/architecture/)说明每个环节替你做了什么，[后端短片](https://liyux3.github.io/scholar-mcp/zh-cn/architecture/#film)用两分半钟带一个问题走完全程。

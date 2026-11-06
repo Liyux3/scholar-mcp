@@ -105,7 +105,7 @@ Every identifier Scholar returns, a paper URL, or an exact title can be passed b
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/retrieval-pipeline-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/retrieval-pipeline.svg">
-  <img alt="Scholar MCP retrieval pipeline" src="docs/assets/retrieval-pipeline.svg" width="720">
+  <img alt="Scholar MCP retrieval pipeline" src="docs/assets/retrieval-pipeline.svg">
 </picture>
 
 Your question goes to every source at once, in the form each one searches best, and no source holds up the others. Records from OpenAlex, Semantic Scholar, arXiv, Crossref, OpenReview, PubMed, Europe PMC, DBLP, zbMATH, CORE, OpenAIRE, Google Scholar and others merge on shared DOIs, arXiv ids and titles, so each paper appears once with complementary metadata. A ranking model, in the cloud or on your machine, orders the pool, the strongest papers bring in their citations and references, and everything is ranked together. The [architecture page](https://liyux3.github.io/scholar-mcp/architecture/) shows what each stage does for you and the [backend film](https://liyux3.github.io/scholar-mcp/architecture/#film) follows one question through it in two and a half minutes.
