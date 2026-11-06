@@ -114,7 +114,7 @@ Scholar 给出的任何标识符、论文链接或准确标题，都能传给任
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/runtime-architecture-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/runtime-architecture.svg">
-  <img alt="Scholar MCP 运行时架构" src="docs/assets/runtime-architecture.svg" width="720">
+  <img alt="Scholar MCP 运行时架构" src="docs/assets/runtime-architecture.svg">
 </picture>
 
 智能体通过 stdio 或 Streamable HTTP 调用带类型的 MCP 工具。全文优先取开放副本，学校订阅的论文经你的图书馆代理获取。一个带 FTS5 全文搜索的 SQLite 文献库保存论文、笔记和 PDF 附件，位于 `~/.scholar-mcp/`，并能导出到 Obsidian、同步到 Zotero 和 Notion。
@@ -142,7 +142,11 @@ Hit@k 是前 k 条里至少有一篇标准答案的问题所占比例，MRR 是�
 
 ## 📚 你的文献库
 
-![真实文献库生成的引用图谱](docs/assets/paper-library-graph.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/paper-library-graph-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/paper-library-graph.svg">
+  <img alt="真实文献库的引用图谱" src="docs/assets/paper-library-graph.svg">
+</picture>
 
 存下的论文、PDF 和笔记都在同一个本地 SQLite 文献库里，跨会话可搜。Obsidian 会收到实时更新的 Markdown，Zotero 是同步的分类，Notion 是一份阅读清单。你在 Obsidian 或 Notion 里改过的笔记会被读回来，智能体接着你的修改继续做。
 

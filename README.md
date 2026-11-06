@@ -116,7 +116,7 @@ Your question goes to every source at once, in the form each one searches best, 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/runtime-architecture-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/runtime-architecture.svg">
-  <img alt="Scholar MCP runtime architecture" src="docs/assets/runtime-architecture.svg" width="720">
+  <img alt="Scholar MCP runtime architecture" src="docs/assets/runtime-architecture.svg">
 </picture>
 
 Agents call typed MCP tools over stdio or Streamable HTTP. Full text comes from open copies first and, for licensed papers, through your library's proxy. A persistent SQLite library with FTS5 search holds papers, notes and PDF attachments under `~/.scholar-mcp/`, with Markdown projections for Obsidian and connectors for Zotero and Notion.
@@ -144,7 +144,11 @@ Hit@k is the share of queries with at least one ground-truth paper in the top k;
 
 ## 📚 Your paper library
 
-![Real paper-library graph](docs/assets/paper-library-graph.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/paper-library-graph-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/paper-library-graph.svg">
+  <img alt="Citation graph of a real paper library" src="docs/assets/paper-library-graph.svg">
+</picture>
 
 Saved papers, PDFs and notes live in one local SQLite library and stay searchable across sessions. Obsidian receives a live Markdown projection, Zotero a synchronized collection and Notion a reading list. Notes you edit in Obsidian or Notion flow back, so your agent builds on your changes.
 
