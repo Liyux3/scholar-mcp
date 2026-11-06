@@ -837,3 +837,18 @@ def test_http_source_failures_keep_their_operational_meaning(status, expected):
     def failed():
         httpx.Response(status, request=httpx.Request("GET", "https://provider.test")).raise_for_status()
     assert sources._timed_call("fixture", failed).status == expected
+
+
+def test_openalex_stays_out_of_seed_title_searches(monkeypatch):
+    seen = {}
+
+    class Flow:
+        def __init__(self, calls, *args, **kwargs):
+            seen[kwargs.get('op')] = set(calls)
+
+    monkeypatch.setattr(sources, 'SourceFlow', Flow)
+    for operation in ('search', 'title'):
+        sources.search_flow([('a title', 'a title', 'title')], operation=operation)
+    assert {'openalex', 'openalex_semantic'} <= seen['search']
+    assert not {'openalex', 'openalex_semantic'} & seen['title']
+    assert seen['title'] and seen['title'] < seen['search']

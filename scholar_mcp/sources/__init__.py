@@ -111,6 +111,10 @@ class Source:
     # Sources that serve only some searches say which: called with the search
     # intent and the query text, False keeps the source out at no cost.
     applies: Callable[[str, str], bool] | None = None
+    # Seed-title searches go to every source that serves them. A source whose
+    # daily budget is spent per search request can stay out of them, keeping
+    # that budget for the first searches of the day's questions.
+    serves_titles: bool = True
     # Native namespaces have one authoritative getter and their own health fixture.
     id_pattern: str = ''
     probe_query: str = ''
@@ -495,7 +499,8 @@ def search_flow(queries: list[tuple[str, str, str]], limit: int = 100, budget_s:
     wanted = set(record_ops.normalize_publication_types(kwargs.get('publication_types')))
     text = ' '.join([*(raw or keyword for keyword, raw, _ in queries), ' '.join(sorted(wanted)),
                      str(kwargs.get('fields_of_study') or '')])
-    registered = [s for s in search_sources() if s.applies is None or s.applies(intent, text)]
+    registered = [s for s in search_sources() if (s.applies is None or s.applies(intent, text))
+                  and (operation != 'title' or s.serves_titles)]
     primary = {kind for source in all_sources() for kind in source.primary_types}
     if wanted and wanted <= primary:
         registered = [source for source in registered if wanted.intersection(source.primary_types)]
@@ -666,6 +671,7 @@ def _register_defaults():
         get_references=openalex.get_references,
         get_paper=openalex.get_paper_by_id,
         priority=80,
+        serves_titles=False,
     ))
 
     register(Source(
@@ -682,6 +688,7 @@ def _register_defaults():
         search=lambda q, limit, **kw: openalex.search_papers_semantic(q, limit=min(limit, 50), **kw),
         priority=75,
         query_style=QUERY_RAW,
+        serves_titles=False,
     ))
 
     register(Source(
