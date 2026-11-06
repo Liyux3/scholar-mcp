@@ -7,7 +7,7 @@ import { Aside, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/compon
 
 Scholar is a local MCP server that runs on the same computer as your agent. This page uses Claude Code as the example. Other clients follow the same steps, and [Install in your client](/scholar-mcp/clients/) has their configuration.
 
-This guide installs Scholar MCP 0.10.0 from PyPI, including the CLI and scientific data tools. Plugins, containers and desktop bundles use the same release. The compatibility wheel index supplies native dependencies for Intel macOS and Windows on ARM.
+This guide installs Scholar MCP 0.10.1 from PyPI, including the CLI and scientific data tools. Plugins, containers and desktop bundles use the same release. The compatibility wheel index supplies native dependencies for Intel macOS and Windows on ARM.
 
 <Steps>
 
@@ -36,8 +36,8 @@ This guide installs Scholar MCP 0.10.0 from PyPI, including the CLI and scientif
 
    ```bash
    uv tool install --python 3.12 \
-     --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.0/wheel-index.html \
-     "scholar-mcp[rerank]==0.10.0"
+     --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.1/wheel-index.html \
+     "scholar-mcp[rerank]==0.10.1"
    scholar-mcp install claude-code
    ```
 
@@ -48,8 +48,8 @@ This guide installs Scholar MCP 0.10.0 from PyPI, including the CLI and scientif
 
    ```bash
    claude mcp add scholar -- uvx --python 3.12 \
-     --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.0/wheel-index.html \
-     --from 'scholar-mcp[rerank]==0.10.0' scholar-mcp
+     --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.1/wheel-index.html \
+     --from 'scholar-mcp[rerank]==0.10.1' scholar-mcp
    ```
 
    This registers the six core tools for the current project. `--scope user` makes it apply to every project, and `-e SCHOLAR_MCP_EXTENSIONS=research` before `--` adds the citation graph and paper library.
@@ -59,7 +59,7 @@ This guide installs Scholar MCP 0.10.0 from PyPI, including the CLI and scientif
 
    ```text
    Install Scholar MCP into the client you are running in, following
-   https://raw.githubusercontent.com/Liyux3/scholar-mcp/v0.10.0/llms-install.md
+   https://raw.githubusercontent.com/Liyux3/scholar-mcp/v0.10.1/llms-install.md
    Then tell me to restart, and check that search_papers is available.
    ```
 
