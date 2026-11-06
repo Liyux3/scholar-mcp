@@ -151,6 +151,8 @@ def _find_paper(paper_id: str, prefer_recent: bool = False) -> dict | None:
     from .metadata import published_record
     if metadata.EXPLICIT_ARXIV_VERSION.fullmatch(paper_id) or sources.native_source(paper_id):
         return metadata.lookup(paper_id)
+    if sources.keyed_source(paper_id):
+        return None  # a native record of a source without its key: say so, without other lookups
     if prefer_recent and (paper := _recalled(paper_id)):
         return published_record(paper)
     if paper := metadata.lookup(paper_id):
@@ -777,7 +779,7 @@ def paper_info(
         output["data"] = research_data.for_paper(resolved, limit=limit)
 
     if not output:
-        return {"error": f"Could not find paper '{paper_id}'", "hint": NOT_FOUND_HINT}
+        return _not_found(paper_id)
 
     if native := sources.native_source(paper_id):
         for relation in ('citations', 'references'):
@@ -786,6 +788,13 @@ def paper_info(
 
     return output
 
+
+
+def _not_found(paper_id: str) -> dict:
+    if keyed := sources.keyed_source(paper_id):
+        return {"error": f"'{paper_id}' is a {keyed.name} record, and {keyed.name} needs an API key",
+                "hint": "Save it with `scholar-mcp keys set NAME`; see https://liyux3.github.io/scholar-mcp/configuration/"}
+    return {"error": f"Could not find paper '{paper_id}'", "hint": NOT_FOUND_HINT}
 
 @_tool(annotations=ToolAnnotations(
     title="Recommend related papers",
@@ -917,7 +926,7 @@ def download_paper(
     save_path = save_dir or config.DOWNLOAD_DIR
     paper_info_data = _find_paper(paper_id, prefer_recent=True)
     if paper_info_data is None:
-        return {"error": f"Could not find paper '{paper_id}'", "hint": NOT_FOUND_HINT}
+        return _not_found(paper_id)
 
     dl_result = pdf_utils.download_paper(paper_info_data, save_path)
     usage_log.note(pdf=dl_result.get("source"))
@@ -986,7 +995,7 @@ def read_paper(
     """
     paper_info_data = _find_paper(paper_id, prefer_recent=True)
     if paper_info_data is None:
-        return {"error": f"Could not find paper '{paper_id}'", "hint": NOT_FOUND_HINT}
+        return _not_found(paper_id)
     with tempfile.TemporaryDirectory(prefix="scholar-read-") as directory:
         structured = pages.startswith(('parts:', 'xml:'))
         result = {} if structured else pdf_utils.download_paper(paper_info_data, directory, temporary=True)

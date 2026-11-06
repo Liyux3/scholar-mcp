@@ -171,6 +171,12 @@ def native_source(identifier: str) -> Source | None:
                  and re.fullmatch(source.id_pattern, identifier)), None)
 
 
+def keyed_source(identifier: str) -> Source | None:
+    """The native namespace of a source that needs a key that is not set."""
+    return next((source for source in _registry.values() if source.id_pattern and not source.available()
+                 and re.fullmatch(source.id_pattern, identifier)), None)
+
+
 class SourceLookupError(RuntimeError):
     def __init__(self, source: str, cause: Exception):
         self.source = source
@@ -641,6 +647,8 @@ def _register_defaults():
                     id_pattern=eric.ID_PATTERN, probe_query='literacy tutoring', probe_id='ERIC:EJ1489919'))
     register(Source(name='courtlistener', search=courtlistener.search_papers, get_paper=courtlistener.get_paper,
                     priority=35, group='discipline', domains=['US case law'], applies=courtlistener.applies,
+                    # Its API answers 401 without a token, so keyless installs skip it.
+                    requires_key=True, key_available=lambda: bool(config.COURTLISTENER_API_TOKEN),
                     query_style=QUERY_RAW,
                     primary_types=('CourtDecision',),
                     id_pattern=courtlistener.ID_PATTERN, probe_query='algorithmic discrimination', probe_id='CourtListener:5010564'))
