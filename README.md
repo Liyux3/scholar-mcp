@@ -22,7 +22,7 @@
   <a href="https://liyux3.github.io/scholar-mcp/">Documentation</a> · English · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-Scholar MCP gives your AI agent a research library. It searches scholarly sources in parallel, with optional keys for additional indexes, follows citations and related work, reads the original paper down to its figures and tables, and keeps what matters in a local library with your notes. It works in Claude, Codex, Cursor, VS Code, Gemini CLI, OpenCode and any other MCP client, and from the command line or Python.
+Scholar MCP gives your AI agent a research library. It searches scholarly sources in parallel, with optional keys for additional indexes, follows citations and related work, reads the original paper down to its figures and tables, and keeps what matters in a local library with your notes. It works in Claude, Codex, Cursor, VS Code, Gemini CLI, OpenCode and any other MCP client, and from the command line or Python. Free for research and education, with commercial licenses for companies.
 
 <p align="center">
   <a href="https://liyux3.github.io/scholar-mcp/#watch"><img src="docs/assets/scholar-film-poster.jpg" alt="Watch the one-minute film" width="820"></a>
@@ -105,7 +105,7 @@ Every identifier Scholar returns, a paper URL, or an exact title can be passed b
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/retrieval-pipeline-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/retrieval-pipeline.svg">
-  <img alt="Scholar MCP retrieval pipeline" src="docs/assets/retrieval-pipeline.svg">
+  <img alt="Scholar MCP retrieval pipeline" src="docs/assets/retrieval-pipeline.svg" width="720">
 </picture>
 
 Your question goes to every source at once, in the form each one searches best, and no source holds up the others. Records from OpenAlex, Semantic Scholar, arXiv, Crossref, OpenReview, PubMed, Europe PMC, DBLP, zbMATH, CORE, OpenAIRE, Google Scholar and others merge on shared DOIs, arXiv ids and titles, so each paper appears once with complementary metadata. A ranking model, in the cloud or on your machine, orders the pool, the strongest papers bring in their citations and references, and everything is ranked together. The [architecture page](https://liyux3.github.io/scholar-mcp/architecture/) shows what each stage does for you and the [backend film](https://liyux3.github.io/scholar-mcp/architecture/#film) follows one question through it in two and a half minutes.
@@ -116,7 +116,7 @@ Your question goes to every source at once, in the form each one searches best, 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/runtime-architecture-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/runtime-architecture.svg">
-  <img alt="Scholar MCP runtime architecture" src="docs/assets/runtime-architecture.svg">
+  <img alt="Scholar MCP runtime architecture" src="docs/assets/runtime-architecture.svg" width="720">
 </picture>
 
 Agents call typed MCP tools over stdio or Streamable HTTP. Full text comes from open copies first and, for licensed papers, through your library's proxy. A persistent SQLite library with FTS5 search holds papers, notes and PDF attachments under `~/.scholar-mcp/`, with Markdown projections for Obsidian and connectors for Zotero and Notion.
@@ -178,7 +178,7 @@ Scholar works without any keys. Optional keys add coverage and throughput. `scho
 | Variable | Effect |
 |---|---|
 | `S2_API_KEY` | Higher Semantic Scholar limits, full-text snippets and recommendations |
-| `OPENALEX_API_KEY`, `OPENALEX_EMAIL` | OpenAlex semantic search and the polite pool; the email also enables Unpaywall |
+| `OPENALEX_API_KEY`, `OPENALEX_EMAIL` | OpenAlex semantic search and a larger daily allowance; the email serves Crossref's polite pool and Unpaywall |
 | `DASHSCOPE_API_KEY` | Cloud reranking with Qwen3 Rerank; without it a local model ranks |
 | `SCHOLAR_MCP_EXTENSIONS=research` | Adds the citation graph and paper library tools |
 | `SCHOLAR_DATA_DIR` | Library, PDFs and state; default `~/.scholar-mcp` |

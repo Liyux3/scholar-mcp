@@ -20,7 +20,7 @@
   <a href="https://liyux3.github.io/scholar-mcp/zh-cn/">文档</a> · <a href="README.md">English</a> · 简体中文
 </p>
 
-Scholar MCP 给你的 AI 智能体配上一座研究图书馆。不用密钥时它同时搜索 17 个学术数据源，加上你自己的密钥最多 24 个。它会顺着引用和相关工作继续找，读原文一直读到图和表，再把要紧的论文连同你的笔记存进本地文献库。Claude、Codex、Cursor、VS Code、Gemini CLI、OpenCode 等任何 MCP 客户端都能用，命令行和 Python 里也能用。
+Scholar MCP 给你的 AI 智能体配上一座研究图书馆。不用密钥时它同时搜索 17 个学术数据源，加上你自己的密钥最多 24 个。它会顺着引用和相关工作继续找，读原文一直读到图和表，再把要紧的论文连同你的笔记存进本地文献库。Claude、Codex、Cursor、VS Code、Gemini CLI、OpenCode 等任何 MCP 客户端都能用，命令行和 Python 里也能用。科研和教育免费使用，公司可申请商业授权。
 
 <p align="center">
   <a href="https://liyux3.github.io/scholar-mcp/zh-cn/#watch"><img src="docs/assets/scholar-film-poster.jpg" alt="观看一分钟介绍片" width="820"></a>
@@ -103,7 +103,7 @@ Scholar 给出的任何标识符、论文链接或准确标题，都能传给任
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/retrieval-pipeline-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/retrieval-pipeline.svg">
-  <img alt="Scholar MCP 检索流程" src="docs/assets/retrieval-pipeline.svg">
+  <img alt="Scholar MCP 检索流程" src="docs/assets/retrieval-pipeline.svg" width="720">
 </picture>
 
 你的问题同时发往每个数据源，各自换成最适合它检索的形式，谁也不用等最慢的那个。OpenAlex、Semantic Scholar、arXiv、Crossref、OpenReview、PubMed、Europe PMC、DBLP、zbMATH、CORE、OpenAIRE、Google Scholar 等来源的记录按共同的 DOI、arXiv 编号和标题合并，每篇论文只出现一次，信息互相补全。排序模型（云端或本机）给候选池排序，最相关的几篇再带出它们的被引和参考文献，所有候选合在一起排定。[架构页](https://liyux3.github.io/scholar-mcp/zh-cn/architecture/)说明每个环节替你做了什么，[后端短片](https://liyux3.github.io/scholar-mcp/zh-cn/architecture/#film)用两分半钟带一个问题走完全程。
@@ -114,7 +114,7 @@ Scholar 给出的任何标识符、论文链接或准确标题，都能传给任
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/runtime-architecture-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/runtime-architecture.svg">
-  <img alt="Scholar MCP 运行时架构" src="docs/assets/runtime-architecture.svg">
+  <img alt="Scholar MCP 运行时架构" src="docs/assets/runtime-architecture.svg" width="720">
 </picture>
 
 智能体通过 stdio 或 Streamable HTTP 调用带类型的 MCP 工具。全文优先取开放副本，学校订阅的论文经你的图书馆代理获取。一个带 FTS5 全文搜索的 SQLite 文献库保存论文、笔记和 PDF 附件，位于 `~/.scholar-mcp/`，并能导出到 Obsidian、同步到 Zotero 和 Notion。
@@ -176,7 +176,7 @@ paper = api.info(hits["results"][0]["id"], include="detail,citations")
 | 变量 | 作用 |
 |---|---|
 | `S2_API_KEY` | 提高 Semantic Scholar 的限额，打开全文片段搜索和推荐 |
-| `OPENALEX_API_KEY`、`OPENALEX_EMAIL` | OpenAlex 的语义搜索和更宽的限额，邮箱还用于 Unpaywall |
+| `OPENALEX_API_KEY`、`OPENALEX_EMAIL` | OpenAlex 的语义搜索和更高的每日额度；邮箱用于 Crossref 的礼貌池和 Unpaywall |
 | `DASHSCOPE_API_KEY` | 用云端的 Qwen3 Rerank 排序，不设时由本地模型排序 |
 | `SCHOLAR_MCP_EXTENSIONS=research` | 加上引用图谱和文献库 |
 | `SCHOLAR_DATA_DIR` | 文献库、PDF 和状态的位置，默认 `~/.scholar-mcp` |
