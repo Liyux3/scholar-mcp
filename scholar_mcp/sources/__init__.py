@@ -15,7 +15,7 @@ from contextvars import ContextVar, copy_context
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from functools import partial
-from typing import Callable
+from typing import Callable, Literal
 
 from .. import access, config, relevance, usage_log
 from .. import records as record_ops
@@ -120,6 +120,8 @@ class Source:
     probe_query: str = ''
     probe_id: str = ''
     primary_types: tuple[str, ...] = ()
+    # Native search precision; local means the API exposes no usable date constraint.
+    date_filter: Literal["day", "month", "year", "local"] = "local"
 
     @property
     def semantic(self) -> bool:
@@ -521,9 +523,15 @@ def search_flow(queries: list[tuple[str, str, str]], limit: int = 100, budget_s:
     from ..metadata import filter_fields
     size = _scale_limit(limit, _baseline(registered))
 
+    from ..dates import publication_range
+    selected = publication_range(kwargs.get("year"))
+
     def search(source: Source, query: tuple[str, str, str]) -> Callable[[], list]:
+        options = dict(kwargs)
+        if selected and selected.fine and source.date_filter in {"year", "local"}:
+            options["year"] = selected.years
         # The query form is chosen when the call starts: a semantic source can degrade meanwhile.
-        return lambda: source.search(_pick_query(source, *query), size, **kwargs)
+        return lambda: source.search(_pick_query(source, *query), size, **options)
     return SourceFlow({s.name: [search(s, q) for q in queries] for s in registered}, budget_s,
                       set(metadata_fields or ()) | filter_fields(kwargs),
                       deferred_sources={s.name for s in registered if s.group == "web"}, op=operation)
@@ -642,17 +650,17 @@ def _register_defaults():
         zenodo,
     )
 
-    register(Source(name='eric', search=eric.search_papers, get_paper=eric.get_paper,
+    register(Source(name='eric', date_filter="year", search=eric.search_papers, get_paper=eric.get_paper,
                     priority=35, group='discipline', domains=['education'], applies=eric.applies,
                     id_pattern=eric.ID_PATTERN, probe_query='literacy tutoring', probe_id='ERIC:EJ1489919'))
-    register(Source(name='courtlistener', search=courtlistener.search_papers, get_paper=courtlistener.get_paper,
+    register(Source(name='courtlistener', date_filter="day", search=courtlistener.search_papers, get_paper=courtlistener.get_paper,
                     priority=35, group='discipline', domains=['US case law'], applies=courtlistener.applies,
                     # Its API answers 401 without a token, so keyless installs skip it.
                     requires_key=True, key_available=lambda: bool(config.COURTLISTENER_API_TOKEN),
                     query_style=QUERY_RAW,
                     primary_types=('CourtDecision',),
                     id_pattern=courtlistener.ID_PATTERN, probe_query='algorithmic discrimination', probe_id='CourtListener:5010564'))
-    register(Source(name='clinicaltrials', search=clinicaltrials.search_papers, get_paper=clinicaltrials.get_paper,
+    register(Source(name='clinicaltrials', date_filter="day", search=clinicaltrials.search_papers, get_paper=clinicaltrials.get_paper,
                     get_references=clinicaltrials.get_references, priority=35, group='discipline',
                     domains=['clinical trial registrations'], applies=clinicaltrials.applies,
                     primary_types=('ClinicalTrialRegistration',),
@@ -663,7 +671,7 @@ def _register_defaults():
                     probe_id='OpenEdition:https://books.openedition.org/psorbonne/128981'))
 
     register(Source(
-        name="semantic_scholar",
+        name="semantic_scholar", date_filter="day",
         search=s2.search_papers,
         get_citations=s2.get_citations,
         get_references=s2.get_references,
@@ -673,7 +681,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="openalex",
+        name="openalex", date_filter="day",
         search=openalex.search_papers,
         get_citations=openalex.get_citations,
         get_references=openalex.get_references,
@@ -683,7 +691,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="s2_snippet",
+        name="s2_snippet", date_filter="day",
         group="fulltext",
         search=s2_snippet.search_papers,
         priority=78,
@@ -691,7 +699,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="openalex_semantic",
+        name="openalex_semantic", date_filter="day",
         group="semantic",
         search=lambda q, limit, **kw: openalex.search_papers_semantic(q, limit=min(limit, 50), **kw),
         priority=75,
@@ -700,9 +708,9 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="arxiv",
+        name="arxiv", date_filter="day",
         group="preprint",
-        search=lambda q, limit, **kw: arxiv.search_papers(q, max_results=limit),
+        search=lambda q, limit, **kw: arxiv.search_papers(q, max_results=limit, year=kw.get("year")),
         get_paper=arxiv.get_paper,
         priority=70,
         domains=["computer science", "physics", "mathematics", "statistics"],
@@ -711,15 +719,15 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="pubmed",
+        name="pubmed", date_filter="day",
         group="discipline",
-        search=lambda q, limit, **kw: pubmed.search_papers(q, max_results=limit),
+        search=lambda q, limit, **kw: pubmed.search_papers(q, max_results=limit, year=kw.get("year")),
         priority=40,
         domains=["medicine", "biology", "healthcare"],
     ))
 
     register(Source(
-        name="europepmc",
+        name="europepmc", date_filter="day",
         group="discipline",
         search=europepmc.search_papers,
         get_paper=europepmc.get_paper,
@@ -731,7 +739,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="crossref",
+        name="crossref", date_filter="day",
         search=crossref.search_papers,
         get_paper=crossref.get_paper,
         get_references=crossref.get_references,
@@ -740,7 +748,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="dblp",
+        name="dblp", date_filter="year",
         group="discipline",
         search=dblp.search_papers,
         priority=25,
@@ -748,7 +756,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="inspirehep",
+        name="inspirehep", date_filter="year",
         group="discipline",
         search=inspirehep.search_papers,
         get_paper=inspirehep.get_paper,
@@ -759,9 +767,9 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="core",
+        name="core", date_filter="year",
         group="repository",
-        search=lambda q, limit, **kw: core.search_papers(q, limit=limit),
+        search=lambda q, limit, **kw: core.search_papers(q, limit=limit, year=kw.get("year")),
         resolve_pdf=core.resolve_pdf,
         priority=10,
         requires_key=True,
@@ -769,14 +777,14 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="google_scholar",
+        name="google_scholar", date_filter="year",
         group="web",
-        search=lambda q, limit, **kw: google_scholar.search_papers(q, max_results=limit),
+        search=lambda q, limit, **kw: google_scholar.search_papers(q, max_results=limit, year=kw.get("year")),
         priority=5,
     ))
 
     register(Source(
-        name="exa",
+        name="exa", date_filter="day",
         group="semantic",
         search=exa.search_papers,
         priority=85,
@@ -787,7 +795,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="scopus",
+        name="scopus", date_filter="year",
         search=scopus.search_papers,
         priority=75,
         requires_key=True,
@@ -805,7 +813,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="doaj",
+        name="doaj", date_filter="year",
         group="repository",
         search=doaj.search_papers,
         resolve_pdf=doaj.resolve_pdf,
@@ -813,7 +821,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="openaire",
+        name="openaire", date_filter="day",
         group="repository",
         search=openaire.search_papers,
         get_paper=openaire.get_paper,
@@ -823,7 +831,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="hal",
+        name="hal", date_filter="day",
         group="repository",
         search=hal.search_papers,
         resolve_pdf=hal.resolve_pdf,
@@ -832,7 +840,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="ads",
+        name="ads", date_filter="year",
         search=ads.search_papers,
         priority=60,
         domains=["astronomy", "astrophysics", "physics"],
@@ -846,7 +854,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="springer",
+        name="springer", date_filter="day",
         search=springer.search_papers,
         priority=60,
         group="index",
@@ -859,7 +867,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="wos",
+        name="wos", date_filter="year",
         search=wos.search_papers,
         priority=60,
         group="index",
@@ -872,7 +880,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="lens",
+        name="lens", date_filter="day",
         search=lens.search_papers,
         priority=60,
         group="index",
@@ -885,7 +893,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="zbmath",
+        name="zbmath", date_filter="year",
         search=zbmath.search_papers,
         priority=22,
         group="discipline",
@@ -897,7 +905,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="cinii",
+        name="cinii", date_filter="month",
         group="regional",
         search=cinii.search_papers,
         priority=14,
@@ -908,7 +916,7 @@ def _register_defaults():
     ))
 
     register(Source(
-        name="zenodo",
+        name="zenodo", date_filter="day",
         group="dataset",
         # The largest general data repository, ranked by best match. Its
         # publications are too noisy for paper search, so it only joins

@@ -160,6 +160,12 @@ scholar-mcp library sync zotero --collection memory --apply
 ## 💻 Command line and Python
 
 The tools work without an agent too. Output is YAML for reading or JSON with `--json`.
+The `year` filter (CLI `--year`) accepts `2023`, `2020-2024`, `2026-10`,
+`2026-11-09`, and inclusive ranges such as `2026-10:2026-11` or
+`2026-10-01..2026-11-09`. A month includes all its days. Retrieved records
+are checked after merging, using the publication date when available and the
+year otherwise. For month/day requests, `_meta` identifies sources whose
+native filters have only month or year precision, or require local filtering.
 
 ```bash
 scholar-mcp search "long-term memory benchmarks for LLM agents" --year 2024-2026

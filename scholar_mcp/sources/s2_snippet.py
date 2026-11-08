@@ -20,6 +20,7 @@ so it is registered as QUERY_RAW.
 
 import httpx
 
+from ..dates import publication_range
 from . import s2
 
 SNIPPET_URL = "https://api.semanticscholar.org/graph/v1/snippet/search"
@@ -39,6 +40,11 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     downstream in records.deduplicate, which merges by DOI and title.
     """
     params = {"query": query, "limit": min(limit, SNIPPET_MAX_LIMIT)}
+    if selected := publication_range(kwargs.get("year")):
+        if selected.fine:
+            params["publicationDateOrYear"] = ":".join(selected.iso)
+        else:
+            params["year"] = selected.years
     data = s2._get(SNIPPET_URL, params=params)
 
     papers = []
@@ -128,7 +134,7 @@ def _format(item: dict) -> dict | None:
         "_citation_count_known": paper.get("citationCount") is not None,
         "is_open_access": bool(open_access.get("license") or open_access.get("openAccessUrl")),
         "open_access_url": open_access.get("openAccessUrl"),
-        "publication_date": None,
+        "publication_date": paper.get("publicationDate"),
         "external_ids": external_ids,
         "url": open_access.get("openAccessUrl") or "",
         "source": "s2_snippet",

@@ -4,6 +4,7 @@
 import re
 from urllib.parse import urlparse
 
+from ..dates import publication_range
 from .. import access
 from ..cache import cached
 from . import pacing
@@ -62,6 +63,9 @@ def format_paper(item: dict) -> dict:
 
 
 def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
+    if selected := publication_range(kwargs.get("year")):
+        start, end = selected.iso
+        query = f"({query}) AND AREA[StudyFirstPostDate]RANGE[{start}, {end}]"
     params, papers = {'query.term': query, 'pageSize': min(limit, 100), 'format': 'json'}, []
     while len(papers) < limit:
         try:

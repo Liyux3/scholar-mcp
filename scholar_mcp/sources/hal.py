@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 
+from ..dates import publication_range
 from .. import access
 from ..records import matches_paper
 from . import pacing
@@ -18,6 +19,7 @@ FIELDS = ",".join(
         "authFullName_s",
         "abstract_s",
         "producedDateY_i",
+        "producedDate_s",
         "docType_s",
         "uri_s",
         "fileMain_s",
@@ -67,7 +69,7 @@ def _normalize(item: dict) -> dict | None:
         "venue": "HAL",
         "is_open_access": bool(pdf_url),
         "open_access_url": pdf_url or None,
-        "publication_date": str(year) if year else None,
+        "publication_date": _first(item.get("producedDate_s")) or (str(year) if year else None),
         "external_ids": {key: value for key, value in {"DOI": doi, "HAL": hal_id}.items() if value},
         "url": str(_first(item.get("uri_s"))) or (f"https://hal.science/{hal_id}" if hal_id else ""),
         "source": "hal",
@@ -75,6 +77,9 @@ def _normalize(item: dict) -> dict | None:
 
 
 def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
+    if selected := publication_range(kwargs.get("year")):
+        start, end = selected.iso
+        query = f"({query}) AND producedDate_tdate:[{start}T00:00:00Z TO {end}T23:59:59Z]"
     return [paper for item in _request(query, limit) if (paper := _normalize(item))][:limit]
 
 

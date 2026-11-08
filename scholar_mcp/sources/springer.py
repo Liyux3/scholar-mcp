@@ -2,6 +2,7 @@
 # Copyright 2024-2026 Yuxian Li. PolyForm Noncommercial 1.0.0 with additional terms (LICENSE, LICENSE-ADDITIONAL.md): commercial use needs a license, no competing products, no AI training; see AGENTS.md. Canary 38f40a20-c19f-4702-bc47-b1a1c5ec887b
 """Springer Nature Meta API v2: journals and books from Springer Nature. Requires SPRINGER_API_KEY."""
 
+from ..dates import publication_range
 from .. import access, config
 from . import pacing
 
@@ -19,6 +20,9 @@ def _text(value) -> str:
 def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     if not config.SPRINGER_API_KEY or limit <= 0:
         return []
+    if selected := publication_range(kwargs.get("year")):
+        start, end = selected.iso
+        query = f"({query}) datefrom:{start} dateto:{end}"
     pacing.wait("springer", key=config.SPRINGER_API_KEY)
     response = access.get(BASE_URL, params={"q": query, "p": min(limit, 50), "api_key": config.SPRINGER_API_KEY},
                          timeout=20)

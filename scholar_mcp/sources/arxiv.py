@@ -8,6 +8,7 @@ import feedparser
 import httpx
 from bs4 import BeautifulSoup
 
+from ..dates import publication_range
 from .. import access
 from ..cache import DEFAULT_TTL, PartialRecords, _disk, cached
 from . import pacing
@@ -79,7 +80,7 @@ def _published_link(paper: dict, doi: str) -> None:
         paper['relations'] = [{'type': 'is-preprint-of', 'id': doi, 'id_type': 'doi', 'source': 'arxiv'}]
 
 
-def search_papers(query: str, max_results: int = 10) -> list[dict]:
+def search_papers(query: str, max_results: int = 10, year: str = None) -> list[dict]:
     """Search arXiv. Returns results in the same dict format as s2."""
     words = query.split()
     if len(words) <= 10:
@@ -87,6 +88,9 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
     else:
         kw = " ".join(words[:8])
         search_q = f"all:{kw}"
+    if selected := publication_range(year):
+        start, end = (d.replace("-", "") for d in selected.iso)
+        search_q = f"({search_q}) AND submittedDate:[{start}0000 TO {end}2359]"
     params = {
         "search_query": search_q,
         "max_results": max_results,
@@ -98,7 +102,7 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
     try:
         entries = _atom(params)
     except _AtomUnavailable:
-        return _search_web(query, max_results)
+        return _search_web(query, max_results, year=year) if year else _search_web(query, max_results)
     return [_entry_paper(entry) for entry in entries]
 
 
@@ -155,22 +159,29 @@ def get_papers(ids: list[str]) -> dict[str, dict]:
     return found
 
 
-def _search_web(query: str, limit: int) -> list[dict]:
+def _search_web(query: str, limit: int, year: str = None) -> list[dict]:
     """Use arXiv's own HTTPS relevance search when its Atom service is unavailable."""
     page_size = next((size for size in (25, 50, 100, 200) if size >= limit), 200)
     papers = []
     seen = set()
+    selected = publication_range(year)
+    endpoint = "https://arxiv.org/search/advanced" if selected else "https://arxiv.org/search/"
     with httpx.Client(timeout=15, follow_redirects=True) as client:
         while len(papers) < limit:
             pacing.wait('arxiv')
-            response = access.get("https://arxiv.org/search/", kind="html", client=client, params={
-                "query": query, "searchtype": "all", "abstracts": "show",
-                "order": "", "size": page_size, "start": len(seen),
-            })
+            params = {"abstracts": "show", "order": "", "size": page_size, "start": len(seen)}
+            if selected:
+                start, end = selected.iso
+                params.update({"terms-0-operator": "AND", "terms-0-term": query, "terms-0-field": "all",
+                               "date-filter_by": "date_range", "date-from_date": start, "date-to_date": end,
+                               "date-date_type": "submitted_date"})
+            else:
+                params.update(query=query, searchtype="all")
+            response = access.get(endpoint, kind="html", client=client, params=params)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             cards = soup.select("li.arxiv-result")
-            if not cards and not soup.select_one("form[action='/search/'], #search-form"):
+            if not cards and not soup.select_one("form[action='/search/'], form[action='/search/advanced'], #search-form"):
                 raise ValueError("arXiv returned an unexpected search page")
             added = 0
             for card in cards:

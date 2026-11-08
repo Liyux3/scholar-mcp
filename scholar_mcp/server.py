@@ -34,6 +34,7 @@ from . import (
     usage_log,
 )
 from . import records as record_ops
+from .dates import publication_range
 from .output import yaml_text
 from .sources import openalex, pacing, s2, s2_snippet
 
@@ -421,16 +422,9 @@ def _publication_sort_key(paper: dict) -> tuple[int, int, int]:
 
 
 def _year_matches(paper: dict, selection: str) -> bool:
-    """Apply a year or inclusive year-range filter after source merging."""
-    match = re.fullmatch(r"\s*(\d{4})(?:\s*-\s*(\d{4}))?\s*", selection)
-    if not match:
-        return True
-    year = _publication_sort_key(paper)[0]
-    if not year:
-        return False
-    start = int(match.group(1))
-    end = int(match.group(2) or start)
-    return min(start, end) <= year <= max(start, end)
+    """Apply the inclusive publication interval after source merging."""
+    selected = publication_range(selection)
+    return selected.matches(paper) if selected else True
 
 
 def _tool_result(data) -> ToolResult:
@@ -554,6 +548,7 @@ def _search_candidates(query: str, limit: int, year: str = "", venue: str = "", 
     # start with the original question while the optional keyword model loads.
     search_query = query
 
+    publication_range(year)  # Validate before acquiring candidates.
     search_kwargs = {}
     if year:
         search_kwargs["year"] = year
@@ -649,7 +644,10 @@ def search_papers(
         query: Describe what you want to find. Titles, distinctive phrases,
             and natural-language questions all work.
         limit: Maximum results to return (1-100, default 10)
-        year: Filter by year or range (e.g., "2023", "2020-2024")
+        year: Inclusive publication range: YYYY, YYYY-YYYY, YYYY-MM or YYYY-MM-DD.
+            Join date endpoints with : or .., e.g. "2026-10:2026-11" or
+            "2026-10-01..2026-11-09". Months include every day; records with
+            only a publication year are filtered by year.
         venue: Filter by venue (e.g., "NeurIPS", "Nature")
         fields_of_study: Comma-separated fields (e.g., "Computer Science,Mathematics")
         paper_types: Comma-separated types, e.g. JournalArticle,Conference,Review,Book,Dataset.
@@ -679,8 +677,20 @@ def search_papers(
     # native-ID hydration/cache instead of looking up every discarded candidate.
     metadata.hydrate(results, fields={"abstract"})
 
+    selected = publication_range(year)
+    date_meta = {}
+    if selected and selected.fine:
+        precision = {r["source"]: source.date_filter if (source := sources.get(r["source"])) else "local"
+                     for r in reports if not r.get("stage")}
+        date_meta = {"publication_range": dict(zip(("from", "until"), selected.iso)),
+                     "year_only_sources": sorted(name for name, level in precision.items() if level in {"year", "local"}),
+                     "month_only_sources": sorted(name for name, level in precision.items() if level == "month"),
+                     "local_only_sources": sorted(name for name, level in precision.items() if level == "local")}
+
     if not results:
         meta = _meta_block(reports, debug=debug)
+        if date_meta:
+            meta = {**meta, **date_meta} if debug else {**meta, "_meta": date_meta}
         answered = [r for r in reports if not r.get('stage') and r['status'] in {'ok', 'empty'}]
         unavailable = reports and not answered
         return {"error": ('Search sources are unavailable; retry after access recovers.' if unavailable else
@@ -699,6 +709,8 @@ def search_papers(
     usage_log.note(reranker=reranker_meta)
 
     meta = _meta_block(reports, debug=debug, total=len(results), reranker=reranker_meta)
+    if date_meta:
+        meta = {**meta, **date_meta} if debug else {**meta, "_meta": date_meta}
     return {"results": [_format_paper(p, debug=debug) for p in results],
                   **({"_meta": meta} if debug else meta)}
 

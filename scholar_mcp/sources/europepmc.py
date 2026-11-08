@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 
 import httpx
 
+from ..dates import publication_range
 from .. import access
 from ..cache import cached
 from ..records import external_ids, matches_paper, pmc_id
@@ -355,6 +356,9 @@ def _pdf_urls(item: dict) -> list[str]:
 
 def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
     """Search Europe PMC with the same normalized fields used for relation records."""
+    if selected := publication_range(kwargs.get("year")):
+        start, end = selected.iso
+        query = f"({query}) AND FIRST_PDATE:[{start} TO {end}]"
     return [format_paper(item) for item in _request(query, limit) if item.get("title")][:limit]
 
 

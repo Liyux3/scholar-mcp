@@ -13,6 +13,7 @@ from urllib.parse import unquote, urlsplit
 import httpx
 from bs4 import BeautifulSoup
 
+from ..dates import publication_range
 from .. import access, scholar_session
 from ..cache import DEFAULT_TTL, _disk, cached
 from . import PartialResults, pacing, publish
@@ -111,7 +112,7 @@ def _parse_paper(item) -> Optional[dict]:
             "is_open_access": bool(pdf_url),
             "open_access_url": pdf_url,
             "publication_types": ["Book"] if is_book else [],
-            "publication_date": f"{year}-01-01" if year else None,
+            "publication_date": str(year) if year else None,
             "external_ids": identifiers,
             "url": url,
             "source": "google_scholar",
@@ -131,6 +132,8 @@ def _blocked(response, soup, results) -> bool:
 def _page(query: str, start: int, state: dict) -> tuple[list[dict], int]:
     """Read one page using the transport that actually obtained it."""
     params = {'q': query, 'hl': 'en'}
+    if selected := publication_range(state.get("year")):
+        params.update(as_ylo=selected.start.year, as_yhi=selected.end.year)
     if start:
         params['start'] = start
     url = str(httpx.URL(state['endpoint'], params=params))
@@ -188,7 +191,7 @@ def _page(query: str, start: int, state: dict) -> tuple[list[dict], int]:
 
 
 @cached(ttl=300)
-def search_papers(query: str, max_results: int = 10) -> list[dict]:
+def search_papers(query: str, max_results: int = 10, year: str = None) -> list[dict]:
     """Read and publish cumulative pages, replaying completed pages after an interruption."""
     if max_results <= 0:
         return []
@@ -197,10 +200,10 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
                "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9"}
     endpoint = SCHOLAR_URL
     state = {'session': session, 'client': _session(headers), 'endpoint': endpoint,
-             'host_access': access.preferred(endpoint), 'browser': False}
+             'host_access': access.preferred(endpoint), 'browser': False, 'year': year}
     papers, seen, start = [], set(), 0
     while len(papers) < max_results:
-        key = f'google-page.v1:{scholar_session._route()}:{state["endpoint"]}:{query}:{start}'
+        key = f'google-page.v1:{scholar_session._route()}:{state["endpoint"]}:{query}:{year or ""}:{start}'
         saved = _disk(key)
         try:
             if saved is not None:
@@ -224,7 +227,7 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
             # Store all parsed cards, not just the caller's output slice. A
             # later larger request must not skip the remainder of this page.
             import time
-            key = f'google-page.v1:{scholar_session._route()}:{state["endpoint"]}:{query}:{start}'
+            key = f'google-page.v1:{scholar_session._route()}:{state["endpoint"]}:{query}:{year or ""}:{start}'
             _disk(key, (time.time() + DEFAULT_TTL, {'papers': page, 'cards': cards}))
         if not publish(papers[:max_results]):
             return PartialResults(papers[:max_results], 'Search round closed after completed pages')

@@ -6,6 +6,7 @@ import re
 
 import httpx
 
+from ..dates import publication_range
 from .. import access, config
 from ..cache import cached
 from ..records import normalize_title as _normalize_title
@@ -250,12 +251,12 @@ def _search_filters(year: str = None, fields_of_study: list[str] = None,
                     open_access_only: bool = False) -> str:
     """Works filters shared by keyword and semantic retrieval."""
     filters = []
-    if year:
-        if "-" in year:
-            start, end = year.split("-", 1)
-            filters.append(f"publication_year:{start}-{end}")
+    if selected := publication_range(year):
+        if selected.fine:
+            start, end = selected.iso
+            filters.extend((f"from_publication_date:{start}", f"to_publication_date:{end}"))
         else:
-            filters.append(f"publication_year:{year}")
+            filters.append(f"publication_year:{selected.years}")
 
     if fields_of_study:
         field_ids = _openalex_field_ids(fields_of_study)

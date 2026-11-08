@@ -11,6 +11,7 @@ from email.utils import parsedate_to_datetime
 
 import httpx
 
+from ..dates import publication_range
 from .. import access, config
 from ..cache import cached
 from . import pacing
@@ -345,8 +346,11 @@ def search_papers(query, limit=10, year=None, venue=None,
         "limit": min(limit, 100),
         "fields": SEARCH_FIELDS,
     }
-    if year:
-        params["year"] = year
+    if selected := publication_range(year):
+        if selected.fine:
+            params["publicationDateOrYear"] = ":".join(selected.iso)
+        else:
+            params["year"] = selected.years
     if venue:
         params["venue"] = ",".join(venue) if isinstance(venue, list) else venue
     if fields_of_study:

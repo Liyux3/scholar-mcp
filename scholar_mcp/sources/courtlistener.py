@@ -7,6 +7,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 
 import httpx
+from ..dates import publication_range
 from .. import access, config, relevance
 from . import pacing
 
@@ -41,6 +42,8 @@ def format_paper(item: dict) -> dict:
 
 def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
     papers, url, params = [], SEARCH, {'q': query, 'type': 'o', 'order_by': 'score desc', 'highlight': 'on'}
+    if selected := publication_range(kwargs.get("year")):
+        params["filed_after"], params["filed_before"] = selected.iso
     warning = ''
     # Plain questions use Citegeist's native semantic search. Exact cluster
     # lookups and explicit legal query operators retain keyword semantics.

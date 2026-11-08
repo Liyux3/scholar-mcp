@@ -5,6 +5,7 @@
 import re
 from concurrent.futures import ThreadPoolExecutor
 
+from ..dates import publication_range
 from .. import access, config
 from ..relevance import extract_keywords
 from . import pacing
@@ -56,6 +57,8 @@ def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
         return []
 
     scopus_query = f"TITLE-ABS-KEY({_shorten_query(query)})"
+    if selected := publication_range(kwargs.get("year")):
+        scopus_query += f" AND PUBYEAR > {selected.start.year - 1} AND PUBYEAR < {selected.end.year + 1}"
 
     # Page offsets are known from `limit`, so all pages can be requested at
     # once. Results are reassembled in offset order to preserve the

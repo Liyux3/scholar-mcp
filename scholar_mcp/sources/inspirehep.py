@@ -3,6 +3,7 @@
 """INSPIRE-HEP search, native citation/reference traversal and identifier lookup."""
 import re
 
+from ..dates import publication_range
 from .. import access
 from ..cache import cached
 from . import pacing
@@ -51,6 +52,8 @@ def _search(query: str, limit: int) -> list[dict]:
 
 
 def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
+    if selected := publication_range(kwargs.get("year")):
+        query = f"({query}) AND date {selected.start.year}->{selected.end.year}"
     return [paper for hit in _search(query, limit) if (paper := format_paper(hit))][:limit]
 
 

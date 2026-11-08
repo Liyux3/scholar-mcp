@@ -6,6 +6,7 @@ import time
 
 import httpx
 
+from ..dates import publication_range
 from .. import access, config
 from ..records import matches_paper
 from . import pacing
@@ -74,8 +75,10 @@ def format_paper(data: dict) -> dict:
     }
 
 
-def search_papers(query: str, limit: int = 10) -> list[dict]:
+def search_papers(query: str, limit: int = 10, year: str = None) -> list[dict]:
     """Search CORE works. Returns unified format, quality-sorted."""
+    if selected := publication_range(year):
+        query = f"({query}) AND yearPublished>={selected.start.year} AND yearPublished<={selected.end.year}"
     params = {"q": query, "limit": min(limit * 2, 100), "sort": "relevance"}
     data = _get(f"{BASE_URL}/search/works/", params=params)
 

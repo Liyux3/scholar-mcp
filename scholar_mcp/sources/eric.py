@@ -4,6 +4,7 @@
 
 import re
 
+from ..dates import publication_range
 from .. import access
 from .. import records as record_ops
 from . import pacing
@@ -40,6 +41,8 @@ def format_paper(item: dict) -> dict:
 
 def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
     from . import PartialResults, publish
+    if selected := publication_range(kwargs.get("year")):
+        query = f"({query}) AND publicationdateyear:[{selected.start.year} TO {selected.end.year}]"
     papers, start = [], 0
     while len(papers) < limit:
         try:
