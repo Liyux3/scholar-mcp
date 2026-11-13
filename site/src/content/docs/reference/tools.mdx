@@ -45,7 +45,7 @@ Find papers that answer a research question or match something you half remember
 | `intent` | string | `"balanced"` | Soft ranking focus: `balanced`, `foundational`, `recent`, `survey`, `method` or `dataset` |
 | `debug` | boolean | `false` | Add per-source status, latency, provenance and ranking diagnostics |
 
-Returns `results`, each with `title`, up to five `authors`, `year`, `venue`, `citations`, a shortened `abstract` and `id`, plus `doi`, `url`, `tldr` and `open_access` when known. A short `warning` appears when a source did not answer and that affected the results. With `debug=true`, `_meta` shows source coverage, the ranking model that ran, each source's count and time, and each result's sources and score.
+Returns `results`, each with `title`, up to five `authors`, `year`, `venue`, `citations`, the full `abstract` and `id`, plus `doi`, `url`, `tldr` and `open_access` when known. A short `warning` appears when a source did not answer and that affected the results. With `debug=true`, `_meta` shows source coverage, the ranking model that ran, each source's count and time, and each result's sources and score.
 
 Filters apply to the whole pool, including papers found through citations, before the result limit is taken.
 

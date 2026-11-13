@@ -588,9 +588,16 @@ def test_paced_s2_traffic_skips_optional_metadata_enrichment(monkeypatch):
     assert server.search_papers("example")["results"][0]["title"] == "Example"
 
 
-def test_paper_detail_preserves_available_authors_and_the_full_abstract():
+def test_text_far_longer_than_an_abstract_is_shown_from_its_start():
+    body = "Results were consistent across all twelve sites in the study. " * 200
+    for detailed in (False, True):
+        shown = server._format_paper({"title": "A paper", "abstract": body}, detailed=detailed)["abstract"]
+        assert shown.endswith(" ...") and len(shown) <= server.record_ops.ABSTRACT_MAX_CHARS + 4
+
+
+def test_results_and_detail_carry_the_full_abstract():
     paper = {"title": "A paper", "authors": [f"Author {i}" for i in range(8)], "abstract": "A long abstract. " * 100}
     summary = server._format_paper(paper)
     detail = server._format_paper(paper, detailed=True)
-    assert len(summary["authors"]) == 5 and summary["abstract"].endswith("...")
+    assert len(summary["authors"]) == 5 and summary["abstract"] == paper["abstract"]
     assert detail["authors"] == paper["authors"] and detail["abstract"] == paper["abstract"]

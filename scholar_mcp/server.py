@@ -323,8 +323,8 @@ def _format_paper(p: dict, *, detailed: bool = False, debug: bool = False) -> di
     if "<jats:" in abstract.casefold():
         from bs4 import BeautifulSoup
         abstract = " ".join(BeautifulSoup(abstract, "html.parser").get_text(" ", strip=True).split())
-    if not detailed and len(abstract) > 300:
-        abstract = abstract[:300] + "..."
+    if len(abstract) > record_ops.ABSTRACT_MAX_CHARS:
+        abstract = abstract[:record_ops.ABSTRACT_MAX_CHARS].rsplit(" ", 1)[0] + " ..."
     out = {
         "title": p.get("title", ""),
         "authors": (p.get("authors") if detailed else (p.get("authors") or [])[:5]) or None,
