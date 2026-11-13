@@ -4,6 +4,7 @@
 
 import re
 import unicodedata
+from collections import Counter
 from html import unescape
 
 
@@ -33,6 +34,38 @@ def normalize_publication_types(values) -> list[str]:
     }
     return sorted({aliases.get(re.sub(r"[^a-z]", "", str(value).casefold()), str(value))
                    for value in (values or []) if value})
+
+
+def _name_words(name: str) -> list[str]:
+    plain = "".join(c for c in unicodedata.normalize("NFKD", name or "") if not unicodedata.combining(c))
+    return re.sub(r"[^0-9a-z]+", " ", plain.casefold()).split()
+
+
+def author_name_match(query: str, name: str) -> int:
+    """3 for the same name in any order or spacing (Li Fei-Fei, Feifei Li), 2 when the
+    name holds every word of the query, 1 for the same surname and first initial."""
+    asked, found = _name_words(query), _name_words(name)
+    if not asked or not found:
+        return 0
+    if "".join(sorted(asked)) == "".join(sorted(found)):
+        return 3
+    if not Counter(asked) - Counter(found):
+        return 2
+    if asked[-1] in (found[0], found[-1]) and asked[0][0] == found[0][0]:
+        return 1
+    return 0
+
+
+# Real abstracts stay well under this length; a longer "abstract" in a source record is
+# body text, supplementary captions or a review, and loses to any real one.
+ABSTRACT_MAX_CHARS = 5000
+
+
+def abstract_quality(text) -> tuple:
+    """Order abstracts from different sources: real length first, then not cut short
+    (no ellipsis), then longer."""
+    text = str(text or "")
+    return (len(text) <= ABSTRACT_MAX_CHARS, not re.search(r"…|\.{3}", text), len(text))
 
 
 def known_citations(paper: dict) -> int | None:
@@ -320,7 +353,7 @@ def compatible_title_match(existing: dict, candidate: dict) -> bool:
 
 def merge_records(a: dict, b: dict) -> dict:
     """Merge two paper dicts for the same paper from different sources.
-    Take the best of each field: longest abstract, most authors, highest cites.
+    Take the best of each field: the longest real abstract, most authors, highest cites.
     Track source count and per-source ranks for RRF.
     """
     merged = dict(a)
@@ -357,7 +390,7 @@ def merge_records(a: dict, b: dict) -> dict:
     if not merged.get("title") and b.get("title"):
         merged["title"] = b["title"]
     b_abs = b.get("abstract") or ""
-    if b_abs and (not merged.get("abstract") or text_quality(b_abs) > text_quality(merged["abstract"])):
+    if b_abs and (not merged.get("abstract") or abstract_quality(b_abs) > abstract_quality(merged["abstract"])):
         merged["abstract"] = b_abs
     b_authors = normalize_authors(b.get("authors"))
     a_authors = normalize_authors(merged.get("authors"))
@@ -442,7 +475,7 @@ def merge_records(a: dict, b: dict) -> dict:
         if av != bv:
             if chosen.get('authors'):
                 merged['authors'] = normalize_authors(chosen['authors'])
-            if chosen.get('abstract') and chosen.get('abstract_kind') != 'search_excerpt' and text_quality(chosen['abstract'])[0]:
+            if chosen.get('abstract') and chosen.get('abstract_kind') != 'search_excerpt' and all(abstract_quality(chosen['abstract'])[:2]):
                 merged['abstract'] = chosen['abstract']
         versions = {}
         for record in (a.get('versions') or [_version_record(a)]) + (b.get('versions') or [_version_record(b)]):

@@ -1,0 +1,188 @@
+{
+ "command": "scholar-mcp authors \"Fei-Fei Li\" --limit 3",
+ "version": "0.11.0",
+ "recorded": "2026-11-13",
+ "seconds": 4.4,
+ "lines": [
+  [
+   4.27,
+   "authors:"
+  ],
+  [
+   4.27,
+   "- author_id: A5100450462"
+  ],
+  [
+   4.27,
+   "  name: Li Fei-Fei"
+  ],
+  [
+   4.27,
+   "  affiliations:"
+  ],
+  [
+   4.27,
+   "  - Stanford University"
+  ],
+  [
+   4.27,
+   "  topics:"
+  ],
+  [
+   4.27,
+   "  - Advanced Neural Network Applications"
+  ],
+  [
+   4.27,
+   "  - Reinforcement Learning in Robotics"
+  ],
+  [
+   4.27,
+   "  - Advanced Image and Video Retrieval Techniques"
+  ],
+  [
+   4.27,
+   "  paper_count: 587"
+  ],
+  [
+   4.27,
+   "  citation_count: 250985"
+  ],
+  [
+   4.27,
+   "  h_index: 149"
+  ],
+  [
+   4.27,
+   "  url: https://openalex.org/A5100450462"
+  ],
+  [
+   4.27,
+   "  source: openalex"
+  ],
+  [
+   4.27,
+   "  orcid: https://orcid.org/0000-0002-7481-0810"
+  ],
+  [
+   4.27,
+   "- author_id: A5100450450"
+  ],
+  [
+   4.27,
+   "  name: Feifei Li"
+  ],
+  [
+   4.27,
+   "  affiliations:"
+  ],
+  [
+   4.27,
+   "  - University of Electronic Science and Technology of China"
+  ],
+  [
+   4.27,
+   "  topics:"
+  ],
+  [
+   4.27,
+   "  - Crystal Structures and Properties"
+  ],
+  [
+   4.27,
+   "  - Crystal structures of chemical compounds"
+  ],
+  [
+   4.27,
+   "  - Metamaterials and Metasurfaces Applications"
+  ],
+  [
+   4.27,
+   "  paper_count: 179"
+  ],
+  [
+   4.27,
+   "  citation_count: 5343"
+  ],
+  [
+   4.27,
+   "  h_index: 29"
+  ],
+  [
+   4.27,
+   "  url: https://openalex.org/A5100450450"
+  ],
+  [
+   4.27,
+   "  source: openalex"
+  ],
+  [
+   4.27,
+   "  orcid: https://orcid.org/0000-0001-5629-267X"
+  ],
+  [
+   4.27,
+   "- author_id: A5100325826"
+  ],
+  [
+   4.27,
+   "  name: Fei Li"
+  ],
+  [
+   4.27,
+   "  affiliations:"
+  ],
+  [
+   4.27,
+   "  - Zhejiang Normal University"
+  ],
+  [
+   4.27,
+   "  - Liaoning Shihua University"
+  ],
+  [
+   4.27,
+   "  - Guizhou University"
+  ],
+  [
+   4.27,
+   "  topics:"
+  ],
+  [
+   4.27,
+   "  - Ferroelectric and Piezoelectric Materials"
+  ],
+  [
+   4.27,
+   "  - Multiferroics and related materials"
+  ],
+  [
+   4.27,
+   "  - Dielectric materials and actuators"
+  ],
+  [
+   4.27,
+   "  paper_count: 732"
+  ],
+  [
+   4.27,
+   "  citation_count: 34603"
+  ],
+  [
+   4.27,
+   "  h_index: 81"
+  ],
+  [
+   4.27,
+   "  url: https://openalex.org/A5100325826"
+  ],
+  [
+   4.27,
+   "  source: openalex"
+  ],
+  [
+   4.27,
+   "  orcid: https://orcid.org/0000-0002-4572-0322"
+  ]
+ ]
+}

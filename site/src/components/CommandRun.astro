@@ -1,0 +1,94 @@
+---
+// A command with a Run button that replays one real recorded run of it: the clock
+// shows the recorded seconds, sped up so a slow search still finishes in a few
+// seconds, and the lines appear in the order and rhythm they first arrived. The
+// asterisk in the corner says so on hover.
+// Recordings come from internal tooling and live in src/data/runs.
+interface Run {
+	command: string;
+	version: string;
+	recorded: string;
+	seconds: number;
+	lines: Array<[number, string]>;
+}
+
+interface Props {
+	run: Run;
+}
+
+const { run } = Astro.props;
+const zh = Astro.url.pathname.includes('/zh-cn/');
+const speed = Math.max(1, Math.round(run.seconds / 3));
+const words = zh
+	? { run: '运行', again: '再运行一次', running: '运行中', copy: '复制', copied: '已复制', done: '完成', note: `回放一次真实运行：${run.recorded} 用 ${run.version} 录制，实际用时 ${run.seconds} 秒，这里加速 ${speed} 倍。` }
+	: { run: 'Run', again: 'Run again', running: 'Running', copy: 'Copy', copied: 'Copied', done: 'Done', note: `A replay of a real run, recorded on ${run.recorded} with ${run.version}. It took ${run.seconds} s and plays ${speed}× faster here.` };
+---
+
+<div class="sc-run not-content" data-speed={speed} data-seconds={run.seconds} data-words={JSON.stringify(words)}>
+	<div class="sc-run-bar">
+		<code class="sc-run-command"><span class="sc-run-prompt" aria-hidden="true">$</span> {run.command}</code>
+		<button type="button" class="sc-run-copy" data-command={run.command}>{words.copy}</button>
+		<button type="button" class="sc-run-start">▶ {words.run}</button>
+	</div>
+	<div class="sc-run-body" hidden>
+		<div class="sc-run-head">
+			<span class="sc-run-status" aria-live="polite"></span>
+			<span class="sc-run-star" title={words.note} aria-label={words.note} tabindex="0">*</span>
+		</div>
+		<pre class="sc-run-output"><code>{run.lines.map(([at, text]) => <span data-at={at} hidden>{text + '\n'}</span>)}</code></pre>
+	</div>
+</div>
+
+<script>
+	const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	for (const figure of document.querySelectorAll<HTMLElement>('.sc-run')) {
+		const words = JSON.parse(figure.dataset.words!);
+		const speed = Number(figure.dataset.speed);
+		const total = Number(figure.dataset.seconds);
+		const start = figure.querySelector<HTMLButtonElement>('.sc-run-start')!;
+		const copy = figure.querySelector<HTMLButtonElement>('.sc-run-copy')!;
+		const body = figure.querySelector<HTMLElement>('.sc-run-body')!;
+		const status = figure.querySelector<HTMLElement>('.sc-run-status')!;
+		const lines = [...figure.querySelectorAll<HTMLElement>('.sc-run-output span')];
+		let frame = 0;
+
+		copy.addEventListener('click', async () => {
+			await navigator.clipboard.writeText(copy.dataset.command!);
+			copy.textContent = words.copied;
+			setTimeout(() => (copy.textContent = words.copy), 1500);
+		});
+
+		start.addEventListener('click', () => {
+			cancelAnimationFrame(frame);
+			body.hidden = false;
+			lines.forEach((line) => (line.hidden = true));
+			start.disabled = true;
+			const began = performance.now();
+			// Most commands print everything at the end; lines that arrived together
+			// still come in one after another, the whole burst within about a second.
+			const gap = still ? 0 : Math.min(12, 900 / Math.max(lines.length, 1));
+			const due: number[] = [];
+			lines.forEach((line, index) => {
+				const at = (Number(line.dataset.at) * 1000) / speed;
+				due.push(still ? 0 : Math.max(at, index ? due[index - 1] + gap : at));
+			});
+			const end = Math.max((total * 1000) / speed, due[due.length - 1] ?? 0);
+			let shown = 0;
+			const tick = (now: number) => {
+				const elapsed = still ? end : now - began;
+				while (shown < lines.length && due[shown] <= elapsed) lines[shown++].hidden = false;
+				const finished = elapsed >= end;
+				const clock = Math.min(total, (elapsed / 1000) * speed);
+				status.textContent = finished ? `${words.done} · ${total.toFixed(1)} s` : `${words.running} · ${clock.toFixed(1)} s`;
+				if (finished) {
+					start.disabled = false;
+					start.textContent = `↻ ${words.again}`;
+				} else {
+					frame = requestAnimationFrame(tick);
+				}
+			};
+			frame = requestAnimationFrame(tick);
+		});
+	}
+</script>

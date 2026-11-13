@@ -4,6 +4,7 @@
 
 import re
 
+from ..dates import publication_range
 from .. import config
 from . import pacing, s2
 
@@ -60,7 +61,11 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     exa = _get_exa()
     # Out of credits or down raises, so the registry reports a failure, not an empty search.
     pacing.wait("exa", key=config.EXA_API_KEY)
-    results = exa.search(query, num_results=limit, type="auto", category="research paper", contents=False)
+    filters = {}
+    if selected := publication_range(kwargs.get("year")):
+        start, end = selected.iso
+        filters = {"start_published_date": f"{start}T00:00:00Z", "end_published_date": f"{end}T23:59:59.999Z"}
+    results = exa.search(query, num_results=limit, type="auto", category="research paper", contents=False, **filters)
 
     papers = []
     for r in results.results:

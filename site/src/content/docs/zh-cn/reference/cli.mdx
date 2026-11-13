@@ -5,13 +5,19 @@ description: scholar-mcp 命令可启动 MCP 服务器、在终端使用全部�
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import CommandRun from '../../../../components/CommandRun.astro';
+import search from '../../../../data/runs/search.json';
+import info from '../../../../data/runs/info.json';
+import related from '../../../../data/runs/related.json';
+import authors from '../../../../data/runs/authors.json';
+import graph from '../../../../data/runs/graph.json';
 
 `scholar-mcp` 一个命令有三种用法。不带参数时，它启动 MCP 服务器，客户端就是这样经 stdio 启动它的。带研究命令时，它在终端里直接查论文、读论文，和 MCP 工具是同一套函数。带设置命令时，它负责注册客户端、保存密钥、检查健康状况和升级。先用 uv 装一次。
 
 ```bash
 uv tool install --python 3.12 \
-  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.0/wheel-index.html \
-  "scholar-mcp[rerank]==0.10.0"
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.11.0/wheel-index.html \
+  "scholar-mcp[rerank]==0.11.0"
 ```
 
 研究和设置命令默认输出易读的 YAML，加 `--json` 输出 JSON，便于接入 `jq` 或脚本，`library` 和 `sources` 则直接输出 JSON。每个命令都支持 `--help`。
@@ -40,14 +46,12 @@ uv tool install --python 3.12 \
 
 ### search
 
-```bash
-scholar-mcp search "long-term memory benchmarks for LLM agents" --year 2024-2026
-```
+<CommandRun run={search} />
 
 | 选项 | 说明 |
 |---|---|
 | `--limit N` | 最多返回的结果数（默认 10） |
-| `--year RANGE` | 年份或年份范围，例如 `2024-2026` |
+| `--year RANGE` | 年、月或日，或用 `:`、`..` 连起来的两个，例如 `2024-2026`、`2026-10` 或 `2026-10-01..2026-11-09` |
 | `--venue V` | 会议或期刊 |
 | `--fields LIST` | 逗号分隔的学科领域 |
 | `--types LIST` | 逗号分隔的出版类型 |
@@ -59,25 +63,19 @@ scholar-mcp search "long-term memory benchmarks for LLM agents" --year 2024-2026
 
 ### info
 
-```bash
-scholar-mcp info arXiv:2303.04137 --citations --limit 10
-```
+<CommandRun run={info} />
 
 打印论文详情。`--citations` 加上引用它的论文，`--references` 加上它引用的论文，`--limit N` 限制每个列表的长度（默认 20）。
 
 ### related
 
-```bash
-scholar-mcp related arXiv:2303.04137 --relation kin
-```
+<CommandRun run={related} />
 
 `--relation` 可选 `similar`（默认）、`peers` 或 `kin`，`--limit N` 设定篇数（默认 10）。
 
 ### authors
 
-```bash
-scholar-mcp authors "Fei-Fei Li" --limit 3
-```
+<CommandRun run={authors} />
 
 ### read
 
@@ -104,9 +102,7 @@ scholar-mcp download 10.1038/s41586-021-03819-2 --dir papers --collection foldin
 
 ### graph
 
-```bash
-scholar-mcp graph arXiv:2303.04137,arXiv:2209.03003 --hops 1 --max-papers 40
-```
+<CommandRun run={graph} />
 
 | 选项 | 说明 |
 |---|---|

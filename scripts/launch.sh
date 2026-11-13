@@ -11,10 +11,10 @@ case "$(uname -s)" in
 esac
 
 runtime_dir="${SCHOLAR_RUNTIME_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/scholar-mcp/runtime}"
-package="${SCHOLAR_PACKAGE:-scholar-mcp[rerank]==0.10.0}"
+package="${SCHOLAR_PACKAGE:-scholar-mcp[rerank]==0.11.0}"
 constraints="${SCHOLAR_WHEEL_INDEX:-}"
 if [ -z "${SCHOLAR_PACKAGE:-}" ]; then
-  constraints="${constraints:-https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.0/wheel-index.html}"
+  constraints="${constraints:-https://github.com/Liyux3/scholar-mcp/releases/download/v0.11.0/wheel-index.html}"
 fi
 uv_bin="${SCHOLAR_UV:-}"
 if [ -z "$uv_bin" ]; then

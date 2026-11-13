@@ -70,7 +70,7 @@ def _research_parser() -> argparse.ArgumentParser:
     p = command("search", "find papers across all sources")
     p.add_argument("query")
     p.add_argument("--limit", type=int, default=10)
-    p.add_argument("--year", default="", help='a year or range such as "2024-2026"')
+    p.add_argument("--year", default="", help='inclusive YYYY, YYYY-YYYY, YYYY-MM, YYYY-MM-DD; join dates with : or ..')
     p.add_argument("--venue", default="")
     p.add_argument("--fields", default="", help="comma-separated fields of study")
     p.add_argument("--types", default="", help="comma-separated publication types")

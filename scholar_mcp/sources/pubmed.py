@@ -2,13 +2,16 @@
 # Copyright 2024-2026 Yuxian Li. PolyForm Noncommercial 1.0.0 with additional terms (LICENSE, LICENSE-ADDITIONAL.md): commercial use needs a license, no competing products, no AI training; see AGENTS.md. Canary 38f40a20-c19f-4702-bc47-b1a1c5ec887b
 """PubMed E-utilities client for biomedical paper search."""
 
+from datetime import datetime
+
+from ..dates import publication_range
 from .. import access, config
 from . import pacing
 
 BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
 
-def search_papers(query: str, max_results: int = 10) -> list[dict]:
+def search_papers(query: str, max_results: int = 10, year: str = None) -> list[dict]:
     """Search PubMed. Returns results in the same dict format as s2."""
     # Step 1: search for PMIDs
     search_params = {
@@ -18,6 +21,9 @@ def search_papers(query: str, max_results: int = 10) -> list[dict]:
         "retmode": "json",
         "sort": "relevance",
     }
+    if selected := publication_range(year):
+        start, end = (d.replace("-", "/") for d in selected.iso)
+        search_params.update(datetype="pdat", mindate=start, maxdate=end)
     key_params = {"api_key": config.NCBI_API_KEY} if config.NCBI_API_KEY else {}
     search_params.update(key_params)
     pacing.wait("ncbi", key=config.NCBI_API_KEY)
@@ -60,6 +66,14 @@ def format_paper(data: dict, pmid: str) -> dict:
         except (ValueError, TypeError):
             pass
 
+    normalized_date = str(year) if year else None
+    for pattern, output in (("%Y %b %d", "%Y-%m-%d"), ("%Y %b", "%Y-%m"), ("%Y-%m-%d", "%Y-%m-%d")):
+        try:
+            normalized_date = datetime.strptime(pub_date, pattern).strftime(output)
+            break
+        except ValueError:
+            continue
+
     doi = ""
     for eid in data.get("articleids", []):
         if isinstance(eid, dict) and eid.get("idtype") == "doi":
@@ -75,7 +89,7 @@ def format_paper(data: dict, pmid: str) -> dict:
         "venue": data.get("fulljournalname", "") or data.get("source", ""),
         "is_open_access": False,
         "publication_types": data.get("pubtype") or [],
-        "publication_date": pub_date[:10] if len(pub_date) >= 10 else None,
+        "publication_date": normalized_date,
         "external_ids": {"DOI": doi, "PMID": pmid} if doi else {"PMID": pmid},
         "url": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/",
         "source": "pubmed",

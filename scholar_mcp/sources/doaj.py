@@ -5,6 +5,7 @@
 import re
 from urllib.parse import quote
 
+from ..dates import publication_range
 from .. import access
 from ..records import matches_paper
 from . import pacing
@@ -18,7 +19,10 @@ def _literal(text: str) -> str:
 
 def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
     """Search natural-language text without treating punctuation as Lucene operators."""
-    return _search(_literal(query), limit)
+    query = _literal(query)
+    if selected := publication_range(kwargs.get("year")):
+        query = f"({query}) AND bibjson.year:[{selected.start.year} TO {selected.end.year}]"
+    return _search(query, limit)
 
 
 def _search(query: str, limit: int) -> list[dict]:
@@ -67,7 +71,7 @@ def _search(query: str, limit: int) -> list[dict]:
             "is_open_access": True,
             "open_access_url": full_text_url,
             "fields_of_study": [s.get("term", "") for s in bib.get("subject", []) if s.get("term")],
-            "publication_date": f"{bib.get('year', '')}-{bib.get('month', '01').zfill(2)}-01" if bib.get("year") else None,
+            "publication_date": (str(bib["year"]) + (f"-{str(bib['month']).zfill(2)}" if bib.get("month") else "")) if bib.get("year") else None,
             "external_ids": {"DOI": doi} if doi else {},
             "url": full_text_url or f"https://doaj.org/article/{entry.get('id', '')}",
             "source": "doaj",

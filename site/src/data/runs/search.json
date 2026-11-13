@@ -1,0 +1,516 @@
+{
+ "command": "scholar-mcp search \"long-term memory benchmarks for LLM agents\" --year 2024-2026 --limit 5",
+ "version": "0.11.0",
+ "recorded": "2026-11-13",
+ "seconds": 63.3,
+ "lines": [
+  [
+   51.9,
+   "results:"
+  ],
+  [
+   51.9,
+   "- title: 'Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory'"
+  ],
+  [
+   51.9,
+   "  authors:"
+  ],
+  [
+   51.9,
+   "  - Prateek Chhikara"
+  ],
+  [
+   51.9,
+   "  - Dev Khant"
+  ],
+  [
+   51.9,
+   "  - Saket Aryan"
+  ],
+  [
+   51.9,
+   "  - Taranjeet Singh"
+  ],
+  [
+   51.9,
+   "  - Yadav, Deshraj"
+  ],
+  [
+   51.9,
+   "  year: 2025"
+  ],
+  [
+   51.9,
+   "  venue: ECAI 2025"
+  ],
+  [
+   51.9,
+   "  citations: 1225"
+  ],
+  [
+   51.9,
+   "  abstract: 'Large Language Models (LLMs) have demonstrated remarkable prowess in"
+  ],
+  [
+   51.9,
+   "    generating contextually coherent responses, yet their fixed context windows pose"
+  ],
+  [
+   51.9,
+   "    fundamental challenges for maintaining consistency over prolonged multi-session"
+  ],
+  [
+   51.9,
+   "    dialogues. We introduce Mem0, a scalable memory-centric architecture that addresses"
+  ],
+  [
+   51.9,
+   "    this issue by dynamically extracting, consolidating, and retrieving salient information"
+  ],
+  [
+   51.9,
+   "    from ongoing conversations. Building on this foundation, we further propose an"
+  ],
+  [
+   51.9,
+   "    enhanced variant that leverages graph-based memory representations to capture"
+  ],
+  [
+   51.9,
+   "    complex relational structures among conversational elements. Through comprehensive"
+  ],
+  [
+   51.9,
+   "    evaluations on LOCOMO benchmark, we systematically compare our approaches against"
+  ],
+  [
+   51.9,
+   "    six baseline categories: (i) established memory-augmented systems, (ii) retrieval-augmented"
+  ],
+  [
+   51.9,
+   "    generation (RAG) with varying chunk sizes and k-values, (iii) a full-context approach"
+  ],
+  [
+   51.9,
+   "    that processes the entire conversation history, (iv) an open-source memory solution,"
+  ],
+  [
+   51.9,
+   "    (v) a proprietary model system, and (vi) a dedicated memory management platform."
+  ],
+  [
+   51.9,
+   "    Empirical results show that our methods consistently outperform all existing memory"
+  ],
+  [
+   51.9,
+   "    systems across four question categories: single-hop, temporal, multi-hop, and"
+  ],
+  [
+   51.9,
+   "    open-domain. Notably, Mem0 achieves 26% relative improvements in the LLM-as-a-Judge"
+  ],
+  [
+   51.9,
+   "    metric over OpenAI, while Mem0 with graph memory achieves around 2% higher overall"
+  ],
+  [
+   51.9,
+   "    score than the base configuration. Beyond accuracy gains, we also markedly reduce"
+  ],
+  [
+   51.9,
+   "    computational overhead compared to full-context method. In particular, Mem0 attains"
+  ],
+  [
+   51.9,
+   "    a 91% lower p95 latency and saves more than 90% token cost, offering a compelling"
+  ],
+  [
+   51.9,
+   "    balance between advanced reasoning capabilities and practical deployment constraints."
+  ],
+  [
+   51.9,
+   "    Our findings highlight critical role of structured, persistent memory mechanisms"
+  ],
+  [
+   51.9,
+   "    for long-term conversational coherence, paving the way for more reliable and efficient"
+  ],
+  [
+   51.9,
+   "    LLM-driven AI agents.'"
+  ],
+  [
+   51.9,
+   "  doi: 10.48550/arxiv.2504.19413"
+  ],
+  [
+   51.9,
+   "  id: 10.48550/arxiv.2504.19413"
+  ],
+  [
+   51.9,
+   "  url: https://openalex.org/W4416895257"
+  ],
+  [
+   51.9,
+   "  open_access: true"
+  ],
+  [
+   51.9,
+   "- title: Evaluating Very Long-Term Conversational Memory of LLM Agents"
+  ],
+  [
+   51.9,
+   "  authors:"
+  ],
+  [
+   51.9,
+   "  - Adyasha Maharana"
+  ],
+  [
+   51.9,
+   "  - Dong-Ho Lee"
+  ],
+  [
+   51.9,
+   "  - Sergey Tulyakov"
+  ],
+  [
+   51.9,
+   "  - Mohit Bansal"
+  ],
+  [
+   51.9,
+   "  - Francesco Barbieri"
+  ],
+  [
+   51.9,
+   "  year: 2024"
+  ],
+  [
+   51.9,
+   "  venue: Proceedings of the conference - Association for Computational Linguistics."
+  ],
+  [
+   51.9,
+   "    Meeting"
+  ],
+  [
+   51.9,
+   "  citations: 1142"
+  ],
+  [
+   51.9,
+   "  abstract: |-"
+  ],
+  [
+   51.9,
+   "    Existing works on long-term open-domain dialogues focus on evaluating model responses within contexts spanning no more than five chat sessions. Despite advancements in long-context large language models (LLMs) and retrieval augmented generation (RAG) techniques, their efficacy in very long-term dialogues remains unexplored. To address this research gap, we introduce a machine-human pipeline to generate high-quality, very long-term dialogues by leveraging LLM-based agent architectures and grounding their dialogues on personas and temporal event graphs. Moreover, we equip each agent with the capability of sharing and reacting to images. The generated conversations are verified and edited by human annotators for long-range consistency and grounding to the event graphs. Using this pipeline, we collect LoCoMo, a dataset of very long-term conversations, each encompassing 300 turns and 9K tokens on avg., over up to 35 sessions. Based on LoCoMo, we present a comprehensive evaluation benchmark to measure long-term memory in models, encompassing question answering, event summarization, and multi-modal dialogue generation tasks. Our experimental results indicate that LLMs exhibit challenges in understanding lengthy conversations and comprehending long-range temporal and causal dynamics within dialogues. Employing strategies like long-context LLMs or RAG can offer improvements but these models still substantially lag behind human performance."
+  ],
+  [
+   51.9,
+   "    19 pages; Project page: https://snap-research.github.io/locomo/"
+  ],
+  [
+   51.9,
+   "  doi: 10.18653/v1/2024.acl-long.747"
+  ],
+  [
+   51.9,
+   "  id: 10.18653/v1/2024.acl-long.747"
+  ],
+  [
+   51.9,
+   "  url: https://openalex.org/W4402684150"
+  ],
+  [
+   51.9,
+   "  open_access: true"
+  ],
+  [
+   51.9,
+   "- title: 'LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory'"
+  ],
+  [
+   51.9,
+   "  authors:"
+  ],
+  [
+   51.9,
+   "  - Di Wu 0054"
+  ],
+  [
+   51.9,
+   "  - Hongwei Wang"
+  ],
+  [
+   51.9,
+   "  - Wenhao Yu 0002"
+  ],
+  [
+   51.9,
+   "  - Yuwei Zhang 0001"
+  ],
+  [
+   51.9,
+   "  - Kai-Wei Chang 0001"
+  ],
+  [
+   51.9,
+   "  year: 2024"
+  ],
+  [
+   51.9,
+   "  venue: CoRR 2024"
+  ],
+  [
+   51.9,
+   "  citations: 507"
+  ],
+  [
+   51.9,
+   "  abstract: |-"
+  ],
+  [
+   51.9,
+   "    Recent large language model (LLM)-driven chat assistant systems have integrated memory components to track user-assistant chat histories, enabling more accurate and personalized responses. However, their long-term memory capabilities in sustained interactions remain underexplored. We introduce LongMemEval, a comprehensive benchmark designed to evaluate five core long-term memory abilities of chat assistants: information extraction, multi-session reasoning, temporal reasoning, knowledge updates, and abstention. With 500 meticulously curated questions embedded within freely scalable user-assistant chat histories, LongMemEval presents a significant challenge to existing long-term memory systems, with commercial chat assistants and long-context LLMs showing a 30% accuracy drop on memorizing information across sustained interactions. We then present a unified framework that breaks down the long-term memory design into three stages: indexing, retrieval, and reading. Built upon key experimental insights, we propose several memory design optimizations including session decomposition for value granularity, fact-augmented key expansion for indexing, and time-aware query expansion for refining the search scope. Extensive experiments show that these optimizations greatly improve both memory recall and downstream question answering on LongMemEval. Overall, our study provides valuable resources and guidance for advancing the long-term memory capabilities of LLM-based chat assistants, paving the way toward more personalized and reliable conversational AI. Our benchmark and code are publicly available at https://github.com/xiaowu0162/LongMemEval."
+  ],
+  [
+   51.9,
+   "    ICLR 2025"
+  ],
+  [
+   51.9,
+   "  doi: 10.48550/arxiv.2410.10813"
+  ],
+  [
+   51.9,
+   "  id: 10.48550/arxiv.2410.10813"
+  ],
+  [
+   51.9,
+   "  url: https://openalex.org/W4403571340"
+  ],
+  [
+   51.9,
+   "  open_access: true"
+  ],
+  [
+   51.9,
+   "- title: Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions"
+  ],
+  [
+   51.9,
+   "  authors:"
+  ],
+  [
+   51.9,
+   "  - Yuanzhe Hu"
+  ],
+  [
+   51.9,
+   "  - Yu Wang 0170"
+  ],
+  [
+   51.9,
+   "  - Julian J. McAuley"
+  ],
+  [
+   51.9,
+   "  year: 2025"
+  ],
+  [
+   51.9,
+   "  venue: CoRR"
+  ],
+  [
+   51.9,
+   "  citations: 203"
+  ],
+  [
+   51.9,
+   "  abstract: |-"
+  ],
+  [
+   51.9,
+   "    Recent benchmarks for Large Language Model (LLM) agents primarily focus on evaluating reasoning, planning, and execution capabilities, while another critical component-memory, encompassing how agents memorize, update, and retrieve long-term information-is under-evaluated due to the lack of benchmarks. We term agents with memory mechanisms as memory agents. In this paper, based on classic theories from memory science and cognitive science, we identify four core competencies essential for memory agents: accurate retrieval, test-time learning, long-range understanding, and selective forgetting. Existing benchmarks either rely on limited context lengths or are tailored for static, long-context settings like book-based QA, which do not reflect the interactive, multi-turn nature of memory agents that incrementally accumulate information. Moreover, no existing benchmarks cover all four competencies. We introduce MemoryAgentBench, a new benchmark specifically designed for memory agents. Our benchmark transforms existing long-context datasets and incorporates newly constructed datasets into a multi-turn format, effectively simulating the incremental information processing characteristic of memory agents. By carefully selecting and curating datasets, our benchmark provides comprehensive coverage of the four core memory competencies outlined above, thereby offering a systematic and challenging testbed for assessing memory quality. We evaluate a diverse set of memory agents, ranging from simple context-based and retrieval-augmented generation (RAG) systems to advanced agents with external memory modules and tool integration. Empirical results reveal that current methods fall short of mastering all four competencies, underscoring the need for further research into comprehensive memory mechanisms for LLM agents."
+  ],
+  [
+   51.9,
+   "    Y. Hu and Y. Wang contribute equally"
+  ],
+  [
+   51.9,
+   "  doi: 10.48550/arxiv.2507.05257"
+  ],
+  [
+   51.9,
+   "  id: 10.48550/arxiv.2507.05257"
+  ],
+  [
+   51.9,
+   "  url: https://openalex.org/W4415971869"
+  ],
+  [
+   51.9,
+   "  open_access: true"
+  ],
+  [
+   51.9,
+   "- title: 'A-Mem: Agentic Memory for LLM Agents'"
+  ],
+  [
+   51.9,
+   "  authors:"
+  ],
+  [
+   51.9,
+   "  - Wujiang Xu"
+  ],
+  [
+   51.9,
+   "  - Zujie Liang"
+  ],
+  [
+   51.9,
+   "  - Kai Mei"
+  ],
+  [
+   51.9,
+   "  - Hang Gao"
+  ],
+  [
+   51.9,
+   "  - Juntao Tan"
+  ],
+  [
+   51.9,
+   "  year: 2025"
+  ],
+  [
+   51.9,
+   "  venue: neural information processing systems"
+  ],
+  [
+   51.9,
+   "  citations: 1007"
+  ],
+  [
+   51.9,
+   "  abstract: While large language model (LLM) agents can effectively use external tools"
+  ],
+  [
+   51.9,
+   "    for complex real-world tasks, they require memory systems to leverage historical"
+  ],
+  [
+   51.9,
+   "    experiences. Current memory systems enable basic storage and retrieval but lack"
+  ],
+  [
+   51.9,
+   "    sophisticated memory organization, despite recent attempts to incorporate graph"
+  ],
+  [
+   51.9,
+   "    databases. Moreover, these systems' fixed operations and structures limit their"
+  ],
+  [
+   51.9,
+   "    adaptability across diverse tasks. To address this limitation, this paper proposes"
+  ],
+  [
+   51.9,
+   "    a novel agentic memory system for LLM agents that can dynamically organize memories"
+  ],
+  [
+   51.9,
+   "    in an agentic way. Following the basic principles of the Zettelkasten method,"
+  ],
+  [
+   51.9,
+   "    we designed our memory system to create interconnected knowledge networks through"
+  ],
+  [
+   51.9,
+   "    dynamic indexing and linking. When a new memory is added, we generate a comprehensive"
+  ],
+  [
+   51.9,
+   "    note containing multiple structured attributes, including contextual descriptions,"
+  ],
+  [
+   51.9,
+   "    keywords, and tags. The system then analyzes historical memories to identify relevant"
+  ],
+  [
+   51.9,
+   "    connections, establishing links where meaningful similarities exist. Additionally,"
+  ],
+  [
+   51.9,
+   "    this process enables memory evolution - as new memories are integrated, they can"
+  ],
+  [
+   51.9,
+   "    trigger updates to the contextual representations and attributes of existing historical"
+  ],
+  [
+   51.9,
+   "    memories, allowing the memory network to continuously refine its understanding."
+  ],
+  [
+   51.9,
+   "    Our approach combines the structured organization principles of Zettelkasten with"
+  ],
+  [
+   51.9,
+   "    the flexibility of agent-driven decision making, allowing for more adaptive and"
+  ],
+  [
+   51.9,
+   "    context-aware memory management. Empirical experiments on six foundation models"
+  ],
+  [
+   51.9,
+   "    show superior improvement against existing SOTA baselines. The source code for"
+  ],
+  [
+   51.9,
+   "    evaluating performance is available at https://github.com/WujiangXu/A-mem, while"
+  ],
+  [
+   51.9,
+   "    the source code of the agentic memory system is available at https://github.com/WujiangXu/A-mem-sys."
+  ],
+  [
+   51.9,
+   "  doi: 10.52202/085713-0593"
+  ],
+  [
+   51.9,
+   "  id: 10.52202/085713-0593"
+  ],
+  [
+   51.9,
+   "  url: https://openalex.org/W4407759090"
+  ],
+  [
+   51.9,
+   "  open_access: true"
+  ],
+  [
+   51.9,
+   "warning: 'Related-paper expansion was incomplete. Sources unavailable or incomplete:"
+  ],
+  [
+   51.9,
+   "  google_scholar, s2_snippet, semantic_scholar, zbmath.'"
+  ]
+ ]
+}

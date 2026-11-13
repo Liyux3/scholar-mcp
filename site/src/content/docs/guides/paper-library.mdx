@@ -7,10 +7,11 @@ description: Keep papers, notes, tags and PDFs in a local library that persists 
 import { Aside, TabItem, Tabs } from '@astrojs/starlight/components';
 import Figure from '../../../components/Figure.astro';
 import graph from '../../../../../docs/assets/paper-library-graph.svg';
+import graphDark from '../../../../../docs/assets/paper-library-graph-dark.svg';
 
 When a conversation ends, the research stays in the library. It is a local SQLite database with full-text search. Each record keeps a stable identifier, the full author list and abstract, your notes and tags, the PDF path, and the IDs of the matching Zotero or Notion entries. Agents read and write it through `paper_library` in the research profile, and the command line shows the same records.
 
-<Figure src={graph} alt="Citation graph rendered from a local paper-library collection" caption="A citation graph drawn from a real local collection." />
+<Figure src={graph} dark={graphDark} alt="Citation graph rendered from a local paper-library collection" caption="A citation graph drawn from a real local collection." />
 
 ## Collections, notes and tags
 

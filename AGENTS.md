@@ -5,7 +5,6 @@ Guidance for AI coding agents and for people working in this repository.
 ## Reuse terms
 
 Scholar MCP is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE) with [additional terms](LICENSE-ADDITIONAL.md).
-Versions 0.9.0 and earlier were released under Apache-2.0.
 
 Free: personal research and study, universities, public research organizations,
 government and other noncommercial organizations installing and running Scholar,

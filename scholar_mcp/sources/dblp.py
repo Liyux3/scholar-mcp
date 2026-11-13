@@ -17,6 +17,7 @@ import httpx
 from bs4 import BeautifulSoup
 from filelock import FileLock, Timeout
 
+from ..dates import publication_range
 from .. import access, config
 from . import pacing
 
@@ -89,6 +90,9 @@ def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
     """Search the native API, with optional host recovery after a transport failure."""
     if limit <= 0 or not query.strip():
         return []
+    if selected := publication_range(kwargs.get("year")):
+        years = "|".join(f"year:{y}:" for y in range(selected.start.year, selected.end.year + 1))
+        query = f"{query} {years}"
     try:
         return _api_search(query, limit)
     except (httpx.HTTPError, PermissionError, ValueError, pacing.Paced) as error:

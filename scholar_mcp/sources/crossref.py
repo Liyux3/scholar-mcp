@@ -10,6 +10,7 @@ from urllib.parse import quote
 
 import httpx
 
+from ..dates import publication_range
 from .. import access, config
 from ..cache import cached
 from . import pacing
@@ -174,7 +175,8 @@ def format_paper(item: dict) -> dict | None:
         if len(parts) >= 3 and all(isinstance(part, int) for part in parts[:3]):
             pub_date = f"{parts[0]:04d}-{parts[1]:02d}-{parts[2]:02d}"
         elif len(parts) < 3:
-            pub_date = f"{parts[0]:04d}-01-01"
+            pub_date = "-".join(f"{part:04d}" if i == 0 else f"{part:02d}"
+                                for i, part in enumerate(parts) if isinstance(part, int))
 
     paper = {
         "paper_id": f"cr_{doi}" if doi else f"cr_{title[:30]}",
@@ -233,6 +235,9 @@ def search_papers(query: str, limit: int = 10, **kwargs) -> list[dict]:
         "sort": "relevance",
         "order": "desc",
     }
+    if selected := publication_range(kwargs.get("year")):
+        start, end = selected.iso
+        params["filter"] = f"from-pub-date:{start},until-pub-date:{end}"
     data = _get_json(BASE_URL, params)
 
     results = []

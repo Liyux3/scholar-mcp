@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.10.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.10.0%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
-  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZmluZC1saW5rcyIsImh0dHBzOi8vZ2l0aHViLmNvbS9MaXl1eDMvc2Nob2xhci1tY3AvcmVsZWFzZXMvZG93bmxvYWQvdjAuMTAuMC93aGVlbC1pbmRleC5odG1sIiwiLS1mcm9tIiwic2Nob2xhci1tY3BbcmVyYW5rXT09MC4xMC4wIiwic2Nob2xhci1tY3AiXSwiZW52Ijp7IlNDSE9MQVJfTUNQX0VYVEVOU0lPTlMiOiJyZXNlYXJjaCJ9fX0="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
-  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.10.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.10.0%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
+  <a href="https://vscode.dev/redirect/mcp/install?name=scholar-mcp&amp;config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.11.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.11.0%22%2C%22scholar-mcp%22%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Install_in-VS_Code-53665B.svg?style=flat-square" alt="Install in VS Code"></a>
+  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=scholar&amp;config=eyJzY2hvbGFyIjp7ImNvbW1hbmQiOiJ1dngiLCJhcmdzIjpbIi0tcHl0aG9uIiwiMy4xMiIsIi0tZmluZC1saW5rcyIsImh0dHBzOi8vZ2l0aHViLmNvbS9MaXl1eDMvc2Nob2xhci1tY3AvcmVsZWFzZXMvZG93bmxvYWQvdjAuMTEuMC93aGVlbC1pbmRleC5odG1sIiwiLS1mcm9tIiwic2Nob2xhci1tY3BbcmVyYW5rXT09MC4xMS4wIiwic2Nob2xhci1tY3AiXSwiZW52Ijp7IlNDSE9MQVJfTUNQX0VYVEVOU0lPTlMiOiJyZXNlYXJjaCJ9fX0="><img src="https://img.shields.io/badge/Add_to-Cursor-6A3A3D.svg?style=flat-square" alt="Add to Cursor"></a>
+  <a href="https://kiro.dev/launch/mcp/add?name=scholar-mcp&amp;config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--find-links%22%2C%22https%3A%2F%2Fgithub.com%2FLiyux3%2Fscholar-mcp%2Freleases%2Fdownload%2Fv0.11.0%2Fwheel-index.html%22%2C%22--from%22%2C%22scholar-mcp%5Brerank%5D%3D%3D0.11.0%22%2C%22scholar-mcp%22%5D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%2C%22env%22%3A%7B%22SCHOLAR_MCP_EXTENSIONS%22%3A%22research%22%7D%7D"><img src="https://img.shields.io/badge/Add_to-Kiro-8C714C.svg?style=flat-square" alt="Add to Kiro"></a>
   <a href="https://registry.modelcontextprotocol.io/?search=io.github.Liyux3%2Fscholar-mcp"><img src="https://img.shields.io/badge/MCP_Registry-Scholar-3D5946.svg?style=flat-square" alt="MCP Registry"></a>
   <a href="https://pypi.org/project/scholar-mcp"><img src="https://img.shields.io/pypi/v/scholar-mcp.svg?style=flat-square" alt="PyPI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm_Noncommercial-3D5946.svg?style=flat-square" alt="PolyForm Noncommercial 1.0.0 with additional terms"></a>
@@ -22,7 +22,7 @@
   <a href="https://liyux3.github.io/scholar-mcp/">Documentation</a> · English · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-Scholar MCP gives your AI agent a research library. It searches scholarly sources in parallel, with optional keys for additional indexes, follows citations and related work, reads the original paper down to its figures and tables, and keeps what matters in a local library with your notes. It works in Claude, Codex, Cursor, VS Code, Gemini CLI, OpenCode and any other MCP client, and from the command line or Python. Free for research and education, with commercial licenses for companies.
+Scholar MCP gives your AI agent a research library. It searches scholarly sources in parallel, with optional keys for additional indexes, follows citations and related work, reads the original paper down to its figures and tables, and keeps what matters in a local library with your notes. It works in Claude, Codex, Cursor, VS Code, Gemini CLI, OpenCode and any other MCP client, and from the command line or Python.
 
 <p align="center">
   <a href="https://liyux3.github.io/scholar-mcp/#watch"><img src="docs/assets/scholar-film-poster.jpg" alt="Watch the one-minute film" width="820"></a>
@@ -30,9 +30,12 @@ Scholar MCP gives your AI agent a research library. It searches scholarly source
 
 ## 📰 News
 
-- November 2026, 0.10.0. Searches no longer wait on a source whose connection hangs, OpenAlex's daily allowance lasts about four times as long, and Scholar is free for research and education under PolyForm Noncommercial, with commercial licenses for companies.
+- November 2026, 0.11.0. Search takes month and day windows, results carry full abstracts, and author search finds the right person for well-known names.
+- November 2026, 0.10.0. Searches no longer wait on a source whose connection hangs, and OpenAlex's daily allowance lasts about four times as long.
 - November 2026, 0.9.0. `scholar-mcp install` sets Scholar up in 32 agents, one key file serves all of them, a slow source no longer holds up the others, and `scholar-mcp doctor --network` checks every link.
 - October 2026, 0.8.5. Google Scholar sessions recover on their own, and arXiv falls back to its own search when its API is down.
+
+Every release since 0.1.0 in March 2026 is in the [changelog](CHANGELOG.md).
 
 ## 🚀 Get started
 
@@ -116,7 +119,7 @@ Your question goes to every source at once, in the form each one searches best, 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/runtime-architecture-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/runtime-architecture.svg">
-  <img alt="Scholar MCP runtime architecture" src="docs/assets/runtime-architecture.svg" width="720">
+  <img alt="Scholar MCP runtime architecture" src="docs/assets/runtime-architecture.svg">
 </picture>
 
 Agents call typed MCP tools over stdio or Streamable HTTP. Full text comes from open copies first and, for licensed papers, through your library's proxy. A persistent SQLite library with FTS5 search holds papers, notes and PDF attachments under `~/.scholar-mcp/`, with Markdown projections for Obsidian and connectors for Zotero and Notion.
@@ -144,7 +147,11 @@ Hit@k is the share of queries with at least one ground-truth paper in the top k;
 
 ## 📚 Your paper library
 
-![Real paper-library graph](docs/assets/paper-library-graph.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/paper-library-graph-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/paper-library-graph.svg">
+  <img alt="Citation graph of a real paper library" src="docs/assets/paper-library-graph.svg">
+</picture>
 
 Saved papers, PDFs and notes live in one local SQLite library and stay searchable across sessions. Obsidian receives a live Markdown projection, Zotero a synchronized collection and Notion a reading list. Notes you edit in Obsidian or Notion flow back, so your agent builds on your changes.
 
@@ -155,7 +162,7 @@ scholar-mcp library sync zotero --collection memory --apply
 
 ## 💻 Command line and Python
 
-The tools work without an agent too. Output is YAML for reading or JSON with `--json`.
+The tools work without an agent too. Output is YAML for reading or JSON with `--json`. `--year` takes a year, a range or an exact window, such as `2023`, `2020-2024`, `2026-10`, `2026-10:2026-11` or `2026-10-01..2026-11-09`, and a month covers all its days.
 
 ```bash
 scholar-mcp search "long-term memory benchmarks for LLM agents" --year 2024-2026
@@ -256,7 +263,7 @@ If Scholar MCP supports your research, please cite it.
   author  = {Li, Yuxian},
   title   = {Scholar MCP},
   year    = {2026},
-  version = {0.10.0},
+  version = {0.11.0},
   url     = {https://github.com/Liyux3/scholar-mcp},
   license = {PolyForm Noncommercial 1.0.0 with additional terms}
 }
@@ -264,6 +271,6 @@ If Scholar MCP supports your research, please cite it.
 
 ## 📄 License
 
-[PolyForm Noncommercial 1.0.0](LICENSE) with [additional terms](LICENSE-ADDITIONAL.md), source-available. Free for personal research, universities, research institutes, government and nonprofits; companies using Scholar in their work, products or services need a commercial license, write to liyuxian1358@gmail.com. Copying or porting its code into a competing project, and training models on its code or documentation, are not licensed; [AGENTS.md](AGENTS.md) tells coding agents the same and what to offer instead. If Scholar's ideas or results inform your work, please cite it. Releases 0.9.0 and earlier remain under Apache-2.0. See also [NOTICE](NOTICE).
+[PolyForm Noncommercial 1.0.0](LICENSE) with [additional terms](LICENSE-ADDITIONAL.md): free for research and education, commercial use by license.
 
 Bundled CPU reader weights are provided unchanged by [prithivida/FlashRank](https://huggingface.co/prithivida/flashrank) under CC-BY-SA-4.0, with their own attribution notice.

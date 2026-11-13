@@ -35,7 +35,7 @@ import { Aside } from '@astrojs/starlight/components';
 |---|---|---|---|
 | `query` | string | 必填 | 问题、主题、记得的原话或标题 |
 | `limit` | integer | `10` | 最多返回的结果数，1 到 100 |
-| `year` | string | | 年份或年份范围，例如 `"2023"` 或 `"2020-2024"` |
+| `year` | string | | 年、月或日，或用 `:`、`..` 连起来的两个，例如 `"2023"`、`"2020-2024"` 或 `"2026-10:2026-11"` |
 | `venue` | string | | 会议或期刊，例如 `"NeurIPS"` 或 `"Nature"` |
 | `fields_of_study` | string | | 逗号分隔的学科领域，例如 `"Computer Science,Mathematics"` |
 | `paper_types` | string | 全部 | 逗号分隔的类型：`JournalArticle`、`Conference`、`Review`、`Book`、`Dataset`、`CourtDecision`、`ClinicalTrialRegistration` |
@@ -45,7 +45,7 @@ import { Aside } from '@astrojs/starlight/components';
 | `intent` | string | `"balanced"` | 排序偏向，相关性仍然算数：`balanced`、`foundational`、`recent`、`survey`、`method` 或 `dataset` |
 | `debug` | boolean | `false` | 附上每个数据源的状态、耗时、来源和排序细节 |
 
-返回 `results`，每条有 `title`、最多五位 `authors`、`year`、`venue`、`citations`、缩短的 `abstract` 和 `id`，知道的话还有 `doi`、`url`、`tldr` 和 `open_access`。有数据源没响应、影响了结果时，会带一句 `warning`。加 `debug=true` 时，`_meta` 里有数据源覆盖、实际用的排序模型、每个数据源的条数和耗时，以及每条结果的来源和分数。
+返回 `results`，每条有 `title`、最多五位 `authors`、`year`、`venue`、`citations`、完整的 `abstract` 和 `id`，知道的话还有 `doi`、`url`、`tldr` 和 `open_access`。有数据源没响应、影响了结果时，会带一句 `warning`。加 `debug=true` 时，`_meta` 里有数据源覆盖、实际用的排序模型、每个数据源的条数和耗时，以及每条结果的来源和分数。
 
 筛选条件作用于整个候选池，包括顺着引用找到的论文，最后才截取条数。
 

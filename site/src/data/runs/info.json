@@ -1,0 +1,396 @@
+{
+ "command": "scholar-mcp info arXiv:2303.04137 --citations --limit 5",
+ "version": "0.11.0",
+ "recorded": "2026-11-13",
+ "seconds": 5.2,
+ "lines": [
+  [
+   5.15,
+   "paper:"
+  ],
+  [
+   5.15,
+   "  title: 'Diffusion policy: Visuomotor policy learning via action diffusion'"
+  ],
+  [
+   5.15,
+   "  authors:"
+  ],
+  [
+   5.15,
+   "  - Cheng Chi"
+  ],
+  [
+   5.15,
+   "  - Zhen-Jia Xu"
+  ],
+  [
+   5.15,
+   "  - Si-Yuan Feng"
+  ],
+  [
+   5.15,
+   "  - Eric Cousineau"
+  ],
+  [
+   5.15,
+   "  - Yilun Du"
+  ],
+  [
+   5.15,
+   "  - B. Burchfiel"
+  ],
+  [
+   5.15,
+   "  - Russ Tedrake"
+  ],
+  [
+   5.15,
+   "  - Shu-Ran Song"
+  ],
+  [
+   5.15,
+   "  year: 2023"
+  ],
+  [
+   5.15,
+   "  venue: 'Robotics: Science and Systems Conference'"
+  ],
+  [
+   5.15,
+   "  citations: 5146"
+  ],
+  [
+   5.15,
+   "  abstract: This paper introduces Diffusion Policy, a new way of generating robot"
+  ],
+  [
+   5.15,
+   "    behavior by representing a robot’s visuomotor policy as a conditional denoising"
+  ],
+  [
+   5.15,
+   "    diffusion process. We benchmark Diffusion Policy across 15 different tasks from"
+  ],
+  [
+   5.15,
+   "    4 different robot manipulation benchmarks and find that it consistently outperforms"
+  ],
+  [
+   5.15,
+   "    existing state-of-the-art robot learning methods with an average improvement of"
+  ],
+  [
+   5.15,
+   "    46.9%. Diffusion Policy learns the gradient of the action-distribution score function"
+  ],
+  [
+   5.15,
+   "    and iteratively optimizes with respect to this gradient field during inference"
+  ],
+  [
+   5.15,
+   "    via a series of stochastic Langevin dynamics steps. We find that the diffusion"
+  ],
+  [
+   5.15,
+   "    formulation yields powerful advantages when used for robot policies, including"
+  ],
+  [
+   5.15,
+   "    gracefully handling multimodal action distributions, being suitable for high-dimensional"
+  ],
+  [
+   5.15,
+   "    action spaces, and exhibiting impressive training stability. To fully unlock the"
+  ],
+  [
+   5.15,
+   "    potential of diffusion models for visuomotor policy learning on physical robots,"
+  ],
+  [
+   5.15,
+   "    this paper presents a set of key technical contributions including the incorporation"
+  ],
+  [
+   5.15,
+   "    of receding horizon control, visual conditioning, and the time-series diffusion"
+  ],
+  [
+   5.15,
+   "    transformer. We hope this work will help motivate a new generation of policy learning"
+  ],
+  [
+   5.15,
+   "    techniques that are able to leverage the powerful generative modeling capabilities"
+  ],
+  [
+   5.15,
+   "    of diffusion models. Code, data, and training details are available (diffusion-policy.cs.columbia.edu)."
+  ],
+  [
+   5.15,
+   "  doi: 10.1177/02783649241273668"
+  ],
+  [
+   5.15,
+   "  id: 10.1177/02783649241273668"
+  ],
+  [
+   5.15,
+   "  url: https://www.semanticscholar.org/paper/bdba3bd30a49ea4c5b20b43dbd8f0eb59e9d80e2"
+  ],
+  [
+   5.15,
+   "  tldr: This paper introduces Diffusion Policy, a new way of generating robot behavior"
+  ],
+  [
+   5.15,
+   "    by representing a robot’s visuomotor policy as a conditional denoising diffusion"
+  ],
+  [
+   5.15,
+   "    process that consistently outperforms existing state-of-the-art robot learning"
+  ],
+  [
+   5.15,
+   "    methods."
+  ],
+  [
+   5.15,
+   "  open_access: true"
+  ],
+  [
+   5.15,
+   "  publication_types:"
+  ],
+  [
+   5.15,
+   "  - JournalArticle"
+  ],
+  [
+   5.15,
+   "  publication_date: '2023-03-07'"
+  ],
+  [
+   5.15,
+   "  identifiers:"
+  ],
+  [
+   5.15,
+   "    DBLP: journals/corr/abs-2303-04137"
+  ],
+  [
+   5.15,
+   "    ArXiv: '2303.04137'"
+  ],
+  [
+   5.15,
+   "    DOI: 10.1177/02783649241273668"
+  ],
+  [
+   5.15,
+   "    CorpusId: 257378658"
+  ],
+  [
+   5.15,
+   "  pdf_url: http://arxiv.org/pdf/2303.04137"
+  ],
+  [
+   5.15,
+   "  fields_of_study:"
+  ],
+  [
+   5.15,
+   "  - Computer Science"
+  ],
+  [
+   5.15,
+   "citations:"
+  ],
+  [
+   5.15,
+   "- title: 'Diffusion policy: Visuomotor policy learning via action diffusion'"
+  ],
+  [
+   5.15,
+   "  authors:"
+  ],
+  [
+   5.15,
+   "  - Cheng Chi"
+  ],
+  [
+   5.15,
+   "  - Zhenjia Xu"
+  ],
+  [
+   5.15,
+   "  - Siyuan Feng"
+  ],
+  [
+   5.15,
+   "  year: 2024"
+  ],
+  [
+   5.15,
+   "  citations: 828"
+  ],
+  [
+   5.15,
+   "  doi: 10.1177/02783649241273668"
+  ],
+  [
+   5.15,
+   "  id: 10.1177/02783649241273668"
+  ],
+  [
+   5.15,
+   "- title: Training Diffusion Models with Reinforcement Learning"
+  ],
+  [
+   5.15,
+   "  authors:"
+  ],
+  [
+   5.15,
+   "  - Kevin Black"
+  ],
+  [
+   5.15,
+   "  - Janner, Michael"
+  ],
+  [
+   5.15,
+   "  - Yilun Du"
+  ],
+  [
+   5.15,
+   "  year: 2023"
+  ],
+  [
+   5.15,
+   "  citations: 666"
+  ],
+  [
+   5.15,
+   "  doi: 10.48550/arxiv.2305.13301"
+  ],
+  [
+   5.15,
+   "  id: 10.48550/arxiv.2305.13301"
+  ],
+  [
+   5.15,
+   "- title: A Survey on Vision--Language--Action Models for Embodied AI"
+  ],
+  [
+   5.15,
+   "  authors:"
+  ],
+  [
+   5.15,
+   "  - Yueen Ma"
+  ],
+  [
+   5.15,
+   "  - Zixing Song"
+  ],
+  [
+   5.15,
+   "  - Yuzheng Zhuang"
+  ],
+  [
+   5.15,
+   "  year: 2026"
+  ],
+  [
+   5.15,
+   "  citations: 409"
+  ],
+  [
+   5.15,
+   "  doi: 10.1109/tnnls.2025.3650584"
+  ],
+  [
+   5.15,
+   "  id: 10.1109/tnnls.2025.3650584"
+  ],
+  [
+   5.15,
+   "- title: 'RoboCasa: Large-Scale Simulation of Everyday Tasks for Generalist Robots'"
+  ],
+  [
+   5.15,
+   "  authors:"
+  ],
+  [
+   5.15,
+   "  - Soroush Nasiriany"
+  ],
+  [
+   5.15,
+   "  - Abhiram Maddukuri"
+  ],
+  [
+   5.15,
+   "  - Lance Zhang"
+  ],
+  [
+   5.15,
+   "  year: 2024"
+  ],
+  [
+   5.15,
+   "  citations: 351"
+  ],
+  [
+   5.15,
+   "  doi: 10.48550/arxiv.2406.02523"
+  ],
+  [
+   5.15,
+   "  id: 10.48550/arxiv.2406.02523"
+  ],
+  [
+   5.15,
+   "- title: 'DexCap: Scalable and Portable Mocap Data Collection System for Dexterous"
+  ],
+  [
+   5.15,
+   "    Manipulation'"
+  ],
+  [
+   5.15,
+   "  authors:"
+  ],
+  [
+   5.15,
+   "  - Chen Wang"
+  ],
+  [
+   5.15,
+   "  - Haochen Shi"
+  ],
+  [
+   5.15,
+   "  - Weizhuo Wang"
+  ],
+  [
+   5.15,
+   "  year: 2024"
+  ],
+  [
+   5.15,
+   "  citations: 289"
+  ],
+  [
+   5.15,
+   "  doi: 10.15607/rss.2024.xx.043"
+  ],
+  [
+   5.15,
+   "  id: 10.15607/rss.2024.xx.043"
+  ]
+ ]
+}

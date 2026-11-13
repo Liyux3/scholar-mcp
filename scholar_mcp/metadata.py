@@ -9,6 +9,7 @@ from copy import deepcopy
 
 from . import records as record_ops
 from .cache import PartialRecords, cached
+from .dates import publication_range
 from .sources import crossref, openaire, pacing
 from .sources import openalex as oa
 
@@ -248,11 +249,14 @@ def _arxiv_records(ids: tuple[str, ...]) -> dict[str, dict]:
 
 def filter_fields(filters: dict) -> set[str]:
     """Fields required to apply explicit constraints across every source."""
-    return {field for option, field in (
+    required = {field for option, field in (
         ("year", "year"), ("venue", "venue"), ("fields_of_study", "fields_of_study"),
         ("publication_types", "publication_types"), ("open_access_only", "is_open_access"),
         ("min_citations", "citation_count"),
     ) if filters.get(option)}
+    if (selected := publication_range(filters.get("year"))) and selected.fine:
+        required.add("publication_date")
+    return required
 
 
 def needs_metadata(paper: dict, fields: set[str] | None = None) -> bool:

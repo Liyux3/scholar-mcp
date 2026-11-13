@@ -508,10 +508,107 @@ h1#_top {
 	font-weight: 600;
 }
 
+/* A display: table box does not clip its cells, so the header's end cells carry
+   the card's corners themselves. */
+.sl-markdown-content tr:first-child > th:first-child:not(:where(.not-content *)) {
+	border-start-start-radius: calc(var(--sc-radius-lg) - 1px);
+}
+
+.sl-markdown-content tr:first-child > th:last-child:not(:where(.not-content *)) {
+	border-start-end-radius: calc(var(--sc-radius-lg) - 1px);
+}
+
 .sl-markdown-content td code {
 	white-space: nowrap;
 	border-color: transparent;
 	font-size: 0.8em;
+}
+
+/* Run buttons: a command and the replay of one real run of it (CommandRun.astro). */
+.sc-run {
+	margin-block: 1.25rem;
+	border: 1px solid var(--sc-border);
+	border-radius: var(--sc-radius-lg);
+	background: var(--sc-code-bg);
+	box-shadow: var(--sc-shadow);
+	overflow: hidden;
+}
+
+.sc-run-bar {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5rem;
+	padding: 0.625rem 0.75rem 0.625rem 1rem;
+}
+
+.sc-run-command {
+	flex: 1;
+	min-width: 0;
+	padding-top: 0.2rem;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	font-family: var(--sl-font-mono);
+	font-size: 0.8125rem;
+	color: var(--sc-ink);
+}
+
+.sc-run-prompt {
+	color: var(--sc-faint);
+	user-select: none;
+}
+
+.sc-run-bar button {
+	flex: none;
+	padding: 0.25rem 0.75rem;
+	border: 1px solid var(--sc-border-strong);
+	border-radius: 999px;
+	background: transparent;
+	color: var(--sc-text);
+	font: 600 0.75rem/1.4 var(--sl-font);
+	cursor: pointer;
+}
+
+.sc-run-bar .sc-run-start {
+	border-color: var(--sc-accent-line);
+	background: var(--sc-accent-soft);
+	color: var(--sc-accent-strong);
+}
+
+.sc-run-bar button:hover:not(:disabled) {
+	background: var(--sc-hover);
+}
+
+.sc-run-bar button:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+.sc-run-body {
+	border-top: 1px solid var(--sc-border);
+	background: var(--sc-surface-2);
+}
+
+.sc-run-head {
+	display: flex;
+	justify-content: space-between;
+	padding: 0.5rem 1rem 0;
+	font: 600 0.75rem/1.4 var(--sl-font-mono);
+	color: var(--sc-muted);
+}
+
+.sc-run-star {
+	color: var(--sc-faint);
+	cursor: help;
+}
+
+.sc-run-output {
+	max-height: 22rem;
+	margin: 0;
+	padding: 0.5rem 1rem 0.75rem;
+	overflow: auto;
+	font-size: 0.6875rem;
+	line-height: 1.6;
+	color: var(--sc-text);
 }
 
 /* Code blocks */

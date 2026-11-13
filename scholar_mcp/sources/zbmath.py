@@ -7,6 +7,7 @@ DOIs and arXiv. Free, no key needed, and part of every search.
 import re
 
 from .. import access
+from ..dates import publication_range
 from . import pacing
 
 BASE_URL = "https://api.zbmath.org/v1/document/_search"
@@ -49,6 +50,8 @@ def format_document(item: dict) -> dict | None:
 def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     if limit <= 0 or not query.strip():
         return []
+    if selected := publication_range(kwargs.get("year")):
+        query = f"({query}) & py:{selected.years}"
     pacing.wait("zbmath")
     response = access.get(BASE_URL, params={"search_string": query, "page": 0, "results_per_page": min(limit, 100)},
                          timeout=20, follow_redirects=True)

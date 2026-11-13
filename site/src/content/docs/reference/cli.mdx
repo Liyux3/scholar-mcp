@@ -5,13 +5,19 @@ description: The scholar-mcp command starts the MCP server, offers every researc
 ---
 
 import { Aside } from '@astrojs/starlight/components';
+import CommandRun from '../../../components/CommandRun.astro';
+import search from '../../../data/runs/search.json';
+import info from '../../../data/runs/info.json';
+import related from '../../../data/runs/related.json';
+import authors from '../../../data/runs/authors.json';
+import graph from '../../../data/runs/graph.json';
 
 One `scholar-mcp` command does three jobs. Without arguments it starts the MCP server, which is how clients start it over stdio. With a research command it finds and reads papers in your terminal, using the same functions as the MCP tools. With a setup command it registers clients, saves keys, checks health and upgrades. Install it once with uv.
 
 ```bash
 uv tool install --python 3.12 \
-  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.0/wheel-index.html \
-  "scholar-mcp[rerank]==0.10.0"
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.11.0/wheel-index.html \
+  "scholar-mcp[rerank]==0.11.0"
 ```
 
 Research and setup commands print readable YAML, or JSON with `--json` for `jq` and scripts, and `library` and `sources` print JSON. Every command has `--help`.
@@ -41,14 +47,12 @@ Paper identifiers work as in the MCP tools, so any `id` Scholar returns, a DOI, 
 
 ### search
 
-```bash
-scholar-mcp search "long-term memory benchmarks for LLM agents" --year 2024-2026
-```
+<CommandRun run={search} />
 
 | Option | Description |
 |---|---|
 | `--limit N` | Maximum results (default 10) |
-| `--year RANGE` | A year or range, such as `2024-2026` |
+| `--year RANGE` | A year, month or day, or two joined by `:` or `..`, such as `2024-2026`, `2026-10` or `2026-10-01..2026-11-09` |
 | `--venue V` | Venue filter |
 | `--fields LIST` | Comma-separated fields of study |
 | `--types LIST` | Comma-separated publication types |
@@ -60,25 +64,19 @@ scholar-mcp search "long-term memory benchmarks for LLM agents" --year 2024-2026
 
 ### info
 
-```bash
-scholar-mcp info arXiv:2303.04137 --citations --limit 10
-```
+<CommandRun run={info} />
 
 Prints the paper's detail. `--citations` adds papers that cite it, `--references` adds papers it cites, `--data` asks for scientific database associations, and `--limit N` bounds each list (default 20).
 
 ### related
 
-```bash
-scholar-mcp related arXiv:2303.04137 --relation kin
-```
+<CommandRun run={related} />
 
 `--relation` is `similar` (default), `peers` or `kin`, and `--limit N` sets the number of papers (default 10).
 
 ### authors
 
-```bash
-scholar-mcp authors "Fei-Fei Li" --limit 3
-```
+<CommandRun run={authors} />
 
 ### read
 
@@ -105,9 +103,7 @@ scholar-mcp download 10.1038/s41586-021-03819-2 --dir papers --collection foldin
 
 ### graph
 
-```bash
-scholar-mcp graph arXiv:2303.04137,arXiv:2209.03003 --hops 1 --max-papers 40
-```
+<CommandRun run={graph} />
 
 | Option | Description |
 |---|---|

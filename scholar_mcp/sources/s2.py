@@ -11,6 +11,7 @@ from email.utils import parsedate_to_datetime
 
 import httpx
 
+from ..dates import publication_range
 from .. import access, config
 from ..cache import cached
 from . import pacing
@@ -345,8 +346,11 @@ def search_papers(query, limit=10, year=None, venue=None,
         "limit": min(limit, 100),
         "fields": SEARCH_FIELDS,
     }
-    if year:
-        params["year"] = year
+    if selected := publication_range(year):
+        if selected.fine:
+            params["publicationDateOrYear"] = ":".join(selected.iso)
+        else:
+            params["year"] = selected.years
     if venue:
         params["venue"] = ",".join(venue) if isinstance(venue, list) else venue
     if fields_of_study:
@@ -456,9 +460,9 @@ def search_authors(query: str, limit: int = 5):
             "affiliations": a.get("affiliations") or [],
             "paper_count": a.get("paperCount") or 0,
             "citation_count": a.get("citationCount") or 0,
-            "_citation_count_known": a.get("citationCount") is not None,
             "h_index": a.get("hIndex") or 0,
             "url": f"https://www.semanticscholar.org/author/{a.get('authorId', '')}",
+            "source": "semantic_scholar",
         }
         for a in data.get("data", [])
     ]

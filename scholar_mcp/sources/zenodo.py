@@ -7,6 +7,7 @@ from __future__ import annotations
 import html
 import re
 
+from ..dates import publication_range
 from .. import access
 from ..records import matches_paper
 from . import pacing
@@ -80,12 +81,18 @@ def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
     # Zenodo also stores software, datasets, and presentations. Fetch a wider
     # candidate set, then admit publications only so those records do not add
     # noise to the academic reranker.
+    if selected := publication_range(kwargs.get("year")):
+        start, end = selected.iso
+        query = f"({query}) AND publication_date:[{start} TO {end}]"
     records = _request(query, min(limit * 2, 100))
     return [paper for record in records if (paper := _normalize(record))][:limit]
 
 
 def search_datasets(query: str, limit: int = 100, **kwargs) -> list[dict]:
     """Datasets only, ranked by Zenodo's best match."""
+    if selected := publication_range(kwargs.get("year")):
+        start, end = selected.iso
+        query = f"({query}) AND publication_date:[{start} TO {end}]"
     return [paper for record in _request(query, limit, "dataset")
             if (paper := _normalize(record, "dataset"))][:limit]
 

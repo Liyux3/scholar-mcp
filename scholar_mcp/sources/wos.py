@@ -4,6 +4,7 @@
 
 import re
 
+from ..dates import publication_range
 from .. import access
 
 from .. import config
@@ -16,8 +17,11 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     terms = " ".join(re.findall(r"[\w-]+", query))
     if not config.WOS_API_KEY or limit <= 0 or not terms:
         return []
+    search_query = f"TS=({terms})"
+    if selected := publication_range(kwargs.get("year")):
+        search_query += f" AND PY=({selected.start.year}-{selected.end.year})"
     pacing.wait("wos", key=config.WOS_API_KEY)
-    response = access.get(BASE_URL, params={"q": f"TS=({terms})", "db": "WOS", "limit": min(limit, 50),
+    response = access.get(BASE_URL, params={"q": search_query, "db": "WOS", "limit": min(limit, 50),
                                            "page": 1, "sortField": "RS+D"},
                          headers={"X-ApiKey": config.WOS_API_KEY}, timeout=20)
     response.raise_for_status()

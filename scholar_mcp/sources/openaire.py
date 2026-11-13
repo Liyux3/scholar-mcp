@@ -9,6 +9,7 @@ import time
 
 import httpx
 
+from ..dates import publication_range
 from .. import access, config
 from ..cache import cached
 from ..records import matches_paper
@@ -115,7 +116,10 @@ def _normalize(item: dict) -> dict | None:
 
 
 def search_papers(query: str, limit: int = 100, **kwargs) -> list[dict]:
-    items = _request({"search": query, "type": "publication", "pageSize": min(limit, 100)})
+    params = {"search": query, "type": "publication", "pageSize": min(limit, 100)}
+    if selected := publication_range(kwargs.get("year")):
+        params["fromPublicationDate"], params["toPublicationDate"] = selected.iso
+    items = _request(params)
     return [paper for item in items if (paper := _normalize(item))][:limit]
 
 

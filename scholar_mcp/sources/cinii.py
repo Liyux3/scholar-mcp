@@ -11,6 +11,7 @@ katakana and Latin runs at the kana particles between them.
 import re
 
 from .. import access
+from ..dates import publication_range
 from . import pacing
 
 BASE_URL = "https://cir.nii.ac.jp/opensearch/articles"
@@ -52,8 +53,12 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     keywords = japanese_keywords(query) if is_japanese(query) else query
     if limit <= 0 or not keywords:
         return []
+    params = {"q": keywords, "count": min(limit, 200), "format": "json"}
+    if selected := publication_range(kwargs.get("year")):
+        params["from"] = selected.start.strftime("%Y%m")
+        params["until"] = selected.end.strftime("%Y%m")
     pacing.wait("cinii")
-    response = access.get(BASE_URL, params={"q": keywords, "count": min(limit, 200), "format": "json"},
+    response = access.get(BASE_URL, params=params,
                          timeout=20)
     response.raise_for_status()
     return [paper for paper in map(format_item, response.json().get("items") or []) if paper][:limit]

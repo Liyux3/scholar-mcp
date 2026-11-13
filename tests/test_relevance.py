@@ -821,3 +821,13 @@ def test_formal_version_keeps_its_revised_authors_and_abstract():
     assert next(v for v in merged['versions'] if v['version'] == 'preprint')['authors'] == preprint['authors']
     later = record_ops.merge_records(merged, {'external_ids': formal['external_ids'], 'authors': preprint['authors'], 'year': 2023})
     assert later['authors'] == formal['authors'] and later['year'] == 2024
+
+
+def test_a_real_abstract_wins_over_body_text_from_another_source():
+    real = {"title": "Same paper", "abstract": "We propose a method that keeps evidence in order. " * 20}
+    body = {"title": "Same paper", "abstract": "The full text of the paper continues here. " * 300}
+    assert record_ops.merge_records(real, body)["abstract"] == real["abstract"]
+    assert record_ops.merge_records(body, real)["abstract"] == real["abstract"]
+    preview = {"title": "Same paper", "abstract": "We propose a method that keeps evidence ..."}
+    assert record_ops.merge_records(body, preview)["abstract"] == preview["abstract"]
+    assert record_ops.merge_records(preview, real)["abstract"] == real["abstract"]

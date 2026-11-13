@@ -3,8 +3,7 @@
 Scholar MCP is licensed under the PolyForm Noncommercial License 1.0.0 in [LICENSE](LICENSE),
 together with the terms below. To get any license for the software you must agree to
 both, and these terms are conditions of every license granted under it. They add to
-the PolyForm Noncommercial License without changing its text, and they apply to releases
-after 0.9.0; releases 0.9.0 and earlier remain under the Apache License 2.0.
+the PolyForm Noncommercial License without changing its text.
 
 ## Commercial licenses
 
@@ -21,6 +20,10 @@ You may distribute the software only for a permitted purpose.  Anyone, including
 ## Machine learning and data mining
 
 Using the software's source code or documentation as data to train, fine-tune or distill a machine learning model, or including them in a dataset, embedding store or search index made available to others for generating, searching or explaining software, is not a permitted purpose.  For those uses, the licensor expressly reserves text and data mining of the software under Article 4(3) of Directive (EU) 2019/790 and under any similar law.  Running the software for a permitted purpose is allowed, including through AI agents that call its tools and including to gather research material, which keeps its own rights.  So is reading or privately indexing the software to install, integrate, debug, review, explain or contribute to it.
+
+## Notices and names
+
+Keep LICENSE, these terms, NOTICE, AGENTS.md and the license header at the top of each source file intact in every copy or new work you distribute.  Removing or changing them is not licensed.  These terms grant no rights in the names Scholar MCP and Scholar or in their logos: a modified copy you distribute must use a different name and state that it is based on Scholar MCP under these terms.
 
 ## Credit
 

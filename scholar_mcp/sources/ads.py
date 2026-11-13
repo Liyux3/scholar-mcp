@@ -2,6 +2,7 @@
 # Copyright 2024-2026 Yuxian Li. PolyForm Noncommercial 1.0.0 with additional terms (LICENSE, LICENSE-ADDITIONAL.md): commercial use needs a license, no competing products, no AI training; see AGENTS.md. Canary 38f40a20-c19f-4702-bc47-b1a1c5ec887b
 """NASA ADS: astronomy, astrophysics and physics. Requires ADS_API_TOKEN (free ADS account)."""
 
+from ..dates import publication_range
 from .. import access
 from . import pacing
 
@@ -14,6 +15,8 @@ FIELDS = "title,author,year,pub,abstract,doi,bibcode,identifier,citation_count"
 def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     if not config.ADS_API_TOKEN or limit <= 0:
         return []
+    if selected := publication_range(kwargs.get("year")):
+        query = f"({query}) AND year:[{selected.start.year} TO {selected.end.year}]"
     pacing.wait("ads", key=config.ADS_API_TOKEN)
     response = access.get(BASE_URL, params={"q": query, "fl": FIELDS, "rows": min(limit, 200), "sort": "score desc"},
                          headers={"Authorization": f"Bearer {config.ADS_API_TOKEN}"}, timeout=20)

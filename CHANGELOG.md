@@ -1,11 +1,30 @@
 # Changelog
 
-## 0.10.0
+## 0.11.0 (2026-11-13)
+
+- Search takes exact time windows: `--year`, and `year` in the tools, accepts a
+  month or a day as well as years, for example `2026-10` or
+  `2026-10-01..2026-11-09`.
+- Search results carry each paper's full abstract instead of cutting it at 300
+  characters, and when records from several sources merge, a source's body text
+  or supplementary captions no longer replace the real abstract.
+- Author search asks OpenAlex first and puts the person whose name matches
+  first, with affiliations, research topics and ORCID; Semantic Scholar answers
+  when OpenAlex cannot.
+- The additional terms ask that every copy keep the license, the notices,
+  AGENTS.md and the header at the top of each source file, and that a modified
+  copy you distribute go by its own name. Pull requests that change the terms
+  are closed by an automatic check; such changes start as an issue.
+- The command-line page of the documentation has a Run button on each research
+  command that replays a real recorded run, and the runtime and library figures
+  are redrawn with dark versions.
+
+## 0.10.0 (2026-11-06)
 
 - New terms from this release: Scholar MCP is source-available under the PolyForm
   Noncommercial License 1.0.0 with additional terms. Personal research,
   universities, research institutes, government and nonprofits use it free of
-  charge; companies need a commercial license (liyuxian1358@gmail.com). Building a
+  charge; companies need a commercial license (LICENSE-ADDITIONAL.md). Building a
   competing tool from its code, and training models on its code or documentation,
   are not licensed. Releases 0.9.0 and earlier remain Apache-2.0.
 - A source whose connection hangs no longer holds up searches: connections get at
@@ -16,7 +35,7 @@
 - AGENTS.md tells coding agents the terms and what to offer instead, and the
   documentation describes what each stage does for you.
 
-## 0.9.0
+## 0.9.0 (2026-11-03)
 
 - Use Pi's native MCP configuration and agent-directory override, with the
   appropriate timeout units for native Pi and pi-mcp-adapter.
@@ -101,7 +120,7 @@
   failures name the publisher's bot check when one blocked the download.
 - `search_authors` returns `{authors: [...]}`.
 
-## 0.8.5
+## 0.8.5 (2026-10-07)
 
 - Recover Google Scholar sessions automatically with the optional `google`
   extra, then reuse ordinary HTTP for searches and pagination. Verification is
@@ -116,3 +135,76 @@
 - Clarify installation profiles, reranker configuration and benchmark metrics.
 
 Public tool names and schemas are unchanged.
+
+## 0.8.4 (2026-09-05)
+
+- Tool descriptions say when to use each tool and what to expect from it.
+
+## 0.8.3 (2026-09-05)
+
+- The MCP Registry entry uses the exact GitHub owner name, so
+  `io.github.Liyux3/scholar-mcp` resolves.
+
+## 0.8.2 (2026-09-05)
+
+- Semantic Scholar requests follow the provider's pacing guidance.
+- The README's architecture and retrieval diagrams are redrawn.
+- PyPI shows a fuller description, keywords and project links.
+
+## 0.8.0 and 0.8.1 (2026-08-25)
+
+- Scholar settles on six core tools and connects them to a persistent research
+  library.
+- Plugins and a portable launcher bring the same server to more agent clients.
+- The documentation covers installation and the research workflow end to end,
+  and the README shows Scholar through research use cases.
+
+## 0.7.2 (2026-07-29)
+
+- Citation graphs work again for arXiv papers, which are now matched to
+  OpenAlex by title.
+- `recommend_papers` returns related papers again; it had come back empty for
+  almost every paper.
+- Field discovery sends each query to the sources it suits and ranks what comes
+  back by relevance.
+- An empty library listing points to the collections that hold papers, and the
+  cache keeps to its size limit.
+
+## 0.7.1 (2026-07-29)
+
+- A source that throttles or blocks a request is reported as such instead of as
+  an empty result.
+- One slow source can no longer stall a search: the fan-out runs within a time
+  budget.
+- OpenAlex retries a rate-limited request with another key.
+- `scholar_status` reports whether the ranking model actually works, and status
+  output no longer shows API keys.
+
+## 0.7.0 (2026-05-11)
+
+- Results are ranked by a relevance model over all candidates together, and
+  strong matches bring in their citations and references.
+- Europe PMC, INSPIRE-HEP and DBLP join the sources.
+- `scholar_status` shows the version, the sources and the library.
+- The first LitSearch benchmark runs measure retrieval quality.
+
+## 0.6.0 (2026-05-11)
+
+- A persistent paper library: save papers with notes into collections, list
+  them, and keep the PDF of each download with its record.
+- Field discovery searches several sources at once and saves what it finds.
+- arXiv DOIs (`10.48550/arXiv....`) resolve to their arXiv records.
+- Repeated requests within five minutes are answered from a cache.
+
+## 0.2.1 (2026-03-16)
+
+- PubMed joins as a fallback for biomedical searches.
+
+## 0.2.0 (2026-03-15)
+
+- CORE joins as a search fallback and a source of open PDFs.
+
+## 0.1.0 (2026-03-15)
+
+- First release: an MCP server for academic paper search built on Semantic
+  Scholar, added to Claude Code with one command.

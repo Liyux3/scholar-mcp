@@ -369,6 +369,8 @@ def test_search_authors(monkeypatch):
     assert results[0]["author_id"] == "a1"
     assert results[0]["name"] == "Yoshua Bengio"
     assert results[0]["h_index"] == 250
+    assert results[0]["source"] == "semantic_scholar"
+    assert not any(key.startswith("_") for key in results[0])
 
 
 def test_format_paper_handles_missing_fields():

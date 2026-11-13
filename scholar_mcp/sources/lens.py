@@ -5,6 +5,7 @@
 import httpx
 from . import pacing
 
+from ..dates import publication_range
 from .. import config
 
 BASE_URL = "https://api.lens.org/scholarly/search"
@@ -15,6 +16,10 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
     if not config.LENS_API_TOKEN or limit <= 0:
         return []
     pacing.wait("lens", key=config.LENS_API_TOKEN)
+    if selected := publication_range(kwargs.get("year")):
+        start, end = selected.iso
+        query = {"bool": {"must": [{"query_string": {"query": query}}],
+                          "filter": [{"range": {"date_published": {"gte": start, "lte": end}}}]}}
     response = httpx.post(BASE_URL, json={"query": query, "sort": [{"relevance": "desc"}], "size": min(limit, 100)},
                           headers={"Authorization": f"Bearer {config.LENS_API_TOKEN}"}, timeout=20)
     response.raise_for_status()
@@ -31,6 +36,7 @@ def search_papers(query: str, limit: int = 20, **kwargs) -> list[dict]:
         papers.append({"paper_id": ids.get("DOI") or record.get("lens_id", ""), "title": title,
                        "authors": [" ".join(filter(None, (a.get("first_name"), a.get("last_name"))))
                                    for a in record.get("authors") or []],
+                       "publication_date": record.get("date_published"),
                        "year": record.get("year_published"), "venue": (record.get("source") or {}).get("title") or "",
                        "abstract": record.get("abstract") or "", "external_ids": {k: v for k, v in ids.items() if v},
                        "citation_count": record.get("scholarly_citations_count") or 0,
