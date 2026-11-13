@@ -1,0 +1,1800 @@
+{
+ "command": "scholar-mcp graph arXiv:2303.04137,arXiv:2209.03003 --hops 1 --max-papers 20",
+ "version": "0.10.1",
+ "recorded": "2026-11-13",
+ "seconds": 21.2,
+ "lines": [
+  [
+   21.12,
+   "summary: |-"
+  ],
+  [
+   21.12,
+   "  Graph: 20 papers, 19 connections, depth 1"
+  ],
+  [
+   21.12,
+   "  Timeline: 1987-2026"
+  ],
+  [
+   21.12,
+   "  Hubs: Diffusion policy: Visuomotor p (9), CoT-VLA: Visual Chain-of-Thoug (1), Precise and dexterous robotic  (1)"
+  ],
+  [
+   21.12,
+   "  Bridge papers: Diffusion policy: Visuomotor policy"
+  ],
+  [
+   21.12,
+   "  Most central: Diffusion policy: Visuomo, ImageNet: A large-scale h, A survey of robot learnin"
+  ],
+  [
+   21.12,
+   "mermaid: |-"
+  ],
+  [
+   21.12,
+   "  graph TD"
+  ],
+  [
+   21.12,
+   "      n0[\"Diffusion policy: Visuomotor pol...<br/>2023, 5,146c\"]"
+  ],
+  [
+   21.12,
+   "      n1[\"Flow Straight and Fast: Learning...<br/>2022, 2,226c\"]"
+  ],
+  [
+   21.12,
+   "      n2(\"CoT-VLA: Visual Chain-of-Thought...<br/>2025, 239c\")"
+  ],
+  [
+   21.12,
+   "      n3(\"Precise and dexterous robotic ma...<br/>2025, 190c\")"
+  ],
+  [
+   21.12,
+   "      n4(\"Humanoid Locomotion and Manipula...<br/>2026, 138c\")"
+  ],
+  [
+   21.12,
+   "      n5(\"A careful examination of large b...<br/>2026, 137c\")"
+  ],
+  [
+   21.12,
+   "      n6(\"VLABench: A Large-Scale Benchmar...<br/>2025, 124c\")"
+  ],
+  [
+   21.12,
+   "      n7(\"DALL-E-Bot: Introducing Web-Scal...<br/>2023, 117c\")"
+  ],
+  [
+   21.12,
+   "      n8(\"Generative AI Empowered Network ...<br/>2025, 106c\")"
+  ],
+  [
+   21.12,
+   "      n9(\"PointVLA: Injecting the 3D World...<br/>2026, 100c\")"
+  ],
+  [
+   21.12,
+   "      n10(\"PD-VLA: Accelerating Vision-Lang...<br/>2025, 84c\")"
+  ],
+  [
+   21.12,
+   "      n11(\"ICRT: In-Context Imitation Learn...<br/>2025, 78c\")"
+  ],
+  [
+   21.12,
+   "      n12(\"ImageNet: A large-scale hierarch...<br/>2009, 68,729c\")"
+  ],
+  [
+   21.12,
+   "      n13(\"A survey of robot learning from ...<br/>2008, 3,354c\")"
+  ],
+  [
+   21.12,
+   "      n14(\"Deep Residual Learning for Image...<br/>2016, 243,394c\")"
+  ],
+  [
+   21.12,
+   "      n15(\"U-Net: Convolutional Networks fo...<br/>2015, 103,483c\")"
+  ],
+  [
+   21.12,
+   "      n16(\"A unified approach for motion an...<br/>1987, 2,990c\")"
+  ],
+  [
+   21.12,
+   "      n17(\"MCMC Using Hamiltonian Dynamics<br/>2011, 2,963c\")"
+  ],
+  [
+   21.12,
+   "      n18(\"Advances in Neural Information P...<br/>2024, 2,881c\")"
+  ],
+  [
+   21.12,
+   "      n19(\"Mixture density networks<br/>1994, 1,276c\")"
+  ],
+  [
+   21.12,
+   "      n2 --> n0"
+  ],
+  [
+   21.12,
+   "      n3 --> n0"
+  ],
+  [
+   21.12,
+   "      n4 --> n0"
+  ],
+  [
+   21.12,
+   "      n5 --> n0"
+  ],
+  [
+   21.12,
+   "      n6 --> n0"
+  ],
+  [
+   21.12,
+   "      n7 --> n0"
+  ],
+  [
+   21.12,
+   "      n8 --> n0"
+  ],
+  [
+   21.12,
+   "      n9 --> n0"
+  ],
+  [
+   21.12,
+   "      n10 --> n0"
+  ],
+  [
+   21.12,
+   "      n11 --> n0"
+  ],
+  [
+   21.12,
+   "      n0 --> n12"
+  ],
+  [
+   21.12,
+   "      n0 --> n13"
+  ],
+  [
+   21.12,
+   "      n0 --> n14"
+  ],
+  [
+   21.12,
+   "      n0 --> n15"
+  ],
+  [
+   21.12,
+   "      n0 --> n16"
+  ],
+  [
+   21.12,
+   "      n0 --> n17"
+  ],
+  [
+   21.12,
+   "      n0 --> n18"
+  ],
+  [
+   21.12,
+   "      n0 --> n0"
+  ],
+  [
+   21.12,
+   "      n0 --> n19"
+  ],
+  [
+   21.12,
+   "      style n0 fill:#e1f5fe,stroke:#01579b,stroke-width:3px"
+  ],
+  [
+   21.12,
+   "      style n1 fill:#e1f5fe,stroke:#01579b,stroke-width:3px"
+  ],
+  [
+   21.12,
+   "      style n12 fill:#f3e5f5,stroke:#7b1fa2"
+  ],
+  [
+   21.12,
+   "      style n14 fill:#fff3e0,stroke:#e65100"
+  ],
+  [
+   21.12,
+   "      style n15 fill:#f3e5f5,stroke:#7b1fa2"
+  ],
+  [
+   21.12,
+   "nodes:"
+  ],
+  [
+   21.12,
+   "- id: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  title: 'Diffusion policy: Visuomotor policy learning via action diffusion'"
+  ],
+  [
+   21.12,
+   "  year: 2023"
+  ],
+  [
+   21.12,
+   "  citation_count: 5146"
+  ],
+  [
+   21.12,
+   "  venue: 'Robotics: Science and Systems Conference'"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Cheng Chi"
+  ],
+  [
+   21.12,
+   "  - Zhen-Jia Xu"
+  ],
+  [
+   21.12,
+   "  - Si-Yuan Feng"
+  ],
+  [
+   21.12,
+   "  - Eric Cousineau"
+  ],
+  [
+   21.12,
+   "  - Yilun Du"
+  ],
+  [
+   21.12,
+   "  source: semantic_scholar"
+  ],
+  [
+   21.12,
+   "  depth: 0"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - JournalArticle"
+  ],
+  [
+   21.12,
+   "- id: 10.48550/arxiv.2209.03003"
+  ],
+  [
+   21.12,
+   "  title: 'Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified"
+  ],
+  [
+   21.12,
+   "    Flow'"
+  ],
+  [
+   21.12,
+   "  year: 2022"
+  ],
+  [
+   21.12,
+   "  citation_count: 2226"
+  ],
+  [
+   21.12,
+   "  venue: arXiv"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Liu, Xingchao"
+  ],
+  [
+   21.12,
+   "  - Gong, Chengyue"
+  ],
+  [
+   21.12,
+   "  - Liu, Qiang"
+  ],
+  [
+   21.12,
+   "  source: arxiv+openalex"
+  ],
+  [
+   21.12,
+   "  depth: 0"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - Preprint"
+  ],
+  [
+   21.12,
+   "- id: 10.1109/cvpr52734.2025.00166"
+  ],
+  [
+   21.12,
+   "  title: 'CoT-VLA: Visual Chain-of-Thought Reasoning for Vision-Language-Action Models'"
+  ],
+  [
+   21.12,
+   "  year: 2025"
+  ],
+  [
+   21.12,
+   "  citation_count: 239"
+  ],
+  [
+   21.12,
+   "  venue: IEEE Computer Society Conference on Computer Vision and Pattern Recognition/Proceedings"
+  ],
+  [
+   21.12,
+   "    - IEEE Computer Society Conference on Computer Vision and Pattern Recognition/Proceedings"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Qingqing Zhao"
+  ],
+  [
+   21.12,
+   "  - Yao Lu"
+  ],
+  [
+   21.12,
+   "  - Moo Jin Kim"
+  ],
+  [
+   21.12,
+   "  - Zipeng Fu"
+  ],
+  [
+   21.12,
+   "  - Zhuoyang Zhang"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - conference-paper"
+  ],
+  [
+   21.12,
+   "- id: 10.1126/scirobotics.ads5033"
+  ],
+  [
+   21.12,
+   "  title: Precise and dexterous robotic manipulation via human-in-the-loop reinforcement"
+  ],
+  [
+   21.12,
+   "    learning"
+  ],
+  [
+   21.12,
+   "  year: 2025"
+  ],
+  [
+   21.12,
+   "  citation_count: 190"
+  ],
+  [
+   21.12,
+   "  venue: Science Robotics"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Jianlan Luo"
+  ],
+  [
+   21.12,
+   "  - Charles Xu"
+  ],
+  [
+   21.12,
+   "  - Jeffrey Wu"
+  ],
+  [
+   21.12,
+   "  - Sergey Levine"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - JournalArticle"
+  ],
+  [
+   21.12,
+   "- id: 10.1109/tmech.2025.3579247"
+  ],
+  [
+   21.12,
+   "  title: 'Humanoid Locomotion and Manipulation: Current Progress and Challenges in"
+  ],
+  [
+   21.12,
+   "    Control, Planning, and Learning'"
+  ],
+  [
+   21.12,
+   "  year: 2026"
+  ],
+  [
+   21.12,
+   "  citation_count: 138"
+  ],
+  [
+   21.12,
+   "  venue: IEEE/ASME Transactions on Mechatronics"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Zhaoyuan Gu"
+  ],
+  [
+   21.12,
+   "  - Junheng Li"
+  ],
+  [
+   21.12,
+   "  - Wenlan Shen"
+  ],
+  [
+   21.12,
+   "  - Wenhao Yu"
+  ],
+  [
+   21.12,
+   "  - Zhaoming Xie"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - JournalArticle"
+  ],
+  [
+   21.12,
+   "- id: 10.1126/scirobotics.aea6201"
+  ],
+  [
+   21.12,
+   "  title: A careful examination of large behavior models for multitask dexterous manipulation"
+  ],
+  [
+   21.12,
+   "  year: 2026"
+  ],
+  [
+   21.12,
+   "  citation_count: 137"
+  ],
+  [
+   21.12,
+   "  venue: Science Robotics"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Jose Augusto Lima Barreiros"
+  ],
+  [
+   21.12,
+   "  - Andrew Beaulieu"
+  ],
+  [
+   21.12,
+   "  - Aditya D. Bhat"
+  ],
+  [
+   21.12,
+   "  - Rick Cory"
+  ],
+  [
+   21.12,
+   "  - Eric A. Cousineau"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - JournalArticle"
+  ],
+  [
+   21.12,
+   "- id: 10.1109/iccv51701.2025.01037"
+  ],
+  [
+   21.12,
+   "  title: 'VLABench: A Large-Scale Benchmark for Language-Conditioned Robotics Manipulation"
+  ],
+  [
+   21.12,
+   "    with Long-Horizon Reasoning Tasks'"
+  ],
+  [
+   21.12,
+   "  year: 2025"
+  ],
+  [
+   21.12,
+   "  citation_count: 124"
+  ],
+  [
+   21.12,
+   "  venue: IEEE/CVF International Conference on Computer Vision (ICCV)"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Shiduo Zhang"
+  ],
+  [
+   21.12,
+   "  - Zhe Xu"
+  ],
+  [
+   21.12,
+   "  - Peiju Liu"
+  ],
+  [
+   21.12,
+   "  - Xiaopeng Yu"
+  ],
+  [
+   21.12,
+   "  - Yuan Li"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - conference-paper"
+  ],
+  [
+   21.12,
+   "- id: 10.1109/lra.2023.3272516"
+  ],
+  [
+   21.12,
+   "  title: 'DALL-E-Bot: Introducing Web-Scale Diffusion Models to Robotics'"
+  ],
+  [
+   21.12,
+   "  year: 2023"
+  ],
+  [
+   21.12,
+   "  citation_count: 117"
+  ],
+  [
+   21.12,
+   "  venue: IEEE Robotics and Automation Letters"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Ivan Kapelyukh"
+  ],
+  [
+   21.12,
+   "  - Vitalis Vosylius"
+  ],
+  [
+   21.12,
+   "  - Edward Johns"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - JournalArticle"
+  ],
+  [
+   21.12,
+   "- id: 10.1145/3711682"
+  ],
+  [
+   21.12,
+   "  title: 'Generative AI Empowered Network Digital Twins: Architecture, Technologies,"
+  ],
+  [
+   21.12,
+   "    and Applications'"
+  ],
+  [
+   21.12,
+   "  year: 2025"
+  ],
+  [
+   21.12,
+   "  citation_count: 106"
+  ],
+  [
+   21.12,
+   "  venue: ACM Computing Surveys"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Tong Li"
+  ],
+  [
+   21.12,
+   "  - Qingyue Long"
+  ],
+  [
+   21.12,
+   "  - Haoye Chai"
+  ],
+  [
+   21.12,
+   "  - Shiyuan Zhang"
+  ],
+  [
+   21.12,
+   "  - Fenyu Jiang"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - JournalArticle"
+  ],
+  [
+   21.12,
+   "- id: 10.1109/lra.2026.3653303"
+  ],
+  [
+   21.12,
+   "  title: 'PointVLA: Injecting the 3D World Into Vision-Language-Action Models'"
+  ],
+  [
+   21.12,
+   "  year: 2026"
+  ],
+  [
+   21.12,
+   "  citation_count: 100"
+  ],
+  [
+   21.12,
+   "  venue: IEEE Robotics and Automation Letters"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Chengmeng Li"
+  ],
+  [
+   21.12,
+   "  - Junjie Wen"
+  ],
+  [
+   21.12,
+   "  - Yaxin Peng"
+  ],
+  [
+   21.12,
+   "  - Yan Peng"
+  ],
+  [
+   21.12,
+   "  - Yichen Zhu"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - JournalArticle"
+  ],
+  [
+   21.12,
+   "- id: 10.1109/iros60139.2025.11247519"
+  ],
+  [
+   21.12,
+   "  title: 'PD-VLA: Accelerating Vision-Language-Action Model Integrated with Action"
+  ],
+  [
+   21.12,
+   "    Chunking via Parallel Decoding'"
+  ],
+  [
+   21.12,
+   "  year: 2025"
+  ],
+  [
+   21.12,
+   "  citation_count: 84"
+  ],
+  [
+   21.12,
+   "  venue: IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Wenxuan Song"
+  ],
+  [
+   21.12,
+   "  - Jiayi Chen"
+  ],
+  [
+   21.12,
+   "  - Pengxiang Ding"
+  ],
+  [
+   21.12,
+   "  - Han Zhao"
+  ],
+  [
+   21.12,
+   "  - Wei Zhao"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - conference-paper"
+  ],
+  [
+   21.12,
+   "- id: 10.1109/icra55743.2025.11128272"
+  ],
+  [
+   21.12,
+   "  title: 'ICRT: In-Context Imitation Learning via Next-Token Prediction'"
+  ],
+  [
+   21.12,
+   "  year: 2025"
+  ],
+  [
+   21.12,
+   "  citation_count: 78"
+  ],
+  [
+   21.12,
+   "  venue: Proceedings - IEEE International Conference on Robotics and Automation/Proceedings"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Max Fu"
+  ],
+  [
+   21.12,
+   "  - Huang Huang"
+  ],
+  [
+   21.12,
+   "  - Gaurav Datta"
+  ],
+  [
+   21.12,
+   "  - Lawrence Yunliang Chen"
+  ],
+  [
+   21.12,
+   "  - Will Panitch"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - conference-paper"
+  ],
+  [
+   21.12,
+   "- id: 10.1109/cvpr.2009.5206848"
+  ],
+  [
+   21.12,
+   "  title: 'ImageNet: A large-scale hierarchical image database'"
+  ],
+  [
+   21.12,
+   "  year: 2009"
+  ],
+  [
+   21.12,
+   "  citation_count: 68729"
+  ],
+  [
+   21.12,
+   "  venue: IEEE Computer Society Conference on Computer Vision and Pattern Recognition/Proceedings"
+  ],
+  [
+   21.12,
+   "    - IEEE Computer Society Conference on Computer Vision and Pattern Recognition/Proceedings"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Jia Deng"
+  ],
+  [
+   21.12,
+   "  - Wei Dong"
+  ],
+  [
+   21.12,
+   "  - Richard Socher"
+  ],
+  [
+   21.12,
+   "  - Li-Jia Li"
+  ],
+  [
+   21.12,
+   "  - Kai Li"
+  ],
+  [
+   21.12,
+   "  source: crossref+openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - conference-paper"
+  ],
+  [
+   21.12,
+   "  _reference:"
+  ],
+  [
+   21.12,
+   "    key: e_1_3_5_11_1"
+  ],
+  [
+   21.12,
+   "    doi-asserted-by: crossref"
+  ],
+  [
+   21.12,
+   "    unstructured: 'Deng J Dong W Socher R et al. (2009) Imagenet: a large-scale hierarchical"
+  ],
+  [
+   21.12,
+   "      image database. In: 2009 IEEE conference on computer vision and pattern recognition"
+  ],
+  [
+   21.12,
+   "      Miami FL 20–25 June 2009 248–255. IEEE.'"
+  ],
+  [
+   21.12,
+   "    DOI: 10.1109/CVPR.2009.5206848"
+  ],
+  [
+   21.12,
+   "- id: 10.1016/j.robot.2008.10.024"
+  ],
+  [
+   21.12,
+   "  title: A survey of robot learning from demonstration"
+  ],
+  [
+   21.12,
+   "  year: 2008"
+  ],
+  [
+   21.12,
+   "  citation_count: 3354"
+  ],
+  [
+   21.12,
+   "  venue: Robotics and Autonomous Systems"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Brenna Argall"
+  ],
+  [
+   21.12,
+   "  - Sonia Chernova"
+  ],
+  [
+   21.12,
+   "  - Manuela Veloso"
+  ],
+  [
+   21.12,
+   "  - Brett Browning A"
+  ],
+  [
+   21.12,
+   "  source: crossref+openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - JournalArticle"
+  ],
+  [
+   21.12,
+   "  _reference:"
+  ],
+  [
+   21.12,
+   "    key: e_1_3_5_3_1"
+  ],
+  [
+   21.12,
+   "    doi-asserted-by: publisher"
+  ],
+  [
+   21.12,
+   "    DOI: 10.1016/j.robot.2008.10.024"
+  ],
+  [
+   21.12,
+   "- id: 10.1109/cvpr.2016.90"
+  ],
+  [
+   21.12,
+   "  title: Deep Residual Learning for Image Recognition"
+  ],
+  [
+   21.12,
+   "  year: 2016"
+  ],
+  [
+   21.12,
+   "  citation_count: 243394"
+  ],
+  [
+   21.12,
+   "  venue: IEEE Computer Society Conference on Computer Vision and Pattern Recognition/Proceedings"
+  ],
+  [
+   21.12,
+   "    - IEEE Computer Society Conference on Computer Vision and Pattern Recognition/Proceedings"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Kaiming He"
+  ],
+  [
+   21.12,
+   "  - Xiangyu Zhang"
+  ],
+  [
+   21.12,
+   "  - Shaoqing Ren"
+  ],
+  [
+   21.12,
+   "  - Jian Sun"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - conference-paper"
+  ],
+  [
+   21.12,
+   "- id: 10.1007/978-3-319-24574-4_28"
+  ],
+  [
+   21.12,
+   "  title: 'U-Net: Convolutional Networks for Biomedical Image Segmentation'"
+  ],
+  [
+   21.12,
+   "  year: 2015"
+  ],
+  [
+   21.12,
+   "  citation_count: 103483"
+  ],
+  [
+   21.12,
+   "  venue: Lecture notes in computer science"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Olaf Ronneberger"
+  ],
+  [
+   21.12,
+   "  - Philipp Fischer"
+  ],
+  [
+   21.12,
+   "  - Thomas Brox"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - conference-paper"
+  ],
+  [
+   21.12,
+   "- id: 10.1109/jra.1987.1087068"
+  ],
+  [
+   21.12,
+   "  title: 'A unified approach for motion and force control of robot manipulators: The"
+  ],
+  [
+   21.12,
+   "    operational space formulation'"
+  ],
+  [
+   21.12,
+   "  year: 1987"
+  ],
+  [
+   21.12,
+   "  citation_count: 2990"
+  ],
+  [
+   21.12,
+   "  venue: IEEE Journal on Robotics and Automation"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Oussama Khatib"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - JournalArticle"
+  ],
+  [
+   21.12,
+   "- id: 10.1201/9781003453420-2"
+  ],
+  [
+   21.12,
+   "  title: MCMC Using Hamiltonian Dynamics"
+  ],
+  [
+   21.12,
+   "  year: 2011"
+  ],
+  [
+   21.12,
+   "  citation_count: 2963"
+  ],
+  [
+   21.12,
+   "  venue: Chapman & Hall/CRC eBooks"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Radford M. Neal"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - BookChapter"
+  ],
+  [
+   21.12,
+   "- id: 10.52202/079017"
+  ],
+  [
+   21.12,
+   "  title: Advances in Neural Information Processing Systems 37"
+  ],
+  [
+   21.12,
+   "  year: 2024"
+  ],
+  [
+   21.12,
+   "  citation_count: 2881"
+  ],
+  [
+   21.12,
+   "  venue: ''"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - David S. Touretzky"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - paratext"
+  ],
+  [
+   21.12,
+   "- id: W1579853615"
+  ],
+  [
+   21.12,
+   "  title: Mixture density networks"
+  ],
+  [
+   21.12,
+   "  year: 1994"
+  ],
+  [
+   21.12,
+   "  citation_count: 1276"
+  ],
+  [
+   21.12,
+   "  venue: Aston Publications Explorer (Aston University)"
+  ],
+  [
+   21.12,
+   "  authors:"
+  ],
+  [
+   21.12,
+   "  - Chris Bishop"
+  ],
+  [
+   21.12,
+   "  source: openalex"
+  ],
+  [
+   21.12,
+   "  depth: 1"
+  ],
+  [
+   21.12,
+   "  publication_types:"
+  ],
+  [
+   21.12,
+   "  - Book"
+  ],
+  [
+   21.12,
+   "edges:"
+  ],
+  [
+   21.12,
+   "- source: 10.1109/cvpr52734.2025.00166"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1126/scirobotics.ads5033"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1109/tmech.2025.3579247"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1126/scirobotics.aea6201"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1109/iccv51701.2025.01037"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1109/lra.2023.3272516"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1145/3711682"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1109/lra.2026.3653303"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1109/iros60139.2025.11247519"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1109/icra55743.2025.11128272"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  target: 10.1109/cvpr.2009.5206848"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  target: 10.1016/j.robot.2008.10.024"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  target: 10.1109/cvpr.2016.90"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  target: 10.1007/978-3-319-24574-4_28"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  target: 10.1109/jra.1987.1087068"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  target: 10.1201/9781003453420-2"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  target: 10.52202/079017"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  target: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "- source: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  target: W1579853615"
+  ],
+  [
+   21.12,
+   "  type: cites"
+  ],
+  [
+   21.12,
+   "stats:"
+  ],
+  [
+   21.12,
+   "  total_nodes: 20"
+  ],
+  [
+   21.12,
+   "  total_edges: 19"
+  ],
+  [
+   21.12,
+   "  max_depth: 1"
+  ],
+  [
+   21.12,
+   "  seed_count: 2"
+  ],
+  [
+   21.12,
+   "analytics:"
+  ],
+  [
+   21.12,
+   "  pagerank:"
+  ],
+  [
+   21.12,
+   "    10.1177/02783649241273668: 0.2804"
+  ],
+  [
+   21.12,
+   "    10.1109/cvpr.2009.5206848: 0.0532"
+  ],
+  [
+   21.12,
+   "    10.1016/j.robot.2008.10.024: 0.0532"
+  ],
+  [
+   21.12,
+   "    10.1109/cvpr.2016.90: 0.0532"
+  ],
+  [
+   21.12,
+   "    10.1007/978-3-319-24574-4_28: 0.0532"
+  ],
+  [
+   21.12,
+   "  pivots:"
+  ],
+  [
+   21.12,
+   "  - 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  betweenness:"
+  ],
+  [
+   21.12,
+   "    10.1177/02783649241273668: 0.23391812865497075"
+  ],
+  [
+   21.12,
+   "    10.48550/arxiv.2209.03003: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1109/cvpr52734.2025.00166: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1126/scirobotics.ads5033: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1109/tmech.2025.3579247: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1126/scirobotics.aea6201: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1109/iccv51701.2025.01037: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1109/lra.2023.3272516: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1145/3711682: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1109/lra.2026.3653303: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1109/iros60139.2025.11247519: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1109/icra55743.2025.11128272: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1109/cvpr.2009.5206848: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1016/j.robot.2008.10.024: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1109/cvpr.2016.90: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1007/978-3-319-24574-4_28: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1109/jra.1987.1087068: 0.0"
+  ],
+  [
+   21.12,
+   "    10.1201/9781003453420-2: 0.0"
+  ],
+  [
+   21.12,
+   "    10.52202/079017: 0.0"
+  ],
+  [
+   21.12,
+   "    W1579853615: 0.0"
+  ],
+  [
+   21.12,
+   "seeds:"
+  ],
+  [
+   21.12,
+   "- id: 10.1177/02783649241273668"
+  ],
+  [
+   21.12,
+   "  title: 'Diffusion policy: Visuomotor policy learning via action diffusion'"
+  ],
+  [
+   21.12,
+   "- id: 10.48550/arxiv.2209.03003"
+  ],
+  [
+   21.12,
+   "  title: 'Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified"
+  ],
+  [
+   21.12,
+   "    Flow'"
+  ]
+ ]
+}

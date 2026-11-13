@@ -1,0 +1,196 @@
+{
+ "command": "scholar-mcp related arXiv:2303.04137 --relation kin --limit 5",
+ "version": "0.10.1",
+ "recorded": "2026-11-13",
+ "seconds": 10.1,
+ "lines": [
+  [
+   9.99,
+   "relation: kin"
+  ],
+  [
+   9.99,
+   "seed: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion'"
+  ],
+  [
+   9.99,
+   "papers:"
+  ],
+  [
+   9.99,
+   "- title: 'Diffusion policy: Visuomotor policy learning via action diffusion'"
+  ],
+  [
+   9.99,
+   "  authors:"
+  ],
+  [
+   9.99,
+   "  - Cheng Chi"
+  ],
+  [
+   9.99,
+   "  - Zhenjia Xu"
+  ],
+  [
+   9.99,
+   "  - Siyuan Feng"
+  ],
+  [
+   9.99,
+   "  year: 2024"
+  ],
+  [
+   9.99,
+   "  citations: 828"
+  ],
+  [
+   9.99,
+   "  doi: 10.1177/02783649241273668"
+  ],
+  [
+   9.99,
+   "  id: 10.1177/02783649241273668"
+  ],
+  [
+   9.99,
+   "- title: Diffusion Models Beat GANs on Image Synthesis"
+  ],
+  [
+   9.99,
+   "  authors:"
+  ],
+  [
+   9.99,
+   "  - Prafulla Dhariwal"
+  ],
+  [
+   9.99,
+   "  - Alex Nichol"
+  ],
+  [
+   9.99,
+   "  year: 2021"
+  ],
+  [
+   9.99,
+   "  citations: 4033"
+  ],
+  [
+   9.99,
+   "  doi: 10.48550/arxiv.2105.05233"
+  ],
+  [
+   9.99,
+   "  id: 10.48550/arxiv.2105.05233"
+  ],
+  [
+   9.99,
+   "- title: High-Resolution Image Synthesis with Latent Diffusion Models"
+  ],
+  [
+   9.99,
+   "  authors:"
+  ],
+  [
+   9.99,
+   "  - Robin Rombach"
+  ],
+  [
+   9.99,
+   "  - Andreas Blattmann"
+  ],
+  [
+   9.99,
+   "  - Dominik Lorenz"
+  ],
+  [
+   9.99,
+   "  year: 2022"
+  ],
+  [
+   9.99,
+   "  citations: 20628"
+  ],
+  [
+   9.99,
+   "  doi: 10.1109/cvpr52688.2022.01042"
+  ],
+  [
+   9.99,
+   "  id: 10.1109/cvpr52688.2022.01042"
+  ],
+  [
+   9.99,
+   "- title: 'Reinforcement learning in robotics: A survey'"
+  ],
+  [
+   9.99,
+   "  authors:"
+  ],
+  [
+   9.99,
+   "  - Jens Kober"
+  ],
+  [
+   9.99,
+   "  - James Andrew Bagnell"
+  ],
+  [
+   9.99,
+   "  - Jan Peters"
+  ],
+  [
+   9.99,
+   "  year: 2013"
+  ],
+  [
+   9.99,
+   "  citations: 3390"
+  ],
+  [
+   9.99,
+   "  doi: 10.1177/0278364913495721"
+  ],
+  [
+   9.99,
+   "  id: 10.1177/0278364913495721"
+  ],
+  [
+   9.99,
+   "- title: Generative Modeling by Estimating Gradients of the Data Distribution"
+  ],
+  [
+   9.99,
+   "  authors:"
+  ],
+  [
+   9.99,
+   "  - Yang Sup Song"
+  ],
+  [
+   9.99,
+   "  - Stefano Ermon"
+  ],
+  [
+   9.99,
+   "  year: 2019"
+  ],
+  [
+   9.99,
+   "  citations: 1737"
+  ],
+  [
+   9.99,
+   "  doi: 10.48550/arxiv.1907.05600"
+  ],
+  [
+   9.99,
+   "  id: 10.48550/arxiv.1907.05600"
+  ],
+  [
+   9.99,
+   "total: 5"
+  ]
+ ]
+}
