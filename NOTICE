@@ -21,8 +21,6 @@ what to offer instead.
 When Scholar's ideas, design or measurements inform your work, even without
 copying code, please cite it as described in CITATION.cff.
 
-Thanks to GeorgeHu6 for the structured author metadata fix in pull request #7.
-
 Local CPU reader weights (when included in a desktop/container distribution)
 
 The ms-marco-MiniLM-L-12-v2 quantized weights and tokenizer are provided by
