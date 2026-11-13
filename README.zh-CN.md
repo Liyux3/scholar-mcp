@@ -38,7 +38,8 @@ Scholar MCP 给你的 AI 智能体配上一座研究图书馆。它同时检索�
 - 2026 年 8 月，0.8.0 和 0.8.1。六个核心工具接上持久的文献库，插件和便携启动器把 Scholar 带进更多智能体客户端。
 - 2026 年 7 月，0.7.1 和 0.7.2。被限流的数据源会如实报告，不再像是没有结果；一个慢数据源不再卡住整次搜索；arXiv 论文的引用图谱和相关论文恢复正常。
 - 2026 年 5 月，0.6.0 和 0.7.0。论文连同笔记存进分合集的文献库，相关性模型给所有候选统一排序，强匹配会带回它们的引用，Europe PMC、INSPIRE-HEP 和 DBLP 加入数据源。
-- 2026 年 3 月，0.1.0 到 0.2.1。首个版本，在 Claude Code 里一条命令就能搜 Semantic Scholar；几天内又加入了 CORE 和 PubMed。
+- 2026 年 3 月，0.1.0 到 0.2.1。首个公开版本，在 Claude Code 里一条命令就能搜 Semantic Scholar；几天内又加入了 CORE 和 PubMed。
+- 2024 年 12 月，开始开发论文检索 MCP 服务器，以 Semantic Scholar 为主，arXiv 和 Google Scholar 作后备。
 
 </details>
 

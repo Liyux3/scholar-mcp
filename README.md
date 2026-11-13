@@ -40,7 +40,8 @@ Scholar MCP gives your AI agent a research library. It searches scholarly source
 - August 2026, 0.8.0 and 0.8.1. Six core tools connect to a persistent research library, and plugins and a portable launcher bring Scholar to more agent clients.
 - July 2026, 0.7.1 and 0.7.2. A source that throttles is reported instead of looking empty, one slow source can no longer stall a search, and citation graphs and related papers work again for arXiv papers.
 - May 2026, 0.6.0 and 0.7.0. Papers keep their notes in a library of collections, a relevance model ranks every candidate together, strong matches bring in their citations, and Europe PMC, INSPIRE-HEP and DBLP join the sources.
-- March 2026, 0.1.0 to 0.2.1. The first release searches Semantic Scholar from Claude Code with one command; CORE and PubMed join within days.
+- March 2026, 0.1.0 to 0.2.1. The first public release searches Semantic Scholar from Claude Code with one command; CORE and PubMed join within days.
+- December 2024, work begins on an MCP server for paper search, built on Semantic Scholar with arXiv and Google Scholar as fallbacks.
 
 </details>
 
