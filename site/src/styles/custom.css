@@ -508,6 +508,16 @@ h1#_top {
 	font-weight: 600;
 }
 
+/* A display: table box does not clip its cells, so the header's end cells carry
+   the card's corners themselves. */
+.sl-markdown-content tr:first-child > th:first-child:not(:where(.not-content *)) {
+	border-start-start-radius: calc(var(--sc-radius-lg) - 1px);
+}
+
+.sl-markdown-content tr:first-child > th:last-child:not(:where(.not-content *)) {
+	border-start-end-radius: calc(var(--sc-radius-lg) - 1px);
+}
+
 .sl-markdown-content td code {
 	white-space: nowrap;
 	border-color: transparent;
