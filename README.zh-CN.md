@@ -20,7 +20,7 @@
   <a href="https://liyux3.github.io/scholar-mcp/zh-cn/">文档</a> · <a href="README.md">English</a> · 简体中文
 </p>
 
-Scholar MCP 给你的 AI 智能体配上一座研究图书馆。不用密钥时它同时搜索 17 个学术数据源，加上你自己的密钥最多 24 个。它会顺着引用和相关工作继续找，读原文一直读到图和表，再把要紧的论文连同你的笔记存进本地文献库。Claude、Codex、Cursor、VS Code、Gemini CLI、OpenCode 等任何 MCP 客户端都能用，命令行和 Python 里也能用。科研和教育免费使用，公司可申请商业授权。
+Scholar MCP 给你的 AI 智能体配上一座研究图书馆。不用密钥时它同时搜索 17 个学术数据源，加上你自己的密钥最多 24 个。它会顺着引用和相关工作继续找，读原文一直读到图和表，再把要紧的论文连同你的笔记存进本地文献库。Claude、Codex、Cursor、VS Code、Gemini CLI、OpenCode 等任何 MCP 客户端都能用，命令行和 Python 里也能用。
 
 <p align="center">
   <a href="https://liyux3.github.io/scholar-mcp/zh-cn/#watch"><img src="docs/assets/scholar-film-poster.jpg" alt="观看一分钟介绍片" width="820"></a>
@@ -29,7 +29,7 @@ Scholar MCP 给你的 AI 智能体配上一座研究图书馆。不用密钥时�
 ## 📰 动态
 
 - 2026 年 11 月，0.11.0。搜索可以按月和日限定时间段，结果里给出完整摘要，作者搜索对知名学者也能找对人。
-- 2026 年 11 月，0.10.0。连接卡住的数据源不再拖慢搜索，OpenAlex 的每日额度能多用约四倍；许可改为 PolyForm Noncommercial，科研和教育免费，公司可申请商业授权。
+- 2026 年 11 月，0.10.0。连接卡住的数据源不再拖慢搜索，OpenAlex 的每日额度能多用约四倍。
 - 2026 年 11 月，0.9.0。`scholar-mcp install` 一条命令装进 32 个智能体，一份密钥文件所有客户端共用，慢的数据源不再拖住其他数据源，`scholar-mcp doctor --network` 检查每条链路。
 - 2026 年 10 月，0.8.5。Google Scholar 会话可以自动恢复，arXiv 接口不可用时改用它自己的网页搜索。
 

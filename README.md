@@ -22,7 +22,7 @@
   <a href="https://liyux3.github.io/scholar-mcp/">Documentation</a> · English · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
-Scholar MCP gives your AI agent a research library. It searches scholarly sources in parallel, with optional keys for additional indexes, follows citations and related work, reads the original paper down to its figures and tables, and keeps what matters in a local library with your notes. It works in Claude, Codex, Cursor, VS Code, Gemini CLI, OpenCode and any other MCP client, and from the command line or Python. Free for research and education, with commercial licenses for companies.
+Scholar MCP gives your AI agent a research library. It searches scholarly sources in parallel, with optional keys for additional indexes, follows citations and related work, reads the original paper down to its figures and tables, and keeps what matters in a local library with your notes. It works in Claude, Codex, Cursor, VS Code, Gemini CLI, OpenCode and any other MCP client, and from the command line or Python.
 
 <p align="center">
   <a href="https://liyux3.github.io/scholar-mcp/#watch"><img src="docs/assets/scholar-film-poster.jpg" alt="Watch the one-minute film" width="820"></a>
@@ -31,7 +31,7 @@ Scholar MCP gives your AI agent a research library. It searches scholarly source
 ## 📰 News
 
 - November 2026, 0.11.0. Search takes month and day windows, results carry full abstracts, and author search finds the right person for well-known names.
-- November 2026, 0.10.0. Searches no longer wait on a source whose connection hangs, OpenAlex's daily allowance lasts about four times as long, and Scholar is free for research and education under PolyForm Noncommercial, with commercial licenses for companies.
+- November 2026, 0.10.0. Searches no longer wait on a source whose connection hangs, and OpenAlex's daily allowance lasts about four times as long.
 - November 2026, 0.9.0. `scholar-mcp install` sets Scholar up in 32 agents, one key file serves all of them, a slow source no longer holds up the others, and `scholar-mcp doctor --network` checks every link.
 - October 2026, 0.8.5. Google Scholar sessions recover on their own, and arXiv falls back to its own search when its API is down.
 
