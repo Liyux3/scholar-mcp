@@ -20,7 +20,7 @@
   <a href="https://liyux3.github.io/scholar-mcp/zh-cn/">文档</a> · <a href="README.md">English</a> · 简体中文
 </p>
 
-Scholar MCP 给你的 AI 智能体配上一座研究图书馆。不用密钥时它同时搜索 17 个学术数据源，加上你自己的密钥最多 24 个。它会顺着引用和相关工作继续找，读原文一直读到图和表，再把要紧的论文连同你的笔记存进本地文献库。Claude、Codex、Cursor、VS Code、Gemini CLI、OpenCode 等任何 MCP 客户端都能用，命令行和 Python 里也能用。
+Scholar MCP 给你的 AI 智能体配上一座研究图书馆。它同时检索多个学术数据源，有你自己的密钥还能加上更多索引。它会顺着引用和相关工作继续找，读原文一直读到图和表，再把要紧的论文连同你的笔记存进本地文献库。Claude、Codex、Cursor、VS Code、Gemini CLI、OpenCode 等任何 MCP 客户端都能用，命令行和 Python 里也能用。
 
 <p align="center">
   <a href="https://liyux3.github.io/scholar-mcp/zh-cn/#watch"><img src="docs/assets/scholar-film-poster.jpg" alt="观看一分钟介绍片" width="820"></a>
@@ -239,6 +239,9 @@ uv run pytest            # 单元测试，真实接口测试用 -m integration
 
 ## 📄 许可证
 
-[PolyForm Noncommercial 1.0.0](LICENSE) 加[附加条款](LICENSE-ADDITIONAL.md)：科研和教育免费，商业使用需授权。
+<details>
+<summary>PolyForm Noncommercial 1.0.0 加附加条款</summary>
 
-安装包中附带的 CPU 阅读模型来自 [prithivida/FlashRank](https://huggingface.co/prithivida/flashrank)，按 CC-BY-SA-4.0 原样分发并保留独立署名说明。
+按[许可证](LICENSE)和[附加条款](LICENSE-ADDITIONAL.md)，科研和教育免费使用，商业使用需要授权。安装包中附带的 CPU 阅读模型来自 [prithivida/FlashRank](https://huggingface.co/prithivida/flashrank)，按 CC-BY-SA-4.0 原样分发并保留独立署名说明。
+
+</details>

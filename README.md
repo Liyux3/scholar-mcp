@@ -271,6 +271,9 @@ If Scholar MCP supports your research, please cite it.
 
 ## 📄 License
 
-[PolyForm Noncommercial 1.0.0](LICENSE) with [additional terms](LICENSE-ADDITIONAL.md): free for research and education, commercial use by license.
+<details>
+<summary>PolyForm Noncommercial 1.0.0 with additional terms</summary>
 
-Bundled CPU reader weights are provided unchanged by [prithivida/FlashRank](https://huggingface.co/prithivida/flashrank) under CC-BY-SA-4.0, with their own attribution notice.
+The [license](LICENSE) and its [additional terms](LICENSE-ADDITIONAL.md) make Scholar free for research and education; commercial use needs a license. Bundled CPU reader weights are provided unchanged by [prithivida/FlashRank](https://huggingface.co/prithivida/flashrank) under CC-BY-SA-4.0, with their own attribution notice.
+
+</details>
