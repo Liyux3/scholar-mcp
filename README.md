@@ -30,12 +30,21 @@ Scholar MCP gives your AI agent a research library. It searches scholarly source
 
 ## 📰 News
 
-- November 2026, 0.11.0. Search takes month and day windows, results carry full abstracts, and author search finds the right person for well-known names.
-- November 2026, 0.10.0. Searches no longer wait on a source whose connection hangs, and OpenAlex's daily allowance lasts about four times as long.
-- November 2026, 0.9.0. `scholar-mcp install` sets Scholar up in 32 agents, one key file serves all of them, a slow source no longer holds up the others, and `scholar-mcp doctor --network` checks every link.
-- October 2026, 0.8.5. Google Scholar sessions recover on their own, and arXiv falls back to its own search when its API is down.
+- November 2026, 0.9.0 to 0.11.0. `scholar-mcp install` sets Scholar up in 32 agents, a hung source no longer holds up a search, windows narrow to the month or day, results carry full abstracts, and author search finds the right person behind a well-known name.
+- October 2026, 0.8.5. Google Scholar sessions recover on their own, arXiv falls back to its own search when its API is down, and `scholar-mcp sources --check` tests every provider live.
+- September 2026, 0.8.2 to 0.8.4. Semantic Scholar requests follow the provider's pacing, the MCP Registry entry resolves as `io.github.Liyux3/scholar-mcp`, and every tool says when to use it.
 
-Every release since 0.1.0 in March 2026 is in the [changelog](CHANGELOG.md).
+<details>
+<summary>Earlier news</summary>
+
+- August 2026, 0.8.0 and 0.8.1. Six core tools connect to a persistent research library, and plugins and a portable launcher bring Scholar to more agent clients.
+- July 2026, 0.7.1 and 0.7.2. A source that throttles is reported instead of looking empty, one slow source can no longer stall a search, and citation graphs and related papers work again for arXiv papers.
+- May 2026, 0.6.0 and 0.7.0. Papers keep their notes in a library of collections, a relevance model ranks every candidate together, strong matches bring in their citations, and Europe PMC, INSPIRE-HEP and DBLP join the sources.
+- March 2026, 0.1.0 to 0.2.1. The first release searches Semantic Scholar from Claude Code with one command; CORE and PubMed join within days.
+
+</details>
+
+Every release is in the [changelog](CHANGELOG.md).
 
 ## 🚀 Get started
 
