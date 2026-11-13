@@ -35,7 +35,7 @@ import { Aside } from '@astrojs/starlight/components';
 |---|---|---|---|
 | `query` | string | 必填 | 问题、主题、记得的原话或标题 |
 | `limit` | integer | `10` | 最多返回的结果数，1 到 100 |
-| `year` | string | | 年份或年份范围，例如 `"2023"` 或 `"2020-2024"` |
+| `year` | string | | 年、月或日，或用 `:`、`..` 连起来的两个，例如 `"2023"`、`"2020-2024"` 或 `"2026-10:2026-11"` |
 | `venue` | string | | 会议或期刊，例如 `"NeurIPS"` 或 `"Nature"` |
 | `fields_of_study` | string | | 逗号分隔的学科领域，例如 `"Computer Science,Mathematics"` |
 | `paper_types` | string | 全部 | 逗号分隔的类型：`JournalArticle`、`Conference`、`Review`、`Book`、`Dataset`、`CourtDecision`、`ClinicalTrialRegistration` |

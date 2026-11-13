@@ -663,6 +663,10 @@ def search_papers(
         debug: Include per-source latency, provenance, and internal ranking diagnostics.
     """
     limit = min(max(limit, 1), 100)
+    try:
+        publication_range(year)
+    except ValueError as error:
+        return {"error": f"year {year!r}: {error}; use YYYY, YYYY-MM or YYYY-MM-DD, or two of them joined by : or .."}
     results, reports = _search_candidates(query, limit, year, venue, fields_of_study, paper_types,
                                           min_citations, open_access_only, intent)
 

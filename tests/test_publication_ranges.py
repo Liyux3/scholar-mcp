@@ -38,8 +38,8 @@ def test_invalid_range_fails_before_network(monkeypatch, value):
     def unexpected(*args, **kwargs):
         pytest.fail("invalid range reached acquisition")
     monkeypatch.setattr(server, "_pipeline", unexpected)
-    with pytest.raises(ValueError):
-        server.search_papers("topic", year=value)
+    error = server.search_papers("topic", year=value)["error"]
+    assert repr(value) in error and "YYYY-MM-DD" in error
 
 
 @pytest.mark.parametrize("paper,expected", [

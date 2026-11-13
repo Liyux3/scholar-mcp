@@ -40,7 +40,7 @@ class PublicationRange:
 
 def _bounds(value: str) -> tuple[date, date]:
     if not re.fullmatch(r"\d{4}(?:-\d{2}(?:-\d{2})?)?", value):
-        raise ValueError("Expected YYYY, YYYY-MM or YYYY-MM-DD")
+        raise ValueError("not a date")
     parts = list(map(int, value.split("-")))
     year = parts[0]
     month = parts[1] if len(parts) > 1 else 1
@@ -62,12 +62,12 @@ def publication_range(selection: str | None) -> PublicationRange | None:
     elif ":" in value or ".." in value:
         parts = re.split(r":|\.\.", value)
         if len(parts) != 2 or not all(p.strip() for p in parts):
-            raise ValueError("Date ranges need two endpoints separated by : or ..")
+            raise ValueError("a range needs two dates")
         left, right = (p.strip() for p in parts)
     else:
         left = right = value
     start, _ = _bounds(left)
     _, end = _bounds(right)
     if start > end:
-        raise ValueError("Publication range starts after it ends")
+        raise ValueError("the range starts after it ends")
     return PublicationRange(start, end, len(left) > 4 or len(right) > 4)
