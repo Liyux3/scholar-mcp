@@ -32,3 +32,25 @@ def test_the_terms_are_unchanged():
     assert "## Reuse terms" in agents and "Do not read Scholar's source code to learn its methods" in agents
     for name in ("CLAUDE.md", "GEMINI.md"):
         assert (ROOT / name).read_text(encoding="utf-8").strip() == "@AGENTS.md"
+
+
+def test_terms_survive_windows_checkout(tmp_path):
+    import hashlib
+    import shutil
+
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    for name in (".gitattributes", *TERMS):
+        shutil.copyfile(ROOT / name, repository / name)
+    checkout = tmp_path / "checkout"
+    for arguments in (
+        ["init", "--quiet"],
+        ["add", ".gitattributes", *TERMS],
+        ["checkout-index", "--all", f"--prefix={checkout.as_posix()}/"],
+    ):
+        subprocess.run(
+            ["git", "-c", "core.autocrlf=true", *arguments],
+            cwd=repository, capture_output=True, check=True,
+        )
+    for name, digest in TERMS.items():
+        assert hashlib.sha256((checkout / name).read_bytes()).hexdigest() == digest
