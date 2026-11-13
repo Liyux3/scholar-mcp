@@ -4,6 +4,7 @@
 
 import re
 import unicodedata
+from collections import Counter
 from html import unescape
 
 
@@ -33,6 +34,26 @@ def normalize_publication_types(values) -> list[str]:
     }
     return sorted({aliases.get(re.sub(r"[^a-z]", "", str(value).casefold()), str(value))
                    for value in (values or []) if value})
+
+
+def _name_words(name: str) -> list[str]:
+    plain = "".join(c for c in unicodedata.normalize("NFKD", name or "") if not unicodedata.combining(c))
+    return re.sub(r"[^0-9a-z]+", " ", plain.casefold()).split()
+
+
+def author_name_match(query: str, name: str) -> int:
+    """3 for the same name in any order or spacing (Li Fei-Fei, Feifei Li), 2 when the
+    name holds every word of the query, 1 for the same surname and first initial."""
+    asked, found = _name_words(query), _name_words(name)
+    if not asked or not found:
+        return 0
+    if "".join(sorted(asked)) == "".join(sorted(found)):
+        return 3
+    if not Counter(asked) - Counter(found):
+        return 2
+    if asked[-1] in (found[0], found[-1]) and asked[0][0] == found[0][0]:
+        return 1
+    return 0
 
 
 def known_citations(paper: dict) -> int | None:

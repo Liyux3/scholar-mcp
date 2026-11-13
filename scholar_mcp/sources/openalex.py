@@ -14,6 +14,8 @@ from ..records import normalize_version
 from . import pacing
 
 BASE_URL = "https://api.openalex.org/works"
+AUTHORS_URL = "https://api.openalex.org/authors"
+AUTHOR_SELECT = "id,display_name,orcid,works_count,cited_by_count,summary_stats,last_known_institutions,topics"
 
 OA_SELECT_FIELDS = ",".join([
     "id", "doi", "title", "authorships", "publication_year",
@@ -300,6 +302,31 @@ def search_papers(query: str, limit: int = 10, year: str = None,
             results.append(paper)
 
     return results[:limit]
+
+
+@cached(ttl=3600)
+def search_authors(query: str, limit: int = 10) -> list[dict]:
+    """Author profiles in OpenAlex's order, which already weighs name and impact."""
+    params = {**_params_base(), "search": query, "per-page": min(max(limit, 1), 200), "select": AUTHOR_SELECT}
+    authors = []
+    for author in _get(AUTHORS_URL, params).json().get("results", []):
+        short_id = (author.get("id") or "").rsplit("/", 1)[-1]
+        stats = author.get("summary_stats") or {}
+        record = {
+            "author_id": short_id,
+            "name": " ".join((author.get("display_name") or "").split()),
+            "affiliations": [i["display_name"] for i in author.get("last_known_institutions") or [] if i.get("display_name")][:3],
+            "topics": [t["display_name"] for t in author.get("topics") or [] if t.get("display_name")][:3],
+            "paper_count": author.get("works_count") or 0,
+            "citation_count": author.get("cited_by_count") or 0,
+            "h_index": stats.get("h_index") or 0,
+            "url": f"https://openalex.org/{short_id}",
+            "source": "openalex",
+        }
+        if author.get("orcid"):
+            record["orcid"] = author["orcid"]
+        authors.append(record)
+    return authors
 
 
 @cached(ttl=300)

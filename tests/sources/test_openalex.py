@@ -482,3 +482,24 @@ def test_shared_daily_budget_stops_rotation_and_persists_the_provider_reset(monk
         assert 7000 < config._openalex_exhausted[key] - time.time() <= 7200
         with pytest.raises(pacing.Paced, match='Retry-After'):
             pacing.wait('openalex', key=key)
+
+
+def test_search_authors_keeps_profiles_readable(monkeypatch):
+    institutions = [{"display_name": name} for name in ("Stanford University", "Google", "Princeton", "Caltech")]
+
+    def fake_get(url, params=None, timeout=None):
+        assert url == openalex.AUTHORS_URL and params["search"] == "Fei-Fei Li"
+        return _response(200, {"results": [{
+            "id": "https://openalex.org/A5100450462", "display_name": "Li Fei-Fei",
+            "orcid": "https://orcid.org/0000-0002-7481-0810", "works_count": 587, "cited_by_count": 250985,
+            "summary_stats": {"h_index": 149}, "last_known_institutions": institutions,
+            "topics": [{"display_name": "Advanced Neural Network Applications"}, {"display_name": "Robotics"},
+                       {"display_name": "Image Retrieval"}, {"display_name": "Vision"}],
+        }]}, url)
+
+    monkeypatch.setattr(openalex.httpx, "get", fake_get)
+    author = openalex.search_authors("Fei-Fei Li", limit=3)[0]
+    assert author["author_id"] == "A5100450462" and author["url"] == "https://openalex.org/A5100450462"
+    assert author["citation_count"] == 250985 and author["h_index"] == 149 and author["source"] == "openalex"
+    assert len(author["affiliations"]) == 3 and len(author["topics"]) == 3
+    assert not any(key.startswith("_") for key in author)

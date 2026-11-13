@@ -460,9 +460,9 @@ def search_authors(query: str, limit: int = 5):
             "affiliations": a.get("affiliations") or [],
             "paper_count": a.get("paperCount") or 0,
             "citation_count": a.get("citationCount") or 0,
-            "_citation_count_known": a.get("citationCount") is not None,
             "h_index": a.get("hIndex") or 0,
             "url": f"https://www.semanticscholar.org/author/{a.get('authorId', '')}",
+            "source": "semantic_scholar",
         }
         for a in data.get("data", [])
     ]

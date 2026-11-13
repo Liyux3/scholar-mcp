@@ -906,10 +906,20 @@ def search_authors(query: str, limit: int = 5) -> dict:
         query: Author name to search for
         limit: Maximum results (1-1000, default 5)
     """
-    try:
-        return {"authors": s2.search_authors(query, limit=min(max(limit, 1), 1000))}
-    except Exception as e:
-        return {"error": f"Author search failed: {e}"}
+    limit = min(max(limit, 1), 1000)
+    # OpenAlex first, Semantic Scholar when OpenAlex cannot answer; either list is
+    # ordered by how well the name matches, then by citations.
+    failures = []
+    for name, source, cap in (("OpenAlex", openalex, 200), ("Semantic Scholar", s2, 100)):
+        try:
+            authors = source.search_authors(query, limit=min(max(limit * 3, 10), cap))
+        except Exception as e:
+            failures.append(f"{name}: {e}")
+            continue
+        if authors:
+            authors.sort(key=lambda a: (-record_ops.author_name_match(query, a["name"]), -a["citation_count"]))
+            return {"authors": authors[:limit]}
+    return {"error": "Author search failed: " + "; ".join(failures)} if failures else {"authors": []}
 
 
 @_tool(annotations=ToolAnnotations(
