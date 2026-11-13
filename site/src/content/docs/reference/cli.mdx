@@ -9,14 +9,15 @@ import CommandRun from '../../../components/CommandRun.astro';
 import search from '../../../data/runs/search.json';
 import info from '../../../data/runs/info.json';
 import related from '../../../data/runs/related.json';
+import authors from '../../../data/runs/authors.json';
 import graph from '../../../data/runs/graph.json';
 
 One `scholar-mcp` command does three jobs. Without arguments it starts the MCP server, which is how clients start it over stdio. With a research command it finds and reads papers in your terminal, using the same functions as the MCP tools. With a setup command it registers clients, saves keys, checks health and upgrades. Install it once with uv.
 
 ```bash
 uv tool install --python 3.12 \
-  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.0/wheel-index.html \
-  "scholar-mcp[rerank]==0.10.0"
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.11.0/wheel-index.html \
+  "scholar-mcp[rerank]==0.11.0"
 ```
 
 Research and setup commands print readable YAML, or JSON with `--json` for `jq` and scripts, and `library` and `sources` print JSON. Every command has `--help`.
@@ -75,9 +76,7 @@ Prints the paper's detail. `--citations` adds papers that cite it, `--references
 
 ### authors
 
-```bash
-scholar-mcp authors "Fei-Fei Li" --limit 3
-```
+<CommandRun run={authors} />
 
 ### read
 

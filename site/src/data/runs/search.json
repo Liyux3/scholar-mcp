@@ -1,420 +1,472 @@
 {
  "command": "scholar-mcp search \"long-term memory benchmarks for LLM agents\" --year 2024-2026 --limit 5",
- "version": "0.10.1",
+ "version": "0.11.0",
  "recorded": "2026-11-13",
- "seconds": 54.2,
+ "seconds": 52.0,
  "lines": [
   [
-   54.08,
+   51.93,
    "results:"
   ],
   [
-   54.08,
+   51.93,
    "- title: 'Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory'"
   ],
   [
-   54.08,
+   51.93,
    "  authors:"
   ],
   [
-   54.08,
+   51.93,
    "  - P. Chhikara"
   ],
   [
-   54.08,
+   51.93,
    "  - Dev Khant"
   ],
   [
-   54.08,
+   51.93,
    "  - Saket Aryan"
   ],
   [
-   54.08,
+   51.93,
    "  - Taranjeet Singh"
   ],
   [
-   54.08,
+   51.93,
    "  - Deshraj Yadav"
   ],
   [
-   54.08,
+   51.93,
    "  year: 2025"
   ],
   [
-   54.08,
+   51.93,
    "  venue: European Conference on Artificial Intelligence"
   ],
   [
-   54.08,
+   51.93,
    "  citations: 1225"
   ],
   [
-   54.08,
+   51.93,
    "  abstract: Large Language Models (LLMs) have demonstrated remarkable prowess in generating"
   ],
   [
-   54.08,
+   51.93,
    "    contextually coherent responses, yet their fixed context windows pose fundamental"
   ],
   [
-   54.08,
+   51.93,
    "    challenges for maintaining consistency over prolonged multi-session dialogues."
   ],
   [
-   54.08,
-   "    We introduce Mem0, a scalable memory-centric architecture t..."
+   51.93,
+   "    We introduce Mem0, a scalable memory-centric architecture that addresses this"
   ],
   [
-   54.08,
+   51.93,
+   "    issue by dynamically extracting, consolidating, and retrieving salient information"
+  ],
+  [
+   51.93,
+   "    from ongoing conversations. ..."
+  ],
+  [
+   51.93,
    "  doi: 10.48550/arXiv.2504.19413"
   ],
   [
-   54.08,
+   51.93,
    "  id: 10.48550/arxiv.2504.19413"
   ],
   [
-   54.08,
+   51.93,
    "  url: https://www.semanticscholar.org/paper/1d9c21a0fdb1cc16a32c5d490ebaf98436a23382"
   ],
   [
-   54.08,
+   51.93,
    "  tldr: Mem0, a scalable memory-centric architecture that addresses the critical role"
   ],
   [
-   54.08,
+   51.93,
    "    of structured, persistent memory mechanisms for long-term conversational coherence,"
   ],
   [
-   54.08,
+   51.93,
    "    is introduced, paving the way for more reliable and efficient LLM-driven AI agents."
   ],
   [
-   54.08,
+   51.93,
    "  open_access: true"
   ],
   [
-   54.08,
+   51.93,
    "- title: Evaluating Very Long-Term Conversational Memory of LLM Agents"
   ],
   [
-   54.08,
+   51.93,
    "  authors:"
   ],
   [
-   54.08,
+   51.93,
    "  - Adyasha Maharana"
   ],
   [
-   54.08,
+   51.93,
    "  - Dong-Ho Lee"
   ],
   [
-   54.08,
+   51.93,
    "  - Sergey Tulyakov"
   ],
   [
-   54.08,
+   51.93,
    "  - Mohit Bansal"
   ],
   [
-   54.08,
+   51.93,
    "  - Francesco Barbieri"
   ],
   [
-   54.08,
+   51.93,
    "  year: 2024"
   ],
   [
-   54.08,
-   "  venue: Annual Meeting of the Association for Computational Linguistics"
+   51.93,
+   "  venue: Proceedings of the Annual Meeting of the Association for Computational Linguistics"
   ],
   [
-   54.08,
+   51.93,
    "  citations: 1142"
   ],
   [
-   54.08,
+   51.93,
    "  abstract: Existing works on long-term open-domain dialogues focus on evaluating"
   ],
   [
-   54.08,
+   51.93,
    "    model responses within contexts spanning no more than five chat sessions. Despite"
   ],
   [
-   54.08,
+   51.93,
    "    advancements in long-context large language models (LLMs) and retrieval augmented"
   ],
   [
-   54.08,
-   "    generation (RAG) techniques, their efficacy in very long-term dial..."
+   51.93,
+   "    generation (RAG) techniques, their efficacy in very long-term dialogues remains"
   ],
   [
-   54.08,
-   "  doi: 10.48550/arXiv.2402.17753"
+   51.93,
+   "    unexplored. To address this research gap, we introduce a machine-human pipeline"
   ],
   [
-   54.08,
-   "  id: 10.48550/arxiv.2402.17753"
+   51.93,
+   "    to generate high-quality, very long-term dialogues by leveraging LLM-based agent"
   ],
   [
-   54.08,
-   "  url: https://www.semanticscholar.org/paper/0bf3a1867f7245b8a702093901c66b08b518eafc"
+   51.93,
+   "    architectures and grounding their dialogues on personas and temporal event graphs."
   ],
   [
-   54.08,
+   51.93,
+   "    ..."
+  ],
+  [
+   51.93,
+   "  doi: 10.18653/v1/2024.acl-long.747"
+  ],
+  [
+   51.93,
+   "  id: 10.18653/v1/2024.acl-long.747"
+  ],
+  [
+   51.93,
+   "  url: https://www.scopus.com/record/display.uri?eid=2-s2.0-85204424742"
+  ],
+  [
+   51.93,
    "  tldr: A machine-human pipeline is introduced to generate high-quality, very long-term"
   ],
   [
-   54.08,
+   51.93,
    "    dialogues by leveraging LLM-based agent architectures and grounding their dialogues"
   ],
   [
-   54.08,
+   51.93,
    "    on personas and temporal event graphs, and presents a comprehensive evaluation"
   ],
   [
-   54.08,
+   51.93,
    "    benchmark to measure long-term memory in models."
   ],
   [
-   54.08,
+   51.93,
    "  open_access: true"
   ],
   [
-   54.08,
+   51.93,
    "- title: Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions"
   ],
   [
-   54.08,
+   51.93,
    "  authors:"
   ],
   [
-   54.08,
+   51.93,
    "  - Yuan-Zhe Hu"
   ],
   [
-   54.08,
+   51.93,
    "  - Yu Wang"
   ],
   [
-   54.08,
+   51.93,
    "  - Julian McAuley"
   ],
   [
-   54.08,
+   51.93,
    "  year: 2025"
   ],
   [
-   54.08,
+   51.93,
    "  venue: International Conference on Learning Representations"
   ],
   [
-   54.08,
+   51.93,
    "  citations: 324"
   ],
   [
-   54.08,
+   51.93,
    "  abstract: Recent benchmarks for Large Language Model (LLM) agents primarily focus"
   ],
   [
-   54.08,
+   51.93,
    "    on evaluating reasoning, planning, and execution capabilities, while another critical"
   ],
   [
-   54.08,
+   51.93,
    "    component-memory, encompassing how agents memorize, update, and retrieve long-term"
   ],
   [
-   54.08,
-   "    information-is under-evaluated due to the lack of benchmark..."
+   51.93,
+   "    information-is under-evaluated due to the lack of benchmarks. We term agents with"
   ],
   [
-   54.08,
+   51.93,
+   "    memory mechanisms as memory agents. ..."
+  ],
+  [
+   51.93,
    "  doi: 10.48550/arXiv.2507.05257"
   ],
   [
-   54.08,
+   51.93,
    "  id: 10.48550/arxiv.2507.05257"
   ],
   [
-   54.08,
+   51.93,
    "  url: https://www.semanticscholar.org/paper/dc7c687809737422a7e2ce870ad55746675d60f2"
   ],
   [
-   54.08,
+   51.93,
    "  tldr: The MemoryAgentBench is introduced, a new benchmark specifically designed"
   ],
   [
-   54.08,
+   51.93,
    "    for memory agents that transforms existing long-context datasets and incorporates"
   ],
   [
-   54.08,
+   51.93,
    "    newly constructed datasets into a multi-turn format, effectively simulating the"
   ],
   [
-   54.08,
+   51.93,
    "    incremental information processing characteristic of memory agents."
   ],
   [
-   54.08,
+   51.93,
    "  open_access: true"
   ],
   [
-   54.08,
+   51.93,
+   "- title: 'A-Mem: Agentic Memory for LLM Agents'"
+  ],
+  [
+   51.93,
+   "  authors:"
+  ],
+  [
+   51.93,
+   "  - Wujiang Xu"
+  ],
+  [
+   51.93,
+   "  - Zujie Liang"
+  ],
+  [
+   51.93,
+   "  - Kai Mei"
+  ],
+  [
+   51.93,
+   "  - Hang Gao"
+  ],
+  [
+   51.93,
+   "  - Juntao Tan"
+  ],
+  [
+   51.93,
+   "  year: 2025"
+  ],
+  [
+   51.93,
+   "  venue: neural information processing systems"
+  ],
+  [
+   51.93,
+   "  citations: 1417"
+  ],
+  [
+   51.93,
+   "  abstract: While large language model (LLM) agents can effectively use external tools"
+  ],
+  [
+   51.93,
+   "    for complex real-world tasks, they require memory systems to leverage historical"
+  ],
+  [
+   51.93,
+   "    experiences. Current memory systems enable basic storage and retrieval but lack"
+  ],
+  [
+   51.93,
+   "    sophisticated memory organization, despite recent attempts to incorporate graph"
+  ],
+  [
+   51.93,
+   "    databases. Moreover, these systems' fixed operations and structures limit their"
+  ],
+  [
+   51.93,
+   "    adaptability across diverse tasks. To address this limitation, this paper proposes"
+  ],
+  [
+   51.93,
+   "    a novel agentic memory system for LLM agents that can dynamically organize memories"
+  ],
+  [
+   51.93,
+   "    in an agentic way. ..."
+  ],
+  [
+   51.93,
+   "  doi: 10.52202/085713-0593"
+  ],
+  [
+   51.93,
+   "  id: 10.52202/085713-0593"
+  ],
+  [
+   51.93,
+   "  url: https://openalex.org/W4407759090"
+  ],
+  [
+   51.93,
+   "  open_access: true"
+  ],
+  [
+   51.93,
    "- title: 'LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory'"
   ],
   [
-   54.08,
+   51.93,
    "  authors:"
   ],
   [
-   54.08,
+   51.93,
    "  - Di Wu"
   ],
   [
-   54.08,
+   51.93,
    "  - Hongwei Wang"
   ],
   [
-   54.08,
+   51.93,
    "  - Wenhao Yu"
   ],
   [
-   54.08,
+   51.93,
    "  - Zhang, Yuwei"
   ],
   [
-   54.08,
+   51.93,
    "  - Kai‐Wei Chang"
   ],
   [
-   54.08,
+   51.93,
    "  year: 2024"
   ],
   [
-   54.08,
+   51.93,
    "  venue: CoRR 2024"
   ],
   [
-   54.08,
+   51.93,
    "  citations: 507"
   ],
   [
-   54.08,
-   "  abstract: Recent large language model (LLM)-driven chat assistant systems have integrated"
+   51.93,
+   "  abstract: 'Recent large language model (LLM)-driven chat assistant systems have"
   ],
   [
-   54.08,
-   "    memory components to track user-assistant chat histories, enabling more accurate"
+   51.93,
+   "    integrated memory components to track user-assistant chat histories, enabling"
   ],
   [
-   54.08,
-   "    and personalized responses. However, their long-term memory capabilities in sustained"
+   51.93,
+   "    more accurate and personalized responses. However, their long-term memory capabilities"
   ],
   [
-   54.08,
-   "    interactions remain underexplored. We introduce LongM..."
+   51.93,
+   "    in sustained interactions remain underexplored. We introduce LongMemEval, a comprehensive"
   ],
   [
-   54.08,
+   51.93,
+   "    benchmark designed to evaluate five core long-term memory abilities of chat assistants:"
+  ],
+  [
+   51.93,
+   "    information extraction, multi-session reasoning, temporal reasoning, knowledge"
+  ],
+  [
+   51.93,
+   "    updates, and abstention. ...'"
+  ],
+  [
+   51.93,
    "  doi: 10.48550/arxiv.2410.10813"
   ],
   [
-   54.08,
+   51.93,
    "  id: 10.48550/arxiv.2410.10813"
   ],
   [
-   54.08,
-   "  url: http://arxiv.org/abs/2410.10813v2"
+   51.93,
+   "  url: https://openalex.org/W4403571340"
   ],
   [
-   54.08,
+   51.93,
    "  open_access: true"
   ],
   [
-   54.08,
-   "- title: A Survey on Evaluation of LLM-based Agents"
-  ],
-  [
-   54.08,
-   "  authors:"
-  ],
-  [
-   54.08,
-   "  - Asaf Yehudai"
-  ],
-  [
-   54.08,
-   "  - Lilach Eden"
-  ],
-  [
-   54.08,
-   "  - Alan Li"
-  ],
-  [
-   54.08,
-   "  - Guy Uziel"
-  ],
-  [
-   54.08,
-   "  - Yilun Zhao"
-  ],
-  [
-   54.08,
-   "  year: 2026"
-  ],
-  [
-   54.08,
-   "  venue: 'Findings of the Association for Computational Linguistics: ACL (Findings"
-  ],
-  [
-   54.08,
-   "    of ACL)'"
-  ],
-  [
-   54.08,
-   "  citations: 322"
-  ],
-  [
-   54.08,
-   "  abstract: '[B.4 Memory] This benchmark utilizes synthetically created book chapters"
-  ],
-  [
-   54.08,
-   "    and events with LLMs-based judge evaluation metrics to measure accuracy and relevance."
-  ],
-  [
-   54.08,
-   "    StreamBench (Wu et al., 2024a) represents a more challenging setting, evaluating"
-  ],
-  [
-   54.08,
-   "    how agents lever-age external memory components-including t...'"
-  ],
-  [
-   54.08,
-   "  doi: 10.18653/v1/2026.findings-acl.1330"
-  ],
-  [
-   54.08,
-   "  id: 10.18653/v1/2026.findings-acl.1330"
-  ],
-  [
-   54.08,
-   "  url: https://openalex.org/W4415289348"
-  ],
-  [
-   54.08,
-   "  open_access: true"
-  ],
-  [
-   54.08,
+   51.93,
    "warning: 'Related-paper expansion was incomplete. Sources unavailable or incomplete:"
   ],
   [
-   54.08,
-   "  google_scholar, zbmath.'"
+   51.93,
+   "  google_scholar, s2_snippet.'"
   ]
  ]
 }

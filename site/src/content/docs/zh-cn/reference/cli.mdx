@@ -9,14 +9,15 @@ import CommandRun from '../../../../components/CommandRun.astro';
 import search from '../../../../data/runs/search.json';
 import info from '../../../../data/runs/info.json';
 import related from '../../../../data/runs/related.json';
+import authors from '../../../../data/runs/authors.json';
 import graph from '../../../../data/runs/graph.json';
 
 `scholar-mcp` 一个命令有三种用法。不带参数时，它启动 MCP 服务器，客户端就是这样经 stdio 启动它的。带研究命令时，它在终端里直接查论文、读论文，和 MCP 工具是同一套函数。带设置命令时，它负责注册客户端、保存密钥、检查健康状况和升级。先用 uv 装一次。
 
 ```bash
 uv tool install --python 3.12 \
-  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.10.0/wheel-index.html \
-  "scholar-mcp[rerank]==0.10.0"
+  --find-links https://github.com/Liyux3/scholar-mcp/releases/download/v0.11.0/wheel-index.html \
+  "scholar-mcp[rerank]==0.11.0"
 ```
 
 研究和设置命令默认输出易读的 YAML，加 `--json` 输出 JSON，便于接入 `jq` 或脚本，`library` 和 `sources` 则直接输出 JSON。每个命令都支持 `--help`。
@@ -74,9 +75,7 @@ uv tool install --python 3.12 \
 
 ### authors
 
-```bash
-scholar-mcp authors "Fei-Fei Li" --limit 3
-```
+<CommandRun run={authors} />
 
 ### read
 
