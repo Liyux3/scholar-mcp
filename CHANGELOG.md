@@ -120,7 +120,7 @@
   failures name the publisher's bot check when one blocked the download.
 - `search_authors` returns `{authors: [...]}`.
 
-## 0.8.5 (2026-10-07)
+## 0.8.5 (2025-10-07)
 
 - Recover Google Scholar sessions automatically with the optional `google`
   extra, then reuse ordinary HTTP for searches and pagination. Verification is
@@ -136,22 +136,22 @@
 
 Public tool names and schemas are unchanged.
 
-## 0.8.4 (2026-09-05)
+## 0.8.4 (2025-09-05)
 
 - Tool descriptions say when to use each tool and what to expect from it.
 
-## 0.8.3 (2026-09-05)
+## 0.8.3 (2025-09-05)
 
 - The MCP Registry entry uses the exact GitHub owner name, so
   `io.github.Liyux3/scholar-mcp` resolves.
 
-## 0.8.2 (2026-09-05)
+## 0.8.2 (2025-09-05)
 
 - Semantic Scholar requests follow the provider's pacing guidance.
 - The README's architecture and retrieval diagrams are redrawn.
 - PyPI shows a fuller description, keywords and project links.
 
-## 0.8.0 and 0.8.1 (2026-08-25)
+## 0.8.0 and 0.8.1 (2025-08-25)
 
 - Scholar settles on six core tools and connects them to a persistent research
   library.
@@ -159,7 +159,7 @@ Public tool names and schemas are unchanged.
 - The documentation covers installation and the research workflow end to end,
   and the README shows Scholar through research use cases.
 
-## 0.7.2 (2026-07-29)
+## 0.7.2 (2025-07-29)
 
 - Citation graphs work again for arXiv papers, which are now matched to
   OpenAlex by title.
@@ -170,7 +170,7 @@ Public tool names and schemas are unchanged.
 - An empty library listing points to the collections that hold papers, and the
   cache keeps to its size limit.
 
-## 0.7.1 (2026-07-29)
+## 0.7.1 (2025-07-29)
 
 - A source that throttles or blocks a request is reported as such instead of as
   an empty result.
@@ -180,7 +180,7 @@ Public tool names and schemas are unchanged.
 - `scholar_status` reports whether the ranking model actually works, and status
   output no longer shows API keys.
 
-## 0.7.0 (2026-05-11)
+## 0.7.0 (2025-05-11)
 
 - Results are ranked by a relevance model over all candidates together, and
   strong matches bring in their citations and references.
@@ -188,7 +188,7 @@ Public tool names and schemas are unchanged.
 - `scholar_status` shows the version, the sources and the library.
 - The first LitSearch benchmark runs measure retrieval quality.
 
-## 0.6.0 (2026-05-11)
+## 0.6.0 (2025-05-11)
 
 - A persistent paper library: save papers with notes into collections, list
   them, and keep the PDF of each download with its record.
@@ -196,15 +196,15 @@ Public tool names and schemas are unchanged.
 - arXiv DOIs (`10.48550/arXiv....`) resolve to their arXiv records.
 - Repeated requests within five minutes are answered from a cache.
 
-## 0.2.1 (2026-03-16)
+## 0.2.1 (2024-12-09)
 
 - PubMed joins as a fallback for biomedical searches.
 
-## 0.2.0 (2026-03-15)
+## 0.2.0 (2024-12-06)
 
 - CORE joins as a search fallback and a source of open PDFs.
 
-## 0.1.0 (2026-03-15)
+## 0.1.0 (2024-12-05)
 
 - First release: an MCP server for academic paper search built on Semantic
   Scholar, added to Claude Code with one command.
