@@ -33,6 +33,8 @@ Scholar MCP 给你的 AI 智能体配上一座研究图书馆。不用密钥时�
 - 2026 年 11 月，0.9.0。`scholar-mcp install` 一条命令装进 32 个智能体，一份密钥文件所有客户端共用，慢的数据源不再拖住其他数据源，`scholar-mcp doctor --network` 检查每条链路。
 - 2026 年 10 月，0.8.5。Google Scholar 会话可以自动恢复，arXiv 接口不可用时改用它自己的网页搜索。
 
+从 2026 年 3 月的 0.1.0 起，每个版本都记在[更新记录](CHANGELOG.md)里。
+
 ## 🚀 开始使用
 
 1. 没有 [uv](https://docs.astral.sh/uv/getting-started/installation/) 的话先装上，然后安装 Scholar。

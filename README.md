@@ -35,6 +35,8 @@ Scholar MCP gives your AI agent a research library. It searches scholarly source
 - November 2026, 0.9.0. `scholar-mcp install` sets Scholar up in 32 agents, one key file serves all of them, a slow source no longer holds up the others, and `scholar-mcp doctor --network` checks every link.
 - October 2026, 0.8.5. Google Scholar sessions recover on their own, and arXiv falls back to its own search when its API is down.
 
+Every release since 0.1.0 in March 2026 is in the [changelog](CHANGELOG.md).
+
 ## 🚀 Get started
 
 1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you do not have it, then install Scholar:
