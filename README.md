@@ -18,8 +18,7 @@
 </p>
 
 <p align="center">
-  Find the paper. Follow the evidence. Build the field.<br>
-  <a href="https://liyux3.github.io/scholar-mcp/">Documentation</a> · English · <a href="README.zh-CN.md">简体中文</a>
+  <a href="https://liyux3.github.io/scholar-mcp/">Documentation</a>&emsp;<a href="README.zh-CN.md">简体中文</a>
 </p>
 
 Scholar MCP gives your AI agent a research library. It searches scholarly sources in parallel, with optional keys for additional indexes, follows citations and related work, reads the original paper down to its figures and tables, and keeps what matters in a local library with your notes. It works in Claude, Codex, Cursor, VS Code, Gemini CLI, OpenCode and any other MCP client, and from the command line or Python.
