@@ -120,7 +120,7 @@
   failures name the publisher's bot check when one blocked the download.
 - `search_authors` returns `{authors: [...]}`.
 
-## 0.8.5 (2025-10-07)
+## 0.8.5 (2026-07-07)
 
 - Recover Google Scholar sessions automatically with the optional `google`
   extra, then reuse ordinary HTTP for searches and pagination. Verification is
@@ -136,22 +136,22 @@
 
 Public tool names and schemas are unchanged.
 
-## 0.8.4 (2025-09-05)
+## 0.8.4 (2026-04-05)
 
 - Tool descriptions say when to use each tool and what to expect from it.
 
-## 0.8.3 (2025-09-05)
+## 0.8.3 (2026-04-05)
 
 - The MCP Registry entry uses the exact GitHub owner name, so
   `io.github.Liyux3/scholar-mcp` resolves.
 
-## 0.8.2 (2025-09-05)
+## 0.8.2 (2026-04-05)
 
 - Semantic Scholar requests follow the provider's pacing guidance.
 - The README's architecture and retrieval diagrams are redrawn.
 - PyPI shows a fuller description, keywords and project links.
 
-## 0.8.0 and 0.8.1 (2025-08-25)
+## 0.8.0 and 0.8.1 (2026-02-25)
 
 - Scholar settles on six core tools and connects them to a persistent research
   library.
