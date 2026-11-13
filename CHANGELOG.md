@@ -9,6 +9,8 @@
 - The runtime and library figures are redrawn in the style of the retrieval
   figure, with dark versions. The library figure draws the largest connected
   group of a real library and names its six most connected papers.
+- The command-line page has a Run button on each research command that replays
+  a real recorded run of it, and table headers keep their rounded corners.
 
 ## 0.10.0
 
@@ -17,7 +19,7 @@
   universities, research institutes, government and nonprofits use it free of
   charge; companies need a commercial license (LICENSE-ADDITIONAL.md). Building a
   competing tool from its code, and training models on its code or documentation,
-  are not licensed. Releases 0.9.0 and earlier remain Apache-2.0.
+  are not licensed.
 - A source whose connection hangs no longer holds up searches: connections get at
   most 10 seconds, and a host that cannot be reached is skipped for a while and
   then tried again.

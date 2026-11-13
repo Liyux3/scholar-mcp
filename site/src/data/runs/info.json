@@ -1,0 +1,388 @@
+{
+ "command": "scholar-mcp info arXiv:2303.04137 --citations --limit 5",
+ "version": "0.10.1",
+ "recorded": "2026-11-13",
+ "seconds": 8.5,
+ "lines": [
+  [
+   8.42,
+   "paper:"
+  ],
+  [
+   8.42,
+   "  title: 'Diffusion Policy: Visuomotor Policy Learning via Action Diffusion'"
+  ],
+  [
+   8.42,
+   "  authors:"
+  ],
+  [
+   8.42,
+   "  - Cheng Chi"
+  ],
+  [
+   8.42,
+   "  - Siyuan Feng"
+  ],
+  [
+   8.42,
+   "  - Yilun Du"
+  ],
+  [
+   8.42,
+   "  - Zhenjia Xu"
+  ],
+  [
+   8.42,
+   "  - Eric A. Cousineau"
+  ],
+  [
+   8.42,
+   "  - Benjamin Burchfiel"
+  ],
+  [
+   8.42,
+   "  - Shuran Song"
+  ],
+  [
+   8.42,
+   "  year: 2023"
+  ],
+  [
+   8.42,
+   "  venue: 'Robotics: Science and Systems'"
+  ],
+  [
+   8.42,
+   "  citations: 1387"
+  ],
+  [
+   8.42,
+   "  abstract: This paper introduces Diffusion Policy, a new way of generating robot"
+  ],
+  [
+   8.42,
+   "    behavior by representing a robot's visuomotor policy as a conditional denoising"
+  ],
+  [
+   8.42,
+   "    diffusion process. We benchmark Diffusion Policy across 12 different tasks from"
+  ],
+  [
+   8.42,
+   "    4 different robot manipulation benchmarks and find that it consistently outperforms"
+  ],
+  [
+   8.42,
+   "    existing state-of-the-art robot learning methods with an average improvement of"
+  ],
+  [
+   8.42,
+   "    46.9%. Diffusion Policy learns the gradient of the action-distribution score function"
+  ],
+  [
+   8.42,
+   "    and iteratively optimizes with respect to this gradient field during inference"
+  ],
+  [
+   8.42,
+   "    via a series of stochastic Langevin dynamics steps. We find that the diffusion"
+  ],
+  [
+   8.42,
+   "    formulation yields powerful advantages when used for robot policies, including"
+  ],
+  [
+   8.42,
+   "    gracefully handling multimodal action distributions, being suitable for high-dimensional"
+  ],
+  [
+   8.42,
+   "    action spaces, and exhibiting impressive training stability. To fully unlock the"
+  ],
+  [
+   8.42,
+   "    potential of diffusion models for visuomotor policy learning on physical robots,"
+  ],
+  [
+   8.42,
+   "    this paper presents a set of key technical contributions including the incorporation"
+  ],
+  [
+   8.42,
+   "    of receding horizon control, visual conditioning, and the time-series diffusion"
+  ],
+  [
+   8.42,
+   "    transformer. We hope this work will help motivate a new generation of policy learning"
+  ],
+  [
+   8.42,
+   "    techniques that are able to leverage the powerful generative modeling capabilities"
+  ],
+  [
+   8.42,
+   "    of diffusion models. Code, data, and training details is publicly available diffusion-policy.cs.columbia.edu"
+  ],
+  [
+   8.42,
+   "  doi: 10.15607/rss.2023.xix.026"
+  ],
+  [
+   8.42,
+   "  id: 10.15607/rss.2023.xix.026"
+  ],
+  [
+   8.42,
+   "  url: https://openalex.org/W4385403811"
+  ],
+  [
+   8.42,
+   "  open_access: true"
+  ],
+  [
+   8.42,
+   "  publication_types:"
+  ],
+  [
+   8.42,
+   "  - conference-paper"
+  ],
+  [
+   8.42,
+   "  publication_date: '2023-07-10'"
+  ],
+  [
+   8.42,
+   "  identifiers:"
+  ],
+  [
+   8.42,
+   "    DOI: 10.15607/rss.2023.xix.026"
+  ],
+  [
+   8.42,
+   "    OpenAlex: W4385403811"
+  ],
+  [
+   8.42,
+   "  pdf_url: https://doi.org/10.15607/rss.2023.xix.026"
+  ],
+  [
+   8.42,
+   "  fields_of_study:"
+  ],
+  [
+   8.42,
+   "  - Diffusion"
+  ],
+  [
+   8.42,
+   "  - Computer science"
+  ],
+  [
+   8.42,
+   "  - Action (physics)"
+  ],
+  [
+   8.42,
+   "  - Artificial intelligence"
+  ],
+  [
+   8.42,
+   "  - Physics"
+  ],
+  [
+   8.42,
+   "citations:"
+  ],
+  [
+   8.42,
+   "- title: 'Diffusion policy: Visuomotor policy learning via action diffusion'"
+  ],
+  [
+   8.42,
+   "  authors:"
+  ],
+  [
+   8.42,
+   "  - Cheng Chi"
+  ],
+  [
+   8.42,
+   "  - Zhenjia Xu"
+  ],
+  [
+   8.42,
+   "  - Siyuan Feng"
+  ],
+  [
+   8.42,
+   "  year: 2024"
+  ],
+  [
+   8.42,
+   "  citations: 828"
+  ],
+  [
+   8.42,
+   "  doi: 10.1177/02783649241273668"
+  ],
+  [
+   8.42,
+   "  id: 10.1177/02783649241273668"
+  ],
+  [
+   8.42,
+   "- title: Training Diffusion Models with Reinforcement Learning"
+  ],
+  [
+   8.42,
+   "  authors:"
+  ],
+  [
+   8.42,
+   "  - Kevin Black"
+  ],
+  [
+   8.42,
+   "  - Janner, Michael"
+  ],
+  [
+   8.42,
+   "  - Yilun Du"
+  ],
+  [
+   8.42,
+   "  year: 2023"
+  ],
+  [
+   8.42,
+   "  citations: 666"
+  ],
+  [
+   8.42,
+   "  doi: 10.48550/arxiv.2305.13301"
+  ],
+  [
+   8.42,
+   "  id: 10.48550/arxiv.2305.13301"
+  ],
+  [
+   8.42,
+   "- title: A Survey on Vision--Language--Action Models for Embodied AI"
+  ],
+  [
+   8.42,
+   "  authors:"
+  ],
+  [
+   8.42,
+   "  - Yueen Ma"
+  ],
+  [
+   8.42,
+   "  - Zixing Song"
+  ],
+  [
+   8.42,
+   "  - Yuzheng Zhuang"
+  ],
+  [
+   8.42,
+   "  year: 2026"
+  ],
+  [
+   8.42,
+   "  citations: 409"
+  ],
+  [
+   8.42,
+   "  doi: 10.1109/tnnls.2025.3650584"
+  ],
+  [
+   8.42,
+   "  id: 10.1109/tnnls.2025.3650584"
+  ],
+  [
+   8.42,
+   "- title: 'RoboCasa: Large-Scale Simulation of Everyday Tasks for Generalist Robots'"
+  ],
+  [
+   8.42,
+   "  authors:"
+  ],
+  [
+   8.42,
+   "  - Soroush Nasiriany"
+  ],
+  [
+   8.42,
+   "  - Abhiram Maddukuri"
+  ],
+  [
+   8.42,
+   "  - Lance Zhang"
+  ],
+  [
+   8.42,
+   "  year: 2024"
+  ],
+  [
+   8.42,
+   "  citations: 351"
+  ],
+  [
+   8.42,
+   "  doi: 10.48550/arxiv.2406.02523"
+  ],
+  [
+   8.42,
+   "  id: 10.48550/arxiv.2406.02523"
+  ],
+  [
+   8.42,
+   "- title: 'DexCap: Scalable and Portable Mocap Data Collection System for Dexterous"
+  ],
+  [
+   8.42,
+   "    Manipulation'"
+  ],
+  [
+   8.42,
+   "  authors:"
+  ],
+  [
+   8.42,
+   "  - Chen Wang"
+  ],
+  [
+   8.42,
+   "  - Haochen Shi"
+  ],
+  [
+   8.42,
+   "  - Weizhuo Wang"
+  ],
+  [
+   8.42,
+   "  year: 2024"
+  ],
+  [
+   8.42,
+   "  citations: 289"
+  ],
+  [
+   8.42,
+   "  doi: 10.15607/rss.2024.xx.043"
+  ],
+  [
+   8.42,
+   "  id: 10.15607/rss.2024.xx.043"
+  ],
+  [
+   8.42,
+   "citations_warning: 'Sources unavailable or incomplete: semantic_scholar.'"
+  ]
+ ]
+}
