@@ -19,7 +19,7 @@ def test_every_source_file_carries_the_license_header():
 # together with these values, never as a side effect of another change.
 TERMS = {
     "LICENSE": "c0ea4a896d2c8c394b29f9427589996db826cd501c512279ff0ed3ef48fabbe5",
-    "LICENSE-ADDITIONAL.md": "919d9f26fc36e4c2ddbce06dc2b8d4f7499ef6d5be95023387f3d284101de424",
+    "LICENSE-ADDITIONAL.md": "4f6a2ef82b54a0758507af911a236d0320d8a446b8dbe54148bf3fb50476b4f8",
 }
 
 

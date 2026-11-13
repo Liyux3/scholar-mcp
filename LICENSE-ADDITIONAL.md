@@ -3,8 +3,7 @@
 Scholar MCP is licensed under the PolyForm Noncommercial License 1.0.0 in [LICENSE](LICENSE),
 together with the terms below. To get any license for the software you must agree to
 both, and these terms are conditions of every license granted under it. They add to
-the PolyForm Noncommercial License without changing its text, and they apply to releases
-after 0.9.0; releases 0.9.0 and earlier remain under the Apache License 2.0.
+the PolyForm Noncommercial License without changing its text.
 
 ## Commercial licenses
 
