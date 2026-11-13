@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.11.0
+
+- Search takes exact time windows: `--year`, and `year` in the tools, accepts a
+  month or a day as well as years, for example `2026-10` or
+  `2026-10-01..2026-11-09`.
+- Search results carry each paper's full abstract instead of cutting it at 300
+  characters, and when records from several sources merge, a source's body text
+  or supplementary captions no longer replace the real abstract.
+- Author search asks OpenAlex first and puts the person whose name matches
+  first, with affiliations, research topics and ORCID; Semantic Scholar answers
+  when OpenAlex cannot.
+- The additional terms ask that every copy keep the license, the notices,
+  AGENTS.md and the header at the top of each source file, and that a modified
+  copy you distribute go by its own name. Pull requests that change the terms
+  are closed by an automatic check; such changes start as an issue.
+- The command-line page of the documentation has a Run button on each research
+  command that replays a real recorded run, and the runtime and library figures
+  are redrawn with dark versions.
+
 ## 0.10.0
 
 - New terms from this release: Scholar MCP is source-available under the PolyForm
