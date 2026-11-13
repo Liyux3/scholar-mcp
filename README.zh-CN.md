@@ -20,7 +20,7 @@
   <a href="https://liyux3.github.io/scholar-mcp/zh-cn/">文档</a> · <a href="README.md">English</a> · 简体中文
 </p>
 
-Scholar MCP 给你的 AI 智能体配上一座研究图书馆。不用密钥时它同时搜索 17 个学术数据源，加上你自己的密钥最多 24 个。它会顺着引用和相关工作继续找，读原文一直读到图和表，再把要紧的论文连同你的笔记存进本地文献库。Claude、Codex、Cursor、VS Code、Gemini CLI、OpenCode 等任何 MCP 客户端都能用，命令行和 Python 里也能用。
+Scholar MCP 给你的 AI 智能体配上一座研究图书馆。它同时检索多个学术数据源，有你自己的密钥还能加上更多索引。它会顺着引用和相关工作继续找，读原文一直读到图和表，再把要紧的论文连同你的笔记存进本地文献库。Claude、Codex、Cursor、VS Code、Gemini CLI、OpenCode 等任何 MCP 客户端都能用，命令行和 Python 里也能用。
 
 <p align="center">
   <a href="https://liyux3.github.io/scholar-mcp/zh-cn/#watch"><img src="docs/assets/scholar-film-poster.jpg" alt="观看一分钟介绍片" width="820"></a>
